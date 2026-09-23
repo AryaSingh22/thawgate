@@ -23,7 +23,7 @@ import {
     sss2Preset,
     RoleType,
     QuotaPeriod,
-} from "@stbr/sss-token";
+} from "@thawgate/sdk";
 import { loadConfig, loadKeypair, saveConfig } from "./config";
 import { Logger } from "./logger";
 import { simulateTransaction } from "./utils";

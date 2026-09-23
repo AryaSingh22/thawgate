@@ -80,11 +80,11 @@ jobs:
 
       - name: TypeScript check (SDK)
         run: |
-          yarn workspace @stbr/sss-token run typecheck
-          yarn workspace @stbr/sss-token run build
+          yarn workspace @thawgate/sdk run typecheck
+          yarn workspace @thawgate/sdk run build
 
       - name: TypeScript check (CLI)
-        run: yarn workspace @stbr/sss-cli run typecheck
+        run: yarn workspace @thawgate/cli run typecheck
 
       - name: Run tests
         run: yarn test

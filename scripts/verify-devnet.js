@@ -47,7 +47,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var anchor = require("@coral-xyz/anchor");
 var web3_js_1 = require("@solana/web3.js");
-var sss_token_1 = require("@stbr/sss-token");
+var sss_token_1 = require("@thawgate/sdk");
 var spl_token_1 = require("@solana/spl-token");
 var fs_1 = require("fs");
 // Load deployer keypair

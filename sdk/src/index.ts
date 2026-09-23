@@ -1,5 +1,5 @@
 /**
- * @module @stbr/sss-token
+ * @module @thawgate/sdk
  * @description Solana Stablecoin Standard (SSS) TypeScript SDK.
  *
  * This package provides a complete TypeScript API for interacting
@@ -8,7 +8,7 @@
  *
  * @example
  * ```ts
- * import { SolanaStablecoin, Presets, SssError } from "@stbr/sss-token";
+ * import { SolanaStablecoin, Presets, SssError } from "@thawgate/sdk";
  *
  * const client = SolanaStablecoin.fromConfig({
  *   rpcUrl: "https://api.devnet.solana.com",
@@ -86,7 +86,7 @@ import { SSS3_FEATURES } from "./presets/sss3";
  *
  * @example
  * ```ts
- * import { Presets } from "@stbr/sss-token";
+ * import { Presets } from "@thawgate/sdk";
  * const hasPermanentDelegate = Presets.SSS_2.permanentDelegate; // true
  * ```
  */

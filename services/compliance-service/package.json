@@ -1,5 +1,5 @@
 {
-    "name": "@stbr/compliance-service",
+    "name": "@thawgate/compliance-service",
     "version": "0.1.0",
     "private": true,
     "scripts": {
@@ -11,7 +11,7 @@
     },
     "dependencies": {
         "@solana/web3.js": "^1.95.0",
-        "@stbr/shared": "file:../shared",
+        "@thawgate/shared": "file:../shared",
         "fastify": "^5.7.4"
     },
     "devDependencies": {

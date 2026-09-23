@@ -1,5 +1,5 @@
 {
-    "name": "@stbr/webhook-service",
+    "name": "@thawgate/webhook-service",
     "version": "0.1.0",
     "private": true,
     "scripts": {
@@ -11,7 +11,7 @@
     },
     "dependencies": {
         "@fastify/cors": "^8.5.0",
-        "@stbr/shared": "file:../shared",
+        "@thawgate/shared": "file:../shared",
         "bullmq": "^5.4.0",
         "fastify": "^4.26.2",
         "ioredis": "^5.3.0"

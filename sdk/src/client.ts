@@ -7,7 +7,7 @@
  *
  * @example
  * ```ts
- * import { SolanaStablecoin, sss1Preset } from "@stbr/sss-token";
+ * import { SolanaStablecoin, sss1Preset } from "@thawgate/sdk";
  *
  * const client = SolanaStablecoin.fromConfig({
  *   rpcUrl: "https://api.devnet.solana.com",

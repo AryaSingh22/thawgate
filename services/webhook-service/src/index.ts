@@ -19,8 +19,8 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import crypto from "crypto";
 import { Queue, Worker, Job } from "bullmq";
-import { db } from "@stbr/shared";
-import { loadServiceConfig } from "@stbr/shared";
+import { db } from "@thawgate/shared";
+import { loadServiceConfig } from "@thawgate/shared";
 
 const pkg = { version: "0.1.0" };
 const app = Fastify({ logger: true });

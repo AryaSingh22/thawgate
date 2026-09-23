@@ -1,5 +1,5 @@
 {
-    "name": "@stbr/sss-tui",
+    "name": "@thawgate/tui",
     "version": "0.1.0",
     "private": true,
     "description": "Admin terminal UI for managing SSS stablecoins",

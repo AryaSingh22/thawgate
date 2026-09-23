@@ -1,5 +1,5 @@
 {
-    "name": "@stbr/oracle-service",
+    "name": "@thawgate/oracle-service",
     "version": "0.1.0",
     "private": true,
     "description": "Oracle price feed service for SSS stablecoins",

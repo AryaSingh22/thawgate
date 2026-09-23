@@ -1,5 +1,5 @@
 {
-    "name": "@stbr/shared",
+    "name": "@thawgate/shared",
     "version": "0.1.0",
     "description": "Shared utilities, Prisma client, and types for SSS backend services",
     "private": true,

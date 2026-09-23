@@ -3,13 +3,13 @@
 ## Installation
 
 ```bash
-npm install @stbr/sss-token
+npm install @thawgate/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { SolanaStablecoin, Presets, sss1Preset, sss2Preset, RoleType, QuotaPeriod } from "@stbr/sss-token";
+import { SolanaStablecoin, Presets, sss1Preset, sss2Preset, RoleType, QuotaPeriod } from "@thawgate/sdk";
 import { Connection, PublicKey, Keypair, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 
@@ -125,7 +125,7 @@ const paused = await client.isPaused(mint);
 ## PDA Helpers
 
 ```typescript
-import { findConfigPda, findRolePda, findBlacklistPda } from "@stbr/sss-token";
+import { findConfigPda, findRolePda, findBlacklistPda } from "@thawgate/sdk";
 
 const [configPda, bump] = findConfigPda(mint, programId);
 const [rolePda] = findRolePda(mint, holder, RoleType.Minter, programId);
@@ -135,7 +135,7 @@ const [blacklistPda] = findBlacklistPda(mint, target, programId);
 ## Error Handling
 
 ```typescript
-import { SSSError, AuthorizationError, TokenPausedError, parseError } from "@stbr/sss-token";
+import { SSSError, AuthorizationError, TokenPausedError, parseError } from "@thawgate/sdk";
 
 try {
   await client.mintTokens(mint, minter, recipient, amount);

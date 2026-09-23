@@ -1,8 +1,17 @@
 {
-    "name": "@stbr/sss-token",
+    "name": "@thawgate/sdk",
     "version": "0.1.0",
     "description": "TypeScript SDK for the Solana Stablecoin Standard (SSS)",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/AryaSingh22/thawgate.git",
+        "directory": "sdk"
+    },
+    "homepage": "https://github.com/AryaSingh22/thawgate#readme",
+    "bugs": {
+        "url": "https://github.com/AryaSingh22/thawgate/issues"
+    },
     "main": "./dist/index.js",
     "module": "./dist/index.mjs",
     "types": "./dist/index.d.ts",

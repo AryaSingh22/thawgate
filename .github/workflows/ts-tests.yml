@@ -71,7 +71,7 @@ jobs:
       - name: Run SDK tests
         env:
           ANCHOR_WALLET: ./test-keypair.json
-        run: yarn workspace @stbr/sss-token run test 2>&1 | tee sdk_vitest.log
+        run: yarn workspace @thawgate/sdk run test 2>&1 | tee sdk_vitest.log
 
       - name: Upload test logs
         if: always()

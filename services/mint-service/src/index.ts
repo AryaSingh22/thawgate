@@ -13,9 +13,9 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { Connection, PublicKey, Keypair, Transaction } from "@solana/web3.js";
-import { db } from "@stbr/shared";
-import { loadServiceConfig } from "@stbr/shared";
-import { sendWithRetry } from "@stbr/shared";
+import { db } from "@thawgate/shared";
+import { loadServiceConfig } from "@thawgate/shared";
+import { sendWithRetry } from "@thawgate/shared";
 
 const pkg = { version: "0.1.0" };
 

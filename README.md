@@ -1,8 +1,7 @@
-# Solana Stablecoin Standard (SSS)
+# ThawGate
 
 [![Tests passing](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](#)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](#)
-[![Fuzzed](https://img.shields.io/badge/Fuzz_Tested-Trident-orange.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > A modular, production-grade stablecoin framework for Solana using Token-2022 extensions.
@@ -29,7 +28,7 @@ SSS provides tiered stablecoin configurations with built-in compliance, role-bas
 
 ### 1. CLI Usage
 ```bash
-npm install -g @stbr/sss-token-cli
+npm install -g @thawgate/cli
 
 # Initialize an SSS-2 compliant stablecoin
 sss-token init --preset sss-2
@@ -43,7 +42,7 @@ sss-token status <mint-address>
 
 ### 2. SDK Usage
 ```typescript
-import { SolanaStablecoin, Presets } from "@stbr/sss-token";
+import { SolanaStablecoin, Presets } from "@thawgate/sdk";
 
 const stable = await SolanaStablecoin.create(connection, {
   preset: Presets.SSS_2,
@@ -92,12 +91,12 @@ Layer 1 (Base SDK)   ┌────────────┴─────�
 ## Repository Structure
 
 ```
-solana-stablecoin-standard/
+thawgate/
 ├── programs/
 │   ├── sss-token/           # Main Anchor program (16 instructions)
 │   ├── transfer-hook/       # Compliance enforcement hook
 │   └── oracle-module/       # Oracle price feed gating
-├── sdk/                     # TypeScript SDK (@stbr/sss-token)
+├── sdk/                     # TypeScript SDK (@thawgate/sdk)
 ├── cli/                     # CLI tool (sss-token)
 ├── services/
 │   ├── mint-service/        # Mint/burn API (Fastify)
@@ -115,11 +114,10 @@ solana-stablecoin-standard/
 All test runs, logs, and screenshots are captured in the `evidence/` directory.
 
 - **Cargo / Rust Units**: 219 passed
-- **Anchor Integration**: 10 passing
+- **Anchor Integration**: not yet run on Anchor 0.32; see [docs/gatekit/LOG.md](docs/gatekit/LOG.md)
 - **Vitest SDK**: 15 passing
 - **Vitest CLI**: 8 passing
 - **Vitest Security**: 15 passing
-- **Trident Fuzz**: 0 bugs/crashes in 120s (SSS-1 and SSS-2)
 - **TypeScript**: `tsc --noEmit` 0 errors across 4 workspaces
 
 ## Bonus Features Showcased

@@ -1,5 +1,5 @@
 {
-    "name": "@stbr/sss-dashboard",
+    "name": "@thawgate/console",
     "private": true,
     "version": "0.1.0",
     "type": "module",

@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
-import { SolanaStablecoin, Presets, QuotaPeriod, RoleType } from "@stbr/sss-token";
+import { SolanaStablecoin, Presets, QuotaPeriod, RoleType } from "@thawgate/sdk";
 import { getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getExtraAccountMetaAddress } from "@solana/spl-token";
 import fs from "fs";
 

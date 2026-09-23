@@ -1,7 +1,15 @@
 {
-  "name": "solana-stablecoin-standard",
+  "name": "thawgate",
   "version": "0.1.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AryaSingh22/thawgate.git"
+  },
+  "homepage": "https://github.com/AryaSingh22/thawgate#readme",
+  "bugs": {
+    "url": "https://github.com/AryaSingh22/thawgate/issues"
+  },
   "workspaces": [
     "sdk",
     "cli",

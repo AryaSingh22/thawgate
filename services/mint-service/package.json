@@ -1,5 +1,5 @@
 {
-    "name": "@stbr/mint-service",
+    "name": "@thawgate/mint-service",
     "version": "0.1.0",
     "private": true,
     "scripts": {
@@ -14,7 +14,7 @@
         "@fastify/cors": "^8.5.0",
         "@solana/spl-token": "^0.4.14",
         "@solana/web3.js": "^1.95.0",
-        "@stbr/shared": "file:../shared",
+        "@thawgate/shared": "file:../shared",
         "bullmq": "^5.4.0",
         "fastify": "^4.26.2",
         "ioredis": "^5.3.0"

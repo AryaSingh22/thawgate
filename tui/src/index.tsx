@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @module sss-tui
+ * @module @thawgate/tui
  * @description Admin Terminal UI for managing SSS stablecoins.
  *
  * Screens:
