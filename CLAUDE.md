@@ -13,6 +13,7 @@ Research and plan live in `docs/gatekit/` (PLAN.md = per-session checklist). The
 anchor build                 # all programs
 cargo test --workspace       # Rust unit tests
 yarn install                 # TS workspaces: sdk, cli, services/*
+yarn workspace @thawgate/sdk build && yarn workspace @thawgate/shared build   # once per fresh clone: cli/services type against their dist/
 yarn typecheck               # tsc --noEmit in every workspace
 yarn test:unit               # ts-mocha tests/unit; needs a local validator on :8899
 ```
