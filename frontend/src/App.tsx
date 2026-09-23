@@ -1,346 +1,946 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
     ConnectionProvider,
     WalletProvider,
-    useWallet,
     useConnection,
+    useWallet,
 } from "@solana/wallet-adapter-react";
 import { WalletModalProvider, WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
 import { clusterApiUrl, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import {
+    Area,
+    AreaChart,
+    CartesianGrid,
+    ResponsiveContainer,
+    Tooltip,
+    XAxis,
+    YAxis,
+} from "recharts";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 const RPC_URL = import.meta.env.VITE_RPC_URL || clusterApiUrl("devnet");
 
-// ============================================================================
-// Dashboard Component
-// ============================================================================
+const SERVICES = {
+    mint: {
+        label: "Mint API",
+        baseUrl: import.meta.env.VITE_MINT_API_URL || "http://localhost:3001",
+        healthPath: "/health",
+    },
+    indexer: {
+        label: "Indexer",
+        baseUrl: import.meta.env.VITE_INDEXER_API_URL || "http://localhost:3002",
+        healthPath: "/health",
+    },
+    compliance: {
+        label: "Compliance API",
+        baseUrl: import.meta.env.VITE_COMPLIANCE_API_URL || "http://localhost:3003",
+        healthPath: "/health",
+    },
+    webhook: {
+        label: "Webhook API",
+        baseUrl: import.meta.env.VITE_WEBHOOK_API_URL || "http://localhost:3004",
+        healthPath: "/health",
+    },
+} as const;
+
+type ServiceKey = keyof typeof SERVICES;
+type TabId = "overview" | "operations" | "compliance" | "webhooks";
+type RequestState = "idle" | "loading" | "success" | "error";
+
+type ServiceHealth = {
+    key: ServiceKey;
+    label: string;
+    url: string;
+    status: "online" | "offline" | "checking";
+    latencyMs?: number;
+    detail?: string;
+};
+
+type SupplyData = {
+    mint: string;
+    totalMinted: string;
+    totalBurned: string;
+    currentSupply: string;
+};
+
+type AuditEntry = {
+    action: string;
+    actor?: string;
+    target?: string | null;
+    amount?: string | null;
+    reason?: string | null;
+    txSignature?: string;
+    timestamp: string;
+};
+
+type BlacklistEntry = {
+    target: string;
+    operator?: string;
+    reason?: string | null;
+    txSignature?: string;
+    timestamp?: string;
+};
+
+type WebhookSubscription = {
+    id: string;
+    url: string;
+    events: string[];
+    active: boolean;
+    createdAt?: string;
+};
+
+type IndexerStatus = {
+    subscribed: boolean;
+    programId: string;
+    lastProcessedSlot: string;
+    currentSlot: number;
+    lag: number | null;
+    eventsProcessed: number;
+};
+
+function shortAddress(value?: string | null) {
+    if (!value) return "-";
+    return value.length > 12 ? `${value.slice(0, 5)}...${value.slice(-5)}` : value;
+}
+
+function formatAmount(value?: string | null) {
+    if (!value) return "0";
+    try {
+        return BigInt(value).toLocaleString("en-US");
+    } catch {
+        return value;
+    }
+}
+
+function validatePublicKey(value: string, label: string) {
+    try {
+        new PublicKey(value);
+        return "";
+    } catch {
+        return `${label} must be a valid Solana public key.`;
+    }
+}
+
+async function fetchJson<T>(baseUrl: string, path: string, options?: RequestInit): Promise<T> {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10_000);
+
+    try {
+        const response = await fetch(`${baseUrl}${path}`, {
+            ...options,
+            headers: {
+                "Content-Type": "application/json",
+                ...(options?.headers ?? {}),
+            },
+            signal: controller.signal,
+        });
+
+        const text = await response.text();
+        const payload = text ? JSON.parse(text) : {};
+
+        if (!response.ok || payload?.success === false) {
+            throw new Error(payload?.error || payload?.message || `HTTP ${response.status}`);
+        }
+
+        return payload as T;
+    } finally {
+        window.clearTimeout(timeout);
+    }
+}
+
 function Dashboard() {
     const { publicKey, connected } = useWallet();
     const { connection } = useConnection();
-    const [activeTab, setActiveTab] = useState<"dashboard" | "mint" | "burn" | "blacklist" | "audit">("dashboard");
-    const [balance, setBalance] = useState<number | null>(null);
-    const [supplyData, setSupplyData] = useState({ totalMinted: "0", totalBurned: "0", netSupply: "0" });
-    const [auditLog, setAuditLog] = useState<{ action: string; timestamp: string; details: string }[]>([]);
-    const [isPaused, setIsPaused] = useState(false);
+    const [activeTab, setActiveTab] = useState<TabId>("overview");
+    const [walletBalance, setWalletBalance] = useState<number | null>(null);
+    const [mintAddress, setMintAddress] = useState(() => localStorage.getItem("sss.mintAddress") || "");
+    const [health, setHealth] = useState<ServiceHealth[]>(() =>
+        Object.entries(SERVICES).map(([key, service]) => ({
+            key: key as ServiceKey,
+            label: service.label,
+            url: service.baseUrl,
+            status: "checking",
+        })),
+    );
+    const [supplyData, setSupplyData] = useState<SupplyData | null>(null);
+    const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+    const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
+    const [webhooks, setWebhooks] = useState<WebhookSubscription[]>([]);
+    const [indexerStatus, setIndexerStatus] = useState<IndexerStatus | null>(null);
+    const [lastMessage, setLastMessage] = useState("");
+
+    const refreshHealth = useCallback(async () => {
+        const checks = await Promise.all(
+            Object.entries(SERVICES).map(async ([key, service]) => {
+                const started = performance.now();
+                try {
+                    const payload = await fetchJson<{ service?: string; status?: string }>(
+                        service.baseUrl,
+                        service.healthPath,
+                    );
+                    return {
+                        key: key as ServiceKey,
+                        label: service.label,
+                        url: service.baseUrl,
+                        status: "online" as const,
+                        latencyMs: Math.max(1, Math.round(performance.now() - started)),
+                        detail: payload.service || payload.status || "ok",
+                    };
+                } catch (error) {
+                    return {
+                        key: key as ServiceKey,
+                        label: service.label,
+                        url: service.baseUrl,
+                        status: "offline" as const,
+                        detail: error instanceof Error ? error.message : "unreachable",
+                    };
+                }
+            }),
+        );
+        setHealth(checks);
+    }, []);
+
+    const refreshMintData = useCallback(async () => {
+        if (!mintAddress.trim()) {
+            setSupplyData(null);
+            setAuditLog([]);
+            setBlacklist([]);
+            return;
+        }
+
+        const mintError = validatePublicKey(mintAddress, "Mint");
+        if (mintError) {
+            setLastMessage(mintError);
+            return;
+        }
+
+        localStorage.setItem("sss.mintAddress", mintAddress);
+
+        const [supply, audit, blacklistData] = await Promise.allSettled([
+            fetchJson<{ data: SupplyData }>(
+                SERVICES.mint.baseUrl,
+                `/supply/${encodeURIComponent(mintAddress)}`,
+            ),
+            fetchJson<{ data: AuditEntry[] }>(
+                SERVICES.compliance.baseUrl,
+                `/audit/${encodeURIComponent(mintAddress)}`,
+            ),
+            fetchJson<{ data: BlacklistEntry[] }>(
+                SERVICES.compliance.baseUrl,
+                `/blacklist/${encodeURIComponent(mintAddress)}`,
+            ),
+        ]);
+
+        if (supply.status === "fulfilled") {
+            setSupplyData(supply.value.data);
+        }
+        if (audit.status === "fulfilled") {
+            setAuditLog(audit.value.data);
+        }
+        if (blacklistData.status === "fulfilled") {
+            setBlacklist(blacklistData.value.data);
+        }
+
+        const failed = [supply, audit, blacklistData].filter((result) => result.status === "rejected");
+        setLastMessage(
+            failed.length
+                ? "Some data sources are unavailable. Service health has the details."
+                : `Loaded operator data for ${shortAddress(mintAddress)}.`,
+        );
+    }, [mintAddress]);
+
+    const refreshWebhooks = useCallback(async () => {
+        try {
+            const payload = await fetchJson<{ data: WebhookSubscription[] }>(
+                SERVICES.webhook.baseUrl,
+                "/subscriptions",
+            );
+            setWebhooks(payload.data);
+        } catch (error) {
+            setLastMessage(error instanceof Error ? error.message : "Failed to load webhooks.");
+        }
+    }, []);
+
+    const refreshIndexer = useCallback(async () => {
+        try {
+            const payload = await fetchJson<IndexerStatus>(SERVICES.indexer.baseUrl, "/status");
+            setIndexerStatus(payload);
+        } catch {
+            setIndexerStatus(null);
+        }
+    }, []);
 
     useEffect(() => {
-        if (publicKey && connection) {
-            connection.getBalance(publicKey).then((bal) => setBalance(bal / LAMPORTS_PER_SOL));
+        refreshHealth();
+        refreshIndexer();
+        refreshWebhooks();
+    }, [refreshHealth, refreshIndexer, refreshWebhooks]);
+
+    useEffect(() => {
+        if (!publicKey || !connection) {
+            setWalletBalance(null);
+            return;
         }
+
+        connection
+            .getBalance(publicKey)
+            .then((balance) => setWalletBalance(balance / LAMPORTS_PER_SOL))
+            .catch(() => setWalletBalance(null));
     }, [publicKey, connection]);
 
+    const chartData = useMemo(() => {
+        const minted = Number(supplyData?.totalMinted ?? 0);
+        const burned = Number(supplyData?.totalBurned ?? 0);
+        const supply = Number(supplyData?.currentSupply ?? 0);
+
+        return [
+            { label: "Minted", amount: Number.isFinite(minted) ? minted : 0 },
+            { label: "Burned", amount: Number.isFinite(burned) ? burned : 0 },
+            { label: "Supply", amount: Number.isFinite(supply) ? supply : 0 },
+        ];
+    }, [supplyData]);
+
     const tabs = [
-        { id: "dashboard" as const, label: "Dashboard", icon: "📊" },
-        { id: "mint" as const, label: "Mint", icon: "🪙" },
-        { id: "burn" as const, label: "Burn", icon: "🔥" },
-        { id: "blacklist" as const, label: "Blacklist", icon: "🚫" },
-        { id: "audit" as const, label: "Audit Log", icon: "📋" },
+        { id: "overview" as const, label: "Overview" },
+        { id: "operations" as const, label: "Mint and Burn" },
+        { id: "compliance" as const, label: "Compliance" },
+        { id: "webhooks" as const, label: "Webhooks" },
     ];
 
     return (
-        <div className="min-h-screen bg-surface-950">
-            {/* Status Bar */}
-            <header className="glass border-b border-white/5 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
-                <div className="flex items-center gap-4">
-                    <h1 className="text-xl font-bold gradient-text">SSS Dashboard</h1>
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <span className={`status-dot ${isPaused ? "bg-red-400" : "bg-green-400"}`} />
-                        {isPaused ? "Paused" : "Active"}
-                    </div>
+        <div className="app-shell">
+            <header className="topbar">
+                <div>
+                    <p className="eyebrow">Solana Stablecoin Standard</p>
+                    <h1>Operator Console</h1>
                 </div>
-                <div className="flex items-center gap-4">
-                    {balance !== null && (
-                        <span className="text-sm text-gray-400 font-mono">
-                            {balance.toFixed(4)} SOL
-                        </span>
-                    )}
-                    <WalletMultiButton className="!bg-primary-600 !rounded-xl !font-semibold !h-10" />
+                <div className="wallet-strip">
+                    {connected && walletBalance !== null ? (
+                        <span className="balance-pill">{walletBalance.toFixed(4)} SOL</span>
+                    ) : null}
+                    <WalletMultiButton className="wallet-button" />
                 </div>
             </header>
 
-            <div className="flex">
-                {/* Sidebar Navigation */}
-                <nav className="w-64 min-h-[calc(100vh-52px)] glass border-r border-white/5 p-4">
-                    <div className="space-y-1">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${activeTab === tab.id
-                                        ? "bg-primary-500/20 text-primary-300 border border-primary-500/30"
-                                        : "text-gray-400 hover:bg-white/5 hover:text-white"
-                                    }`}
-                            >
-                                <span>{tab.icon}</span>
-                                <span className="font-medium">{tab.label}</span>
-                            </button>
-                        ))}
-                    </div>
-                </nav>
+            <section className="control-band">
+                <div className="field grow">
+                    <label htmlFor="mint-address">Mint address</label>
+                    <input
+                        id="mint-address"
+                        className="input mono"
+                        value={mintAddress}
+                        onChange={(event) => setMintAddress(event.target.value.trim())}
+                        placeholder="Token-2022 mint public key"
+                    />
+                </div>
+                <button className="button primary" onClick={refreshMintData}>
+                    Refresh
+                </button>
+                <button className="button" onClick={refreshHealth}>
+                    Check services
+                </button>
+            </section>
 
-                {/* Main Content */}
-                <main className="flex-1 p-8">
-                    {!connected ? (
-                        <div className="flex flex-col items-center justify-center h-96">
-                            <div className="card-hover text-center p-12">
-                                <h2 className="text-2xl font-bold gradient-text mb-4">
-                                    Connect Your Wallet
-                                </h2>
-                                <p className="text-gray-400 mb-6">
-                                    Connect a Solana wallet to manage your stablecoin.
-                                </p>
-                                <WalletMultiButton className="!bg-primary-600 !rounded-xl !font-semibold" />
-                            </div>
-                        </div>
-                    ) : activeTab === "dashboard" ? (
-                        <DashboardView supplyData={supplyData} />
-                    ) : activeTab === "mint" ? (
-                        <MintForm />
-                    ) : activeTab === "burn" ? (
-                        <BurnForm />
-                    ) : activeTab === "blacklist" ? (
-                        <BlacklistPanel />
-                    ) : (
-                        <AuditLogView entries={auditLog} />
-                    )}
+            {lastMessage ? <div className="notice">{lastMessage}</div> : null}
+
+            <div className="layout-grid">
+                <aside className="sidebar">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            className={activeTab === tab.id ? "nav-item active" : "nav-item"}
+                            onClick={() => setActiveTab(tab.id)}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                    <ServiceList services={health} />
+                </aside>
+
+                <main className="content">
+                    {activeTab === "overview" ? (
+                        <Overview
+                            auditLog={auditLog}
+                            chartData={chartData}
+                            health={health}
+                            indexerStatus={indexerStatus}
+                            supplyData={supplyData}
+                        />
+                    ) : null}
+                    {activeTab === "operations" ? (
+                        <Operations
+                            mintAddress={mintAddress}
+                            onComplete={() => {
+                                refreshMintData();
+                                refreshHealth();
+                            }}
+                            setMessage={setLastMessage}
+                        />
+                    ) : null}
+                    {activeTab === "compliance" ? (
+                        <Compliance
+                            auditLog={auditLog}
+                            blacklist={blacklist}
+                            mintAddress={mintAddress}
+                            onRefresh={refreshMintData}
+                            setMessage={setLastMessage}
+                        />
+                    ) : null}
+                    {activeTab === "webhooks" ? (
+                        <Webhooks
+                            mintAddress={mintAddress}
+                            subscriptions={webhooks}
+                            onRefresh={refreshWebhooks}
+                            setMessage={setLastMessage}
+                        />
+                    ) : null}
                 </main>
             </div>
         </div>
     );
 }
 
-// ============================================================================
-// Dashboard View
-// ============================================================================
-function DashboardView({ supplyData }: { supplyData: { totalMinted: string; totalBurned: string; netSupply: string } }) {
+function ServiceList({ services }: { services: ServiceHealth[] }) {
+    return (
+        <div className="service-list">
+            <div className="section-label">Services</div>
+            {services.map((service) => (
+                <div key={service.key} className="service-row">
+                    <span className={`status-dot ${service.status}`} />
+                    <div>
+                        <strong>{service.label}</strong>
+                        <span>{service.latencyMs ? `${service.latencyMs} ms` : service.detail}</span>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function Overview({
+    auditLog,
+    chartData,
+    health,
+    indexerStatus,
+    supplyData,
+}: {
+    auditLog: AuditEntry[];
+    chartData: { label: string; amount: number }[];
+    health: ServiceHealth[];
+    indexerStatus: IndexerStatus | null;
+    supplyData: SupplyData | null;
+}) {
+    const online = health.filter((service) => service.status === "online").length;
     const stats = [
-        { label: "Total Minted", value: supplyData.totalMinted, color: "text-green-400", icon: "🪙" },
-        { label: "Total Burned", value: supplyData.totalBurned, color: "text-red-400", icon: "🔥" },
-        { label: "Net Supply", value: supplyData.netSupply, color: "text-primary-400", icon: "📊" },
+        { label: "Current supply", value: formatAmount(supplyData?.currentSupply) },
+        { label: "Minted", value: formatAmount(supplyData?.totalMinted) },
+        { label: "Burned", value: formatAmount(supplyData?.totalBurned) },
+        { label: "Audit events", value: auditLog.length.toLocaleString("en-US") },
     ];
 
     return (
-        <div className="space-y-8">
-            <h2 className="text-2xl font-bold">Supply Overview</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="stack">
+            <div className="metric-grid">
                 {stats.map((stat) => (
-                    <div key={stat.label} className="card-hover">
-                        <div className="flex items-center gap-3 mb-3">
-                            <span className="text-2xl">{stat.icon}</span>
-                            <span className="text-sm text-gray-400 font-medium">{stat.label}</span>
-                        </div>
-                        <p className={`text-3xl font-bold font-mono ${stat.color}`}>
-                            {stat.value}
-                        </p>
-                    </div>
+                    <article key={stat.label} className="metric-card">
+                        <span>{stat.label}</span>
+                        <strong>{stat.value}</strong>
+                    </article>
                 ))}
             </div>
 
-            {/* Supply Chart Placeholder */}
-            <div className="card">
-                <h3 className="text-lg font-semibold mb-4">Supply History</h3>
-                <div className="h-64 flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                        <p className="text-6xl mb-4">📈</p>
-                        <p>Connect to a mint to view supply history</p>
+            <div className="two-column">
+                <section className="panel">
+                    <div className="panel-heading">
+                        <h2>Supply Position</h2>
+                        <span className="muted mono">{supplyData ? shortAddress(supplyData.mint) : "No mint"}</span>
                     </div>
-                </div>
+                    <div className="chart-box">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData} margin={{ top: 12, right: 16, left: 4, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="supplyGradient" x1="0" x2="0" y1="0" y2="1">
+                                        <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.55} />
+                                        <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.04} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid stroke="#28303a" strokeDasharray="3 3" />
+                                <XAxis dataKey="label" stroke="#8b949e" />
+                                <YAxis stroke="#8b949e" />
+                                <Tooltip
+                                    contentStyle={{
+                                        background: "#15191f",
+                                        border: "1px solid #30363d",
+                                        borderRadius: 8,
+                                        color: "#f0f3f6",
+                                    }}
+                                />
+                                <Area
+                                    dataKey="amount"
+                                    stroke="#14b8a6"
+                                    strokeWidth={2}
+                                    fill="url(#supplyGradient)"
+                                    type="monotone"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </section>
+
+                <section className="panel">
+                    <div className="panel-heading">
+                        <h2>Runtime</h2>
+                        <span className={online === health.length ? "badge good" : "badge warn"}>
+                            {online}/{health.length} online
+                        </span>
+                    </div>
+                    <dl className="detail-list">
+                        <div>
+                            <dt>Indexer subscription</dt>
+                            <dd>{indexerStatus?.subscribed ? "Active" : "Inactive"}</dd>
+                        </div>
+                        <div>
+                            <dt>Current slot</dt>
+                            <dd>{indexerStatus?.currentSlot?.toLocaleString("en-US") ?? "-"}</dd>
+                        </div>
+                        <div>
+                            <dt>Indexer lag</dt>
+                            <dd>{indexerStatus?.lag ?? "-"}</dd>
+                        </div>
+                        <div>
+                            <dt>Events processed</dt>
+                            <dd>{indexerStatus?.eventsProcessed?.toLocaleString("en-US") ?? "-"}</dd>
+                        </div>
+                    </dl>
+                </section>
             </div>
+
+            <AuditTable entries={auditLog.slice(0, 8)} />
         </div>
     );
 }
 
-// ============================================================================
-// Mint Form
-// ============================================================================
-function MintForm() {
+function Operations({
+    mintAddress,
+    onComplete,
+    setMessage,
+}: {
+    mintAddress: string;
+    onComplete: () => void;
+    setMessage: (message: string) => void;
+}) {
+    return (
+        <div className="two-column top-align">
+            <MintForm mintAddress={mintAddress} onComplete={onComplete} setMessage={setMessage} />
+            <BurnForm mintAddress={mintAddress} onComplete={onComplete} setMessage={setMessage} />
+        </div>
+    );
+}
+
+function MintForm({
+    mintAddress,
+    onComplete,
+    setMessage,
+}: {
+    mintAddress: string;
+    onComplete: () => void;
+    setMessage: (message: string) => void;
+}) {
     const [recipient, setRecipient] = useState("");
     const [amount, setAmount] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
+    const [state, setState] = useState<RequestState>("idle");
 
-    const handleMint = async () => {
-        setIsLoading(true);
-        try {
-            // In production, call SDK mintTokens here
-            alert(`Minting ${amount} tokens to ${recipient}`);
-        } finally {
-            setIsLoading(false);
+    async function handleSubmit(event: FormEvent) {
+        event.preventDefault();
+        const mintError = validatePublicKey(mintAddress, "Mint");
+        const recipientError = validatePublicKey(recipient, "Recipient");
+        if (mintError || recipientError) {
+            setMessage(mintError || recipientError);
+            return;
         }
-    };
+
+        setState("loading");
+        try {
+            const payload = await fetchJson<{ signature: string; slot: number; amount: string }>(
+                SERVICES.mint.baseUrl,
+                "/mint",
+                {
+                    method: "POST",
+                    body: JSON.stringify({ mintAddress, recipient, amount }),
+                },
+            );
+            setState("success");
+            setMessage(`Mint confirmed at slot ${payload.slot}: ${shortAddress(payload.signature)}`);
+            setRecipient("");
+            setAmount("");
+            onComplete();
+        } catch (error) {
+            setState("error");
+            setMessage(error instanceof Error ? error.message : "Mint failed.");
+        }
+    }
 
     return (
-        <div className="max-w-lg space-y-6">
-            <h2 className="text-2xl font-bold">Mint Tokens</h2>
-            <div className="card space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Recipient Address</label>
-                    <input
-                        type="text"
-                        className="input-field font-mono"
-                        placeholder="Enter wallet address..."
-                        value={recipient}
-                        onChange={(e) => setRecipient(e.target.value)}
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Amount</label>
-                    <input
-                        type="number"
-                        className="input-field"
-                        placeholder="0.00"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                    />
-                </div>
-                <button
-                    className="btn-primary w-full"
-                    onClick={handleMint}
-                    disabled={!recipient || !amount || isLoading}
-                >
-                    {isLoading ? "Minting..." : "Mint Tokens"}
-                </button>
+        <form className="panel form-panel" onSubmit={handleSubmit}>
+            <div className="panel-heading">
+                <h2>Mint Tokens</h2>
+                <span className="badge">Raw units</span>
             </div>
-        </div>
+            <Field label="Recipient wallet">
+                <input
+                    className="input mono"
+                    value={recipient}
+                    onChange={(event) => setRecipient(event.target.value.trim())}
+                    placeholder="Wallet public key"
+                />
+            </Field>
+            <Field label="Amount">
+                <input
+                    className="input"
+                    min="1"
+                    step="1"
+                    type="number"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder="1000000"
+                />
+            </Field>
+            <button className="button primary fill" disabled={!mintAddress || !recipient || !amount || state === "loading"}>
+                {state === "loading" ? "Submitting..." : "Submit mint"}
+            </button>
+        </form>
     );
 }
 
-// ============================================================================
-// Burn Form
-// ============================================================================
-function BurnForm() {
+function BurnForm({
+    mintAddress,
+    onComplete,
+    setMessage,
+}: {
+    mintAddress: string;
+    onComplete: () => void;
+    setMessage: (message: string) => void;
+}) {
     const [amount, setAmount] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
+    const [state, setState] = useState<RequestState>("idle");
 
-    const handleBurn = async () => {
-        setIsLoading(true);
-        try {
-            alert(`Burning ${amount} tokens`);
-        } finally {
-            setIsLoading(false);
+    async function handleSubmit(event: FormEvent) {
+        event.preventDefault();
+        const mintError = validatePublicKey(mintAddress, "Mint");
+        if (mintError) {
+            setMessage(mintError);
+            return;
         }
-    };
+
+        setState("loading");
+        try {
+            const payload = await fetchJson<{ signature: string; slot: number; amount: string }>(
+                SERVICES.mint.baseUrl,
+                "/burn",
+                {
+                    method: "POST",
+                    body: JSON.stringify({ mintAddress, amount }),
+                },
+            );
+            setState("success");
+            setMessage(`Burn confirmed at slot ${payload.slot}: ${shortAddress(payload.signature)}`);
+            setAmount("");
+            onComplete();
+        } catch (error) {
+            setState("error");
+            setMessage(error instanceof Error ? error.message : "Burn failed.");
+        }
+    }
 
     return (
-        <div className="max-w-lg space-y-6">
-            <h2 className="text-2xl font-bold">Burn Tokens</h2>
-            <div className="card space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Amount to Burn</label>
-                    <input
-                        type="number"
-                        className="input-field"
-                        placeholder="0.00"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                    />
-                </div>
-                <button
-                    className="btn-danger w-full"
-                    onClick={handleBurn}
-                    disabled={!amount || isLoading}
-                >
-                    {isLoading ? "Burning..." : "🔥 Burn Tokens"}
-                </button>
+        <form className="panel form-panel" onSubmit={handleSubmit}>
+            <div className="panel-heading">
+                <h2>Burn Tokens</h2>
+                <span className="badge danger">Supply reducing</span>
             </div>
-        </div>
+            <Field label="Amount">
+                <input
+                    className="input"
+                    min="1"
+                    step="1"
+                    type="number"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    placeholder="1000000"
+                />
+            </Field>
+            <button className="button danger fill" disabled={!mintAddress || !amount || state === "loading"}>
+                {state === "loading" ? "Submitting..." : "Submit burn"}
+            </button>
+        </form>
     );
 }
 
-// ============================================================================
-// Blacklist Panel
-// ============================================================================
-function BlacklistPanel() {
+function Compliance({
+    auditLog,
+    blacklist,
+    mintAddress,
+    onRefresh,
+    setMessage,
+}: {
+    auditLog: AuditEntry[];
+    blacklist: BlacklistEntry[];
+    mintAddress: string;
+    onRefresh: () => void;
+    setMessage: (message: string) => void;
+}) {
     const [target, setTarget] = useState("");
-    const [reason, setReason] = useState("");
-    const [entries, setEntries] = useState<{ address: string; reason: string; date: string }[]>([]);
+    const [checkResult, setCheckResult] = useState<string | null>(null);
+    const [state, setState] = useState<RequestState>("idle");
 
-    const handleAdd = async () => {
-        setEntries([...entries, { address: target, reason, date: new Date().toISOString() }]);
-        setTarget("");
-        setReason("");
-    };
+    async function checkWallet(event: FormEvent) {
+        event.preventDefault();
+        const mintError = validatePublicKey(mintAddress, "Mint");
+        const targetError = validatePublicKey(target, "Wallet");
+        if (mintError || targetError) {
+            setMessage(mintError || targetError);
+            return;
+        }
+
+        setState("loading");
+        try {
+            const payload = await fetchJson<{
+                blacklisted: boolean;
+                entry: { reason?: string | null; timestamp?: string } | null;
+            }>(
+                SERVICES.compliance.baseUrl,
+                `/blacklist/${encodeURIComponent(mintAddress)}/${encodeURIComponent(target)}`,
+            );
+            setCheckResult(
+                payload.blacklisted
+                    ? `Blacklisted${payload.entry?.reason ? `: ${payload.entry.reason}` : ""}`
+                    : "Clear",
+            );
+            setState("success");
+        } catch (error) {
+            setState("error");
+            setMessage(error instanceof Error ? error.message : "Blacklist check failed.");
+        }
+    }
 
     return (
-        <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Blacklist Management</h2>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="card space-y-4">
-                    <h3 className="text-lg font-semibold">Add to Blacklist</h3>
-                    <input
-                        type="text"
-                        className="input-field font-mono"
-                        placeholder="Wallet address..."
-                        value={target}
-                        onChange={(e) => setTarget(e.target.value)}
-                    />
-                    <input
-                        type="text"
-                        className="input-field"
-                        placeholder="Reason for blacklisting..."
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                    />
-                    <button className="btn-danger w-full" onClick={handleAdd} disabled={!target || !reason}>
-                        🚫 Add to Blacklist
+        <div className="stack">
+            <div className="two-column top-align">
+                <form className="panel form-panel" onSubmit={checkWallet}>
+                    <div className="panel-heading">
+                        <h2>Wallet Screening</h2>
+                        <span className={checkResult === "Clear" ? "badge good" : "badge"}>{checkResult || state}</span>
+                    </div>
+                    <Field label="Wallet address">
+                        <input
+                            className="input mono"
+                            value={target}
+                            onChange={(event) => setTarget(event.target.value.trim())}
+                            placeholder="Wallet public key"
+                        />
+                    </Field>
+                    <button className="button primary fill" disabled={!mintAddress || !target || state === "loading"}>
+                        Check wallet
                     </button>
-                </div>
+                </form>
 
-                <div className="card">
-                    <h3 className="text-lg font-semibold mb-4">Blacklisted Addresses</h3>
-                    {entries.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No blacklisted addresses</p>
-                    ) : (
-                        <div className="space-y-2">
-                            {entries.map((e, i) => (
-                                <div key={i} className="bg-surface-800/50 rounded-lg p-3">
-                                    <p className="font-mono text-sm text-red-400 truncate">{e.address}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{e.reason}</p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                <section className="panel">
+                    <div className="panel-heading">
+                        <h2>Active Blacklist</h2>
+                        <button className="button slim" onClick={onRefresh}>Refresh</button>
+                    </div>
+                    <div className="table-wrap compact">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Wallet</th>
+                                    <th>Reason</th>
+                                    <th>Operator</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {blacklist.length ? (
+                                    blacklist.map((entry) => (
+                                        <tr key={`${entry.target}-${entry.txSignature ?? entry.timestamp}`}>
+                                            <td className="mono">{shortAddress(entry.target)}</td>
+                                            <td>{entry.reason || "-"}</td>
+                                            <td className="mono">{shortAddress(entry.operator)}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={3} className="empty-cell">No active blacklist entries</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
+
+            <AuditTable entries={auditLog} />
         </div>
     );
 }
 
-// ============================================================================
-// Audit Log View
-// ============================================================================
-function AuditLogView({ entries }: { entries: { action: string; timestamp: string; details: string }[] }) {
+function Webhooks({
+    mintAddress,
+    onRefresh,
+    setMessage,
+    subscriptions,
+}: {
+    mintAddress: string;
+    onRefresh: () => void;
+    setMessage: (message: string) => void;
+    subscriptions: WebhookSubscription[];
+}) {
+    const [url, setUrl] = useState("");
+    const [events, setEvents] = useState("MINT,BURN,BLACKLIST_ADD,SEIZE");
+    const [state, setState] = useState<RequestState>("idle");
+
+    async function registerWebhook(event: FormEvent) {
+        event.preventDefault();
+        setState("loading");
+        try {
+            const payload = await fetchJson<{ data: WebhookSubscription & { secret?: string } }>(
+                SERVICES.webhook.baseUrl,
+                "/subscriptions",
+                {
+                    method: "POST",
+                    body: JSON.stringify({
+                        url,
+                        events: events.split(",").map((item) => item.trim()).filter(Boolean),
+                        stablecoinMint: mintAddress || undefined,
+                    }),
+                },
+            );
+            setState("success");
+            setUrl("");
+            setMessage(`Webhook registered. Secret shown once: ${payload.data.secret || "hidden"}`);
+            onRefresh();
+        } catch (error) {
+            setState("error");
+            setMessage(error instanceof Error ? error.message : "Webhook registration failed.");
+        }
+    }
+
     return (
-        <div className="space-y-6">
-            <h2 className="text-2xl font-bold">Audit Log</h2>
-            <div className="card">
-                {entries.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                        <p className="text-4xl mb-3">📋</p>
-                        <p>No audit events recorded yet</p>
-                    </div>
-                ) : (
-                    <div className="divide-y divide-white/5">
-                        {entries.map((entry, i) => (
-                            <div key={i} className="py-3 flex justify-between items-start">
-                                <div>
-                                    <p className="font-medium">{entry.action}</p>
-                                    <p className="text-sm text-gray-500">{entry.details}</p>
-                                </div>
-                                <span className="text-xs text-gray-600 font-mono">{entry.timestamp}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+        <div className="two-column top-align">
+            <form className="panel form-panel" onSubmit={registerWebhook}>
+                <div className="panel-heading">
+                    <h2>Register Webhook</h2>
+                    <span className="badge">{state}</span>
+                </div>
+                <Field label="Endpoint URL">
+                    <input
+                        className="input"
+                        value={url}
+                        onChange={(event) => setUrl(event.target.value)}
+                        placeholder="https://example.com/sss-events"
+                    />
+                </Field>
+                <Field label="Events">
+                    <input
+                        className="input mono"
+                        value={events}
+                        onChange={(event) => setEvents(event.target.value)}
+                    />
+                </Field>
+                <button className="button primary fill" disabled={!url || !events || state === "loading"}>
+                    Register
+                </button>
+            </form>
+
+            <section className="panel">
+                <div className="panel-heading">
+                    <h2>Active Webhooks</h2>
+                    <button className="button slim" onClick={onRefresh}>Refresh</button>
+                </div>
+                <div className="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Endpoint</th>
+                                <th>Events</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {subscriptions.length ? (
+                                subscriptions.map((subscription) => (
+                                    <tr key={subscription.id}>
+                                        <td>{subscription.url}</td>
+                                        <td>{subscription.events.join(", ")}</td>
+                                        <td>{subscription.active ? "Active" : "Inactive"}</td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={3} className="empty-cell">No active webhooks</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </div>
     );
 }
 
-// ============================================================================
-// App Root (Wallet Provider Wrapper)
-// ============================================================================
+function AuditTable({ entries }: { entries: AuditEntry[] }) {
+    return (
+        <section className="panel">
+            <div className="panel-heading">
+                <h2>Audit Trail</h2>
+                <span className="muted">{entries.length} entries</span>
+            </div>
+            <div className="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Actor</th>
+                            <th>Target</th>
+                            <th>Amount</th>
+                            <th>Signature</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {entries.length ? (
+                            entries.map((entry, index) => (
+                                <tr key={`${entry.txSignature ?? entry.timestamp}-${index}`}>
+                                    <td><span className="badge">{entry.action}</span></td>
+                                    <td className="mono">{shortAddress(entry.actor)}</td>
+                                    <td className="mono">{shortAddress(entry.target)}</td>
+                                    <td>{formatAmount(entry.amount)}</td>
+                                    <td className="mono">{shortAddress(entry.txSignature)}</td>
+                                    <td>{new Date(entry.timestamp).toLocaleString()}</td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={6} className="empty-cell">No audit entries loaded</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    );
+}
+
+function Field({ children, label }: { children: React.ReactNode; label: string }) {
+    return (
+        <label className="field">
+            <span>{label}</span>
+            {children}
+        </label>
+    );
+}
+
 export default function App() {
     const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
 

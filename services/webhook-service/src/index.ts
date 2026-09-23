@@ -140,7 +140,7 @@ app.get("/health", async () => ({
 // ============================================================================
 
 app.post<{
-    Body: { url: string; events: string[]; stablecoinId?: string };
+    Body: { url: string; events: string[]; stablecoinId?: string; stablecoinMint?: string };
 }>("/subscriptions", {
     schema: {
         body: {
@@ -150,11 +150,12 @@ app.post<{
                 url: { type: "string" },
                 events: { type: "array", items: { type: "string" } },
                 stablecoinId: { type: "string" },
+                stablecoinMint: { type: "string" },
             },
         },
     },
 }, async (request, reply) => {
-    const { url, events, stablecoinId } = request.body;
+    const { url, events, stablecoinId, stablecoinMint } = request.body;
 
     try {
         // Validate URL
@@ -167,6 +168,20 @@ app.post<{
         let stablecoin;
         if (stablecoinId) {
             stablecoin = await db.stablecoin.findUnique({ where: { id: stablecoinId } });
+        }
+        if (!stablecoin && stablecoinMint) {
+            stablecoin = await db.stablecoin.findUnique({ where: { mint: stablecoinMint } });
+        }
+        if (!stablecoin && stablecoinMint) {
+            stablecoin = await db.stablecoin.create({
+                data: {
+                    mint: stablecoinMint,
+                    name: "Webhook Stablecoin",
+                    symbol: "SSS",
+                    decimals: 6,
+                    authority: "system",
+                },
+            });
         }
         if (!stablecoin) {
             // Use first available or create a placeholder
