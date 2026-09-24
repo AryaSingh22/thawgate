@@ -29,6 +29,15 @@
     "typecheck": "yarn workspace @thawgate/sdk build && yarn workspace @thawgate/shared build && yarn workspaces run typecheck"
   },
   "devDependencies": {
+    "@orca-so/whirlpools": "8.0.1",
+    "@orca-so/whirlpools-client": "7.0.0",
+    "@orca-so/whirlpools-core": "3.1.0",
+    "@raydium-io/raydium-sdk-v2": "^0.2.73-alpha",
+    "@solana-program/system": "^0.10.0",
+    "@solana-program/token-2022": "0.6.1",
+    "@solana/kit": "^5",
+    "@solana/token-acl-gate-sdk": "^0.3.1",
+    "@token-acl/sdk": "0.2.7",
     "@types/chai": "^5.2.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "^20.0.0",
