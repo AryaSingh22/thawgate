@@ -2241,6 +2241,19 @@ borsh@^0.7.0:
     bs58 "^4.0.0"
     text-encoding-utf-8 "^1.0.2"
 
+borsh@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/borsh/-/borsh-2.0.0.tgz#042a9f109565caac3c6a21297cd8c0ae8db3149d"
+  integrity sha512-kc9+BgR3zz9+cjbwM8ODoUB4fs3X3I5A/HtX7LZKxCLaMrEeDFoBpnhZY//DTS1VZBSs6S5v46RZRbZjRFspEg==
+
+borsher@^4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/borsher/-/borsher-4.0.0.tgz#f6e99fa8b9bdcafda4c0e1c7ef73e01dea2b234f"
+  integrity sha512-DrbMSz/xg0bFRiiqe8S0nXEr1whp96hcEHAriKFOlpG2wTihMrg5zZNFH+m4tMcnDY/klKws2YRVHjD4jpdiKg==
+  dependencies:
+    borsh "^2.0.0"
+    buffer "^6.0.3"
+
 brace-expansion@^1.1.7:
   version "1.1.12"
   resolved "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.12.tgz"
@@ -4012,6 +4025,15 @@ safe-stable-stringify@^2.3.1:
   version "2.5.0"
   resolved "https://registry.npmjs.org/safe-stable-stringify/-/safe-stable-stringify-2.5.0.tgz"
   integrity sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA==
+
+sas-lib@1.0.10:
+  version "1.0.10"
+  resolved "https://registry.yarnpkg.com/sas-lib/-/sas-lib-1.0.10.tgz#a81d2729a953e0de28070ceb617af88c612f7e90"
+  integrity sha512-aV99DALl1EfoL0rnEKaa9ygufvnWtojvuxJPETh3aqKmQUNoKFQbnLNBijxblu7VZ648LrnhlwH3tYCAiLSNig==
+  dependencies:
+    "@solana/kit" "^5.0.0"
+    borsh "^2.0.0"
+    borsher "^4.0.0"
 
 secure-json-parse@^2.7.0:
   version "2.7.0"

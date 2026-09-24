@@ -125,11 +125,13 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
   - owner == SAS
   - `data[0] == 2`
   - credential and schema match the policy
+  - the attestation's own address == `find_program_address(["attestation", cred, schema, nonce], SAS)`. Token ACL forwards the gate's extra accounts unchecked, so without this anyone can freeze a KYC'd holder by passing an empty address as the attestation (SPIKES.md S3)
   - `nonce == owner`
-  - `expiry == 0 || > now`
-  - optional `min_kyc_level` from schema data
+  - header `expiry == 0 || > now` (offset `133 + data_len`; not the schema's `expires` field)
+  - optional `min_kyc_level` from schema data (`kyc_level` is at byte 101)
 - [ ] Extra metas: SAS program, credential, schema, then the attestation as an external PDA with seeds `[lit "attestation", key(cred), key(schema), data(ta, 32..64)]`.
 - [ ] `can_freeze` returns Ok **only** if the attestation is missing, closed or expired (anti-grief).
+- [ ] Optional (cut ladder): `nonce_mode = SasNoncePda` in `GatePolicy` for Civic-format attestations, where nonce = `PDA(["nonce", owner], SAS)`: one more extra meta (SPIKES.md S3).
 - [ ] Tests with the SAS fixture:
   - attested → thaw
   - no attestation → `DENY:NO_CREDENTIAL`

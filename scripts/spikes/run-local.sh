@@ -1,13 +1,15 @@
 #!/bin/bash
-# Runs scripts/spikes/dex-pool.ts on a throwaway local validator (Agave 3.0.14) that has:
+# Runs a spike script (scripts/spikes/$SPIKE.ts, default dex-pool) on a throwaway local validator (Agave 3.0.14) that has:
 #   - Token ACL + ABL gate from tests/fixtures
 #   - devnet Token-2022 (the bundled one fails TokenMetadata initialize on 3.x)
 #   - devnet Raydium CPMM + its 6 amm_configs + pool-fee account
 #   - devnet Orca Whirlpools + Orca's devnet config + fee tier 64, and the config extension with
 #     token_badge_authority patched to the payer (LOCALNET SIMULATION of an Orca-issued badge)
-# Usage: [EXTENSIONS=minimal] [ORCA_CONFIG=devnet] scripts/spikes/run-local.sh [steps...]
+#   - devnet Solana Attestation Service (SAS)
+# Usage: [SPIKE=dex-pool|sas-credential] [EXTENSIONS=minimal] [ORCA_CONFIG=devnet] scripts/spikes/run-local.sh [steps...]
 set -u
 cd "$(dirname "$0")/../.."
+SPIKE="${SPIKE:-dex-pool}"
 PAYER=test-keypair.json
 LEDGER="${HOME}/.cache/thawgate-spike-ledger"
 EXT_JSON="${HOME}/.cache/thawgate-spike-orca-ext.json"
@@ -29,6 +31,7 @@ solana-test-validator --reset --ledger "$LEDGER" --quiet \
   --clone-upgradeable-program whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc \
   --clone FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR \
   --clone nhg1SS1hNFnJKZrJ9FBf3L6SxTjwEnkehN7dmAbg25t \
+  --clone-upgradeable-program 22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG \
   --account 475EJ7JqnRpVLoFVzp2ruEYvWWMCf6Z8KMWRujtXXNSU "$EXT_JSON" > "$LOG" 2>&1 &
 VPID=$!
 trap 'kill $VPID 2>/dev/null; wait $VPID 2>/dev/null' EXIT
@@ -40,5 +43,5 @@ for _ in $(seq 1 60); do
 done
 echo "local validator $(solana cluster-version -u l)"
 
-rm -f scripts/spikes/.dex-pool.localnet.json
-CLUSTER=localnet PAYER="$PAYER" npx ts-node --transpile-only scripts/spikes/dex-pool.ts "$@"
+rm -f "scripts/spikes/.${SPIKE}.localnet.json"
+CLUSTER=localnet PAYER="$PAYER" npx ts-node --transpile-only "scripts/spikes/${SPIKE}.ts" "$@"

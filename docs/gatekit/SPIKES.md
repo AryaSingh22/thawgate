@@ -74,3 +74,130 @@ So a Token ACL mint can trade in an Orca pool, and the gate holds inside the swa
 ### Still open
 - Devnet run of the Token ACL + ABL steps (`CLUSTER=devnet`), waiting on faucet SOL for the spike payer.
 - Devnet swap on Orca: waiting on an Orca Token Badge for the devnet mint.
+
+## S3 · A SAS KYC credential the gate can check (2026-09-25)
+
+**Script:** [`scripts/spikes/sas-credential.ts`](../../scripts/spikes/sas-credential.ts).
+- Read-only steps, any cluster including mainnet: `survey` (SAS accounts, issuer credentials, nonce convention) and `resolve-civic` (rebuild real Civic attestation addresses with the extra-meta recipe).
+- Write steps, localnet/devnet only (the script refuses to send on mainnet): `credential → schema → holder → attest → verify → close`.
+- Localnet: `SPIKE=sas-credential scripts/spikes/run-local.sh` (the runner now also clones SAS from devnet).
+
+**Environment:**
+- `survey` and `resolve-civic` read devnet and mainnet directly (public RPC, 2026-09-25).
+- The credential → close flow ran on **localnet only**: Agave 3.0.14 with SAS (`22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG`) cloned from devnet. The localnet signatures are ephemeral and aren't recorded.
+
+**Devnet run: not done yet.** The spike payer `5avMnUXPkqgagkTpcEnArrQjhT84JrWyec3dyrixvhcc` still has 0 SOL; the CLI airdrop was refused again ("rate limit"). The devnet addresses are fixed PDAs of the payer, and neither account exists yet:
+- credential `BYSdZKskggc4vxQs97KFXY6G5c3dA8x8zQy61VgjBwRc`
+- schema `Fovh6zUrtq6CW52hwkwuW4sx4wPc3a8tECPV8tvDkVrT`
+
+The run needs about 0.01 SOL (rents below, plus a plain mint and an ATA).
+
+### Result: no real KYC issuer is usable for a devnet demo
+
+SAS accounts on 2026-09-25:
+
+| Cluster | Credentials | Schemas | Attestations |
+|---|---|---|---|
+| devnet | 933 | 1,065 | 3,952 |
+| mainnet | 83 | 126 | 12,156 |
+
+The table covers every credential whose name matches civic, sumsub, solid or rns and that has attestations. **A credential's name is chosen by whoever creates it; nothing on-chain proves who owns it.**
+- "Nonce" is what the attestation's `nonce` turned out to be. The script looks for the holder wallet inside the attestation data (as a base58 string or raw 32 bytes) and compares.
+- "Live" means `expiry == 0` or `expiry` is in the future.
+
+| Credential (authority) | Cluster | Attestations (live) | Nonce | Expiries |
+|---|---|---|---|---|
+| "civic" `Fz2oPU8q69BMmPXVhVzgSuBv4AHoJWmVL41GfofNZ7sP` (`A4XZKV…`) | mainnet | 61 (**0**) | `PDA(["nonce", wallet], SAS)` in 61/61 | 2025-06-26 → 2025-08-19 |
+| same address and authority | devnet | 3 (**0**) | same, 3/3 | 2025-06-26 → 2025-08-25 |
+| "civic" `2CAHM3Yk6vVijuNwHe1PfwTYR9jCa2TK9dCvnGmJvfVw` (`AGCiZZ…`) | devnet | 3 (**0**) | same, 3/3 | 2025-06-26 → 2025-06-27 |
+| "Sumsub IDV" `EfCP1PmXqRVqiqVwJ1bJQKZYBzu9PwKrLRMc6CFdXSG1` (`9xYAGG…`) | mainnet | 12 (12, no expiry) | on-curve 12/12; data (`"id-and-liveness-solana"`) has no wallet, so unconfirmed | — |
+| "Sumsub IDV Development V1" `C2aQLLTCwJefZudSbdRzM3r12ZGwq6YM1KvyaJekeQFw` (`C4SeU4…`) | mainnet | 1 (1) | on-curve; no wallet in data | — |
+| "SUMSUB-ACCREDITED-INVESTOR" `BvSbUArXcgmYLVNdAwCbEHUsyZinnZL7wWYb1eMXQPFK` (`2tDERp…`) | devnet | 92 (92) | on-curve 58/92, which is what random bytes give; no wallet in data | 2027-05-20 → 2027-09-22 |
+| "Sumsub Hong Kong" `8QWrzKWeapgKype577MpU4DUM5RgPfPjDryabETpRyxd` (`Gre7Dh…`) | devnet | 3 (3) | one nonce reused 3×; no wallet in data | 2027-03 |
+| "Solid Credential" (2 on mainnet, 2 on devnet) | both | 21 (**0**) | on-curve; no wallet in data | 2026-05-28 → 2026-08-12 |
+| "RNS_PROOF" `FKvpBtmi3cVb3S1KY68ryTZs5qsAvJcQVhiUYaeWz6jz` (`A6Wcyj…`) | devnet | 6 (**0**) | nonce = the issuer's own key in 6/6 (test data) | 2025-06-18 |
+
+- **Civic:** has a devnet credential at the same address as mainnet. Every Civic attestation on both clusters has expired, the latest on 2025-08-25, so nothing shows Civic issuing SAS attestations since mid-2025. Civic's nonce is not the wallet (next result).
+- **Sumsub:** live on mainnet with 12 attestations. Its two mainnet authorities (`9xYAGG…`, `C4SeU4…`) have **no credential on devnet**. The two Sumsub-named devnet credentials belong to other authorities, and nothing links them to Sumsub. Mainnet Sumsub IDV nonces are all on-curve, and 5 of the 12 are funded system accounts. That is consistent with `nonce = wallet`, but the data carries no wallet to cross-check. TODO(verify) with Sumsub.
+- **Solid, RNS:** expired or test data.
+- **KYC-source decision:** the demo uses our own **ThawGate Demo KYC** credential on devnet, **labelled on screen** (PLAN.md default).
+
+### Result: Civic's nonce is `PDA(["nonce", wallet], SAS program)`
+
+Civic schemas have the layout `[12, 10, 0]` = `address: String, isVerified: bool, state: u8`. The holder wallet is the `address` field, as a base58 string. The schema names are 32-character key prefixes, and the on-chain descriptions are "ID Verification", "Liveness Verification", "CAPTCHA Verification", "Uniqueness - Proof of Personhood" and "Test Pass".
+
+Across all 67 Civic attestations (61 mainnet, 6 devnet), `nonce == findProgramAddress(["nonce", wallet], 22zoJM…)`:
+- The nonces are off-curve and no account exists at them.
+- The same wallet gets the same nonce under different schemas.
+- The one creation tx inspected (`378ejx2z…`, mainnet) doesn't include the wallet; the nonce arrives as instruction data.
+
+`sas-lib` has no helper for this PDA; it's Civic's convention. So a Civic attestation lives at `["attestation", credential, schema, PDA(["nonce", wallet], SAS)]`. RESEARCH.md §2 assumed issuers use `nonce = holder wallet`; that holds for our credential, not Civic's.
+
+### Result: the extra-meta recipe finds the attestation, ours and Civic's
+
+The gate's instruction accounts are `[0 caller, 1 token_account, 2 mint, 3 token_account_owner, 4 flag_account, 5 extra_metas, 6.. extras]`. The seeds were resolved with `resolveExtraAccountMeta` from `@solana/spl-token` 0.4.14, the code Token-2022 clients run for transfer-hook extra metas. All of an account's seeds must pack into its 32-byte `address_config`.
+
+| Nonce mode | Extra metas | `address_config` bytes | Result |
+|---|---|---|---|
+| Wallet (`nonce = owner`), ours | [6] SAS, [7] credential, [8] schema, [9] external PDA of [6]: `"attestation"`, key [7], key [8], data([1], 32..64) | 21 / 32 | ✓ on localnet: equals the by-hand PDA and `sas-lib`'s `deriveAttestationPda`. Also ✓ with key [3] (owner) in place of data([1], 32..64) |
+| Civic (`nonce = PDA(["nonce", owner], SAS)`) | [6]–[8] as above, [9] external PDA of [6]: `"nonce"`, data([1], 32..64); [10] external PDA of [6]: `"attestation"`, key [7], key [8], key [9] | 11 + 19 | ✓ **15/15 real mainnet Civic attestations** rebuilt from a token account each holder owns (`CLUSTER=mainnet LIMIT=15 … resolve-civic`) |
+
+### Result: ThawGate Demo KYC credential → attestation → close (localnet)
+
+Schema `thawgate-demo-kyc` v1: layout `[0, 12, 8]` = `kyc_level: u8, country: String, expires: i64`. Its description says "DEMO ONLY, not a real KYC check".
+
+| Step | CU | Rent |
+|---|---|---|
+| `create_credential` "ThawGate Demo KYC" (authority and signer = payer; 90 bytes) | 6,009 | 0.00151728 SOL |
+| `create_schema` `thawgate-demo-kyc` v1 | 8,317 | 0.00217848 SOL |
+| `create_attestation` (nonce = holder wallet, expiry = now + 1 year; 188 bytes) | 5,750 | 0.00219936 SOL, refunded on close |
+| `close_attestation` (the revoke): the account is gone afterwards | 3,084 | — |
+
+The attestation bytes (188) and what a gate reads:
+
+```
+[0]         02                 discriminator 2 = Attestation
+[1..33]     27921a2676d7d240…  nonce = holder 3fU7bU7sk6c4FVPYf9ZWZ4Ddb3dJF4s8QcsbWezPgZiC
+[33..65]    d044ee5d1ac0fd11…  credential F1zmKcyTqcDBzd1bD8a526Sk38r7GrMRrN6EgCfGWmoG
+[65..97]    c14a644ec9dad436…  schema E1XUjb5UJxgg3xExSX77JqaPrsJ4SEwQC6dtMCEZu3LG
+[97..101]   0f000000           data length = 15
+[101]       02                 kyc_level = 2
+[102..108]  02000000494e       country = "IN"
+[108..116]  8fc3966c00000000   expires = 1821819791
+[116..148]  51400fd6e5b3d85c…  signer (the credential authority)
+[148..156]  8fc3966c00000000   expiry = 1821819791 (header)
+[156..188]  0000000000000000…  token_account = none (not tokenized)
+```
+
+Full hex, localnet run (the addresses differ on devnet):
+- credential: `0051400fd6e5b3d85c985be03de05276be7b66a6e3c58c0a5b4cc6392d5a51396f1100000054686177476174652044656d6f204b59430100000051400fd6e5b3d85c985be03de05276be7b66a6e3c58c0a5b4cc6392d5a51396f`
+- schema: `01d044ee5d1ac0fd114ae283af7adecf9c476edbebc412cd7d5d3f4c0b632bc6231100000074686177676174652d64656d6f2d6b79634f00000044454d4f204f4e4c592c206e6f742061207265616c204b594320636865636b2e20546861774761746520746573742063726564656e7469616c20666f7220546f6b656e2041434c20676174696e672e03000000000c0823000000090000006b79635f6c6576656c07000000636f756e74727907000000657870697265730001`
+- attestation: `0227921a2676d7d2406ee9016125290983cf2ffba93e034143cf7b9d0055491badd044ee5d1ac0fd114ae283af7adecf9c476edbebc412cd7d5d3f4c0b632bc623c14a644ec9dad43627fc1a4e990366beb86015fa9b326d4582e7f3a75c3a57a50f0000000202000000494e8fc3966c0000000051400fd6e5b3d85c985be03de05276be7b66a6e3c58c0a5b4cc6392d5a51396f8fc3966c000000000000000000000000000000000000000000000000000000000000000000000000`
+
+**The close event:** a self-CPI to SAS with data:
+- `e445a52e51cb9a1d`: the 8-byte event tag. `sas-lib`'s `getEmitEventDiscriminatorBytes()` returns only its first byte (`e4`).
+- `00`: the `CloseAttestationEvent` discriminator.
+- schema (32 bytes).
+- `u32` length, then the attestation data.
+
+The holder's key is **not** in the event (checked), which confirms RESEARCH.md §2.
+
+### Findings that matter for later sessions
+1. **S5, security: the gate must re-derive the attestation PDA on-chain.**
+   - Token ACL forwards the gate's extra accounts without validating them: `freeze_permissionless.rs` hands `remaining_accounts` straight to `invoke_can_freeze_permissionless` ([source](https://github.com/solana-foundation/token-acl/blob/master/program/src/instructions/freeze_permissionless.rs)).
+   - `can_freeze_permissionless` returns Ok when the attestation is missing. So a caller who passes any empty address as "the attestation" would freeze a KYC'd holder.
+   - The gate must therefore require `attestation.key == find_program_address(["attestation", credential, schema, nonce], SAS)`, where `nonce` comes from the token account's owner.
+2. **Owner seed:** Token ACL checks `token_account.owner == token_account_owner` before calling the gate, on permissionless freeze as well as thaw (same source). So key [3] is a safe seed that needs no account-data read, and data([1], 32..64) works too; both resolved identically.
+3. **Expiry:** check the header `expiry`, which sits at offset `133 + data_len`, not the schema's `expires` field. They are separate values and can disagree. Only the header is part of SAS's account format for every issuer.
+4. `kyc_level` is the first data field, so it sits at the fixed offset 101. That makes `min_kyc_level` a one-byte read.
+5. **Civic compatibility (optional, cut-ladder candidate):** a `nonce_mode` in `GatePolicy` (`Wallet` | `SasNoncePda`) would let the same gate accept Civic-format attestations. It costs one more extra meta and one `find_program_address` on-chain. All Civic attestations have expired, so this can only be shown as "resolves real Civic attestations" (`resolve-civic`), not as a live Civic-gated thaw.
+6. **Keeper (S8):** the close event has no wallet, and the closed account's data is gone. The freeze crank should derive each known holder's attestation PDA and check that it exists, rather than decode events.
+7. **Tooling:**
+   - `sas-lib` 1.0.10 works with `@solana/kit` 5.5.1 on Node 22.
+   - In `@solana-program/token-2022` 0.6.1, `getMintSize([])` returns 166 (an extension header with nothing in it), which `InitializeMint` rejects. Use `getMintSize()` (82) for a plain mint.
+
+### Still open
+- **Devnet run.** Fund `5avMn…` with about 0.01 SOL, then run `CLUSTER=devnet npx ts-node --transpile-only scripts/spikes/sas-credential.ts`. That gives the create and close tx links. Keep the credential and schema for S5/S7.
+- **Issuer outreach (you):**
+  - Sumsub: is the SAS nonce the holder wallet, and is there a devnet credential?
+  - Civic: is SAS issuance still running (every attestation expired in 2025), and is `A4XZKV…` theirs?
