@@ -9,7 +9,7 @@
  *   resolve-civic  read-only: rebuild real Civic attestation addresses from a holder's token account with the
  *               extra-meta recipe (the spl-token resolver Token-2022 clients use), Civic nonce mode
  *   credential  "ThawGate Demo KYC" credential, authority + signer = payer (skipped if it exists)
- *   schema      "thawgate-demo-kyc" v1: kyc_level:u8, country:String, expires:i64 (skipped if it exists)
+ *   schema      "thawgate-demo-kyc" v1: kyc_level:u8, country:String; expiry is the attestation header's (skipped if it exists)
  *   holder      fresh holder wallet + plain Token-2022 mint + the holder's ATA (index 1 of the gate call)
  *   attest      attestation with nonce = holder wallet, 1-year expiry; raw account bytes recorded
  *   verify      attestation PDA by hand, via sas-lib, and via the extra-meta resolver (wallet mode, two
@@ -92,10 +92,11 @@ const STATE_PATH = path.join(__dirname, `.sas-credential.${CLUSTER}.json`);
 const CREDENTIAL_NAME = "ThawGate Demo KYC";
 const SCHEMA_NAME = "thawgate-demo-kyc";
 const SCHEMA_DESCRIPTION = "DEMO ONLY, not a real KYC check. ThawGate test credential for Token ACL gating.";
-// SAS compact layout codes (sas-lib utils.js): 0 = u8, 12 = String, 8 = i64. kyc_level goes first so a gate can
-// read it at a fixed offset (attestation data starts at byte 101); country is variable-length.
-const SCHEMA_LAYOUT = new Uint8Array([0, 12, 8]);
-const SCHEMA_FIELDS = ["kyc_level", "country", "expires"];
+// SAS compact layout codes (sas-lib utils.js): 0 = u8, 12 = String. kyc_level goes first so a gate can read it at a
+// fixed offset (attestation data starts at byte 101); country is variable-length. No expiry field in the data: the
+// attestation header's own `expiry` is the only one, so the two can't disagree.
+const SCHEMA_LAYOUT = new Uint8Array([0, 12]);
+const SCHEMA_FIELDS = ["kyc_level", "country"];
 const YEAR = 365 * 24 * 60 * 60;
 const TOKEN_ACL = "TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP";
 
@@ -356,7 +357,7 @@ async function stepAttest(payer: any) {
   const holder = address(state.holder);
   const schema = await fetchSchema(rpc, schemaAddr);
   const expiry = Math.floor(Date.now() / 1000) + YEAR;
-  const fields = { kyc_level: 2, country: "IN", expires: BigInt(expiry) };
+  const fields = { kyc_level: 2, country: "IN" };
   const data = serializeAttestationData(schema.data, fields);
   const [attestation] = await deriveAttestationPda({ credential, schema: schemaAddr, nonce: holder });
   const ix = getCreateAttestationInstruction({ payer, authority: payer, credential, schema: schemaAddr, attestation, nonce: holder, data, expiry });
@@ -366,7 +367,7 @@ async function stepAttest(payer: any) {
     attestation,
     attestTx: r.sig,
     attestCu: r.cu,
-    attestationFields: { ...fields, expires: expiry, expiry },
+    attestationFields: { ...fields, expiry },
     attestationHex: hex(acc.data),
     attestationLen: acc.data.length,
     attestationRent: acc.lamports,
@@ -415,7 +416,7 @@ async function stepVerify() {
     length: b.length === tail + 72,
   });
   const decoded = deserializeAttestationData<any>((await fetchSchema(rpc, schema)).data, b.subarray(101, tail));
-  checks.dataRoundTrip = decoded.kyc_level === 2 && decoded.country === "IN" && BigInt(decoded.expires) === BigInt(state.attestationFields.expires);
+  checks.dataRoundTrip = decoded.kyc_level === 2 && decoded.country === "IN" && Object.keys(decoded).length === 2;
   console.log(`  ${JSON.stringify(checks)}`);
   const failed = Object.entries(checks).filter(([, v]) => v === false);
   if (failed.length) throw new Error(`verify failed: ${failed.map(([k]) => k).join(", ")}`);

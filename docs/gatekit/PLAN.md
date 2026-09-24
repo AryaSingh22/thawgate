@@ -97,7 +97,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
 
 ### S3 · Spike: a real SAS credential on devnet
 - [ ] Check whether Sumsub, Civic or RNS.ID have devnet credentials and schemas, and whether they use `nonce = wallet` (RESEARCH.md §2). Ask in their dev channels; that also starts outreach.
-- [ ] Either way, with `sas-lib`: create a **ThawGate Demo KYC** credential + schema (`kyc_level:u8, country:String, expires:i64`) on devnet. Issue an attestation with `nonce = wallet`, then close it (revoke). Record the account bytes.
+- [ ] Either way, with `sas-lib`: create a **ThawGate Demo KYC** credential + schema (`kyc_level:u8, country:String`; expiry = the SAS attestation header only) on devnet. Issue an attestation with `nonce = wallet`, then close it (revoke). Record the account bytes.
 - [ ] Verify by hand that the attestation PDA derives as `["attestation", credential, schema, wallet]`, matching the extra-meta design.
 - **Done when:** SPIKES.md lists the credential and schema pubkeys and the create and close tx links, plus the KYC-source decision.
 
@@ -127,7 +127,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
   - credential and schema match the policy
   - the attestation's own address == `find_program_address(["attestation", cred, schema, nonce], SAS)`. Token ACL forwards the gate's extra accounts unchecked, so without this anyone can freeze a KYC'd holder by passing an empty address as the attestation (SPIKES.md S3)
   - `nonce == owner`
-  - header `expiry == 0 || > now` (offset `133 + data_len`; not the schema's `expires` field)
+  - header `expiry == 0 || > now` (offset `133 + data_len`; the demo schema has no expiry field)
   - optional `min_kyc_level` from schema data (`kyc_level` is at byte 101)
 - [ ] Extra metas: SAS program, credential, schema, then the attestation as an external PDA with seeds `[lit "attestation", key(cred), key(schema), data(ta, 32..64)]`.
 - [ ] `can_freeze` returns Ok **only** if the attestation is missing, closed or expired (anti-grief).
@@ -171,7 +171,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
 ## Phase 3: features (Thu 1 → Tue 6)
 
 ### S8 · Keeper (freeze crank): `services/keeper`
-- [ ] Subscribe to SAS program logs (`close_attestation`) and SSS `AddedToBlacklist` events. The close event has no wallet in it, so read the attestation address from the tx accounts and map it back to a wallet (RESEARCH.md §2).
+- [ ] Subscribe to SAS program logs (`close_attestation`) and SSS `AddedToBlacklist` events. The close event has no wallet in it, and the closed account's data is gone. So for each holder the keeper tracks, derive the attestation PDA `["attestation", cred, schema, wallet]` and check that it still exists; a closed address in the tx accounts only says which holder to re-check (SPIKES.md S3).
 - [ ] Call `freeze_permissionless_idempotent` (disc 10), with retry and idempotency. Expose `/health` and `/metrics` (freezes, latency).
 - [ ] Add it to docker-compose.
 - **Done when:** revoke on devnet → the account is frozen with no manual step, and **revoke→freeze latency is measured** (p50 over 10 runs) in LOG.md.
@@ -283,10 +283,11 @@ Target by Oct 11: 2–3 integrator mints on the ThawGate gate (on-chain count), 
 ## Cut ladder (what goes first if you're behind at C1 or C2)
 
 1. Switchboard-verified Range quote (already cut by default)
-2. S&A merchant plans (keep the agent fixed-delegation example)
-3. Confidential-transfer payroll (not planned)
-4. TUI and old services' polish
-5. Console wizard polish: fall back to CLI + dashboard only
-6. sss-token Anchor migration: keep the gate on 0.32.2 in its own workspace
+2. Civic nonce mode in the SAS policy (`SasNoncePda`; every Civic attestation has expired, SPIKES.md S3)
+3. S&A merchant plans (keep the agent fixed-delegation example)
+4. Confidential-transfer payroll (not planned)
+5. TUI and old services' polish
+6. Console wizard polish: fall back to CLI + dashboard only
+7. sss-token Anchor migration: keep the gate on 0.32.2 in its own workspace
 
 **Never cut:** the baseline tag, the gate + SAS policy + keeper, the devnet demo run, the disclosure, and submitting on Oct 11.

@@ -144,35 +144,34 @@ The gate's instruction accounts are `[0 caller, 1 token_account, 2 mint, 3 token
 
 ### Result: ThawGate Demo KYC credential → attestation → close (localnet)
 
-Schema `thawgate-demo-kyc` v1: layout `[0, 12, 8]` = `kyc_level: u8, country: String, expires: i64`. Its description says "DEMO ONLY, not a real KYC check".
+Schema `thawgate-demo-kyc` v1: layout `[0, 12]` = `kyc_level: u8, country: String`. Its description says "DEMO ONLY, not a real KYC check". Expiry lives only in the attestation header: an `expires: i64` data field (PLAN.md's first draft) was dropped in review, so there is exactly one expiry to check.
 
 | Step | CU | Rent |
 |---|---|---|
 | `create_credential` "ThawGate Demo KYC" (authority and signer = payer; 90 bytes) | 6,009 | 0.00151728 SOL |
-| `create_schema` `thawgate-demo-kyc` v1 | 8,317 | 0.00217848 SOL |
-| `create_attestation` (nonce = holder wallet, expiry = now + 1 year; 188 bytes) | 5,750 | 0.00219936 SOL, refunded on close |
-| `close_attestation` (the revoke): the account is gone afterwards | 3,084 | — |
+| `create_schema` `thawgate-demo-kyc` v1 | 8,211 | 0.00209496 SOL |
+| `create_attestation` (nonce = holder wallet, expiry = now + 1 year; 180 bytes) | 5,677 | 0.00214368 SOL, refunded on close |
+| `close_attestation` (the revoke): the account is gone afterwards | 3,064 | — |
 
-The attestation bytes (188) and what a gate reads:
+The attestation bytes (180) and what a gate reads:
 
 ```
 [0]         02                 discriminator 2 = Attestation
-[1..33]     27921a2676d7d240…  nonce = holder 3fU7bU7sk6c4FVPYf9ZWZ4Ddb3dJF4s8QcsbWezPgZiC
+[1..33]     2f821b10be71bc4a…  nonce = holder 4CTEDr7pgqBU4uLkVk2aqu54tPQi9ufUKZVvDv2tgYp2
 [33..65]    d044ee5d1ac0fd11…  credential F1zmKcyTqcDBzd1bD8a526Sk38r7GrMRrN6EgCfGWmoG
 [65..97]    c14a644ec9dad436…  schema E1XUjb5UJxgg3xExSX77JqaPrsJ4SEwQC6dtMCEZu3LG
-[97..101]   0f000000           data length = 15
+[97..101]   07000000           data length = 7
 [101]       02                 kyc_level = 2
 [102..108]  02000000494e       country = "IN"
-[108..116]  8fc3966c00000000   expires = 1821819791
-[116..148]  51400fd6e5b3d85c…  signer (the credential authority)
-[148..156]  8fc3966c00000000   expiry = 1821819791 (header)
-[156..188]  0000000000000000…  token_account = none (not tokenized)
+[108..140]  51400fd6e5b3d85c…  signer (the credential authority)
+[140..148]  afd0966c00000000   expiry = 1821823151 (header)
+[148..180]  0000000000000000…  token_account = none (not tokenized)
 ```
 
 Full hex, localnet run (the addresses differ on devnet):
 - credential: `0051400fd6e5b3d85c985be03de05276be7b66a6e3c58c0a5b4cc6392d5a51396f1100000054686177476174652044656d6f204b59430100000051400fd6e5b3d85c985be03de05276be7b66a6e3c58c0a5b4cc6392d5a51396f`
-- schema: `01d044ee5d1ac0fd114ae283af7adecf9c476edbebc412cd7d5d3f4c0b632bc6231100000074686177676174652d64656d6f2d6b79634f00000044454d4f204f4e4c592c206e6f742061207265616c204b594320636865636b2e20546861774761746520746573742063726564656e7469616c20666f7220546f6b656e2041434c20676174696e672e03000000000c0823000000090000006b79635f6c6576656c07000000636f756e74727907000000657870697265730001`
-- attestation: `0227921a2676d7d2406ee9016125290983cf2ffba93e034143cf7b9d0055491badd044ee5d1ac0fd114ae283af7adecf9c476edbebc412cd7d5d3f4c0b632bc623c14a644ec9dad43627fc1a4e990366beb86015fa9b326d4582e7f3a75c3a57a50f0000000202000000494e8fc3966c0000000051400fd6e5b3d85c985be03de05276be7b66a6e3c58c0a5b4cc6392d5a51396f8fc3966c000000000000000000000000000000000000000000000000000000000000000000000000`
+- schema: `01d044ee5d1ac0fd114ae283af7adecf9c476edbebc412cd7d5d3f4c0b632bc6231100000074686177676174652d64656d6f2d6b79634f00000044454d4f204f4e4c592c206e6f742061207265616c204b594320636865636b2e20546861774761746520746573742063726564656e7469616c20666f7220546f6b656e2041434c20676174696e672e02000000000c18000000090000006b79635f6c6576656c07000000636f756e7472790001`
+- attestation: `022f821b10be71bc4a0faafc3973038a60331d3da598ae8e9afaddf43b4a3bc42bd044ee5d1ac0fd114ae283af7adecf9c476edbebc412cd7d5d3f4c0b632bc623c14a644ec9dad43627fc1a4e990366beb86015fa9b326d4582e7f3a75c3a57a5070000000202000000494e51400fd6e5b3d85c985be03de05276be7b66a6e3c58c0a5b4cc6392d5a51396fafd0966c000000000000000000000000000000000000000000000000000000000000000000000000`
 
 **The close event:** a self-CPI to SAS with data:
 - `e445a52e51cb9a1d`: the 8-byte event tag. `sas-lib`'s `getEmitEventDiscriminatorBytes()` returns only its first byte (`e4`).
@@ -188,7 +187,7 @@ The holder's key is **not** in the event (checked), which confirms RESEARCH.md �
    - `can_freeze_permissionless` returns Ok when the attestation is missing. So a caller who passes any empty address as "the attestation" would freeze a KYC'd holder.
    - The gate must therefore require `attestation.key == find_program_address(["attestation", credential, schema, nonce], SAS)`, where `nonce` comes from the token account's owner.
 2. **Owner seed:** Token ACL checks `token_account.owner == token_account_owner` before calling the gate, on permissionless freeze as well as thaw (same source). So key [3] is a safe seed that needs no account-data read, and data([1], 32..64) works too; both resolved identically.
-3. **Expiry:** check the header `expiry`, which sits at offset `133 + data_len`, not the schema's `expires` field. They are separate values and can disagree. Only the header is part of SAS's account format for every issuer.
+3. **Expiry:** the gate checks the header `expiry`, at offset `133 + data_len` (140 for the demo schema). It is part of SAS's account format for every issuer; our schema has no expiry field of its own.
 4. `kyc_level` is the first data field, so it sits at the fixed offset 101. That makes `min_kyc_level` a one-byte read.
 5. **Civic compatibility (optional, cut-ladder candidate):** a `nonce_mode` in `GatePolicy` (`Wallet` | `SasNoncePda`) would let the same gate accept Civic-format attestations. It costs one more extra meta and one `find_program_address` on-chain. All Civic attestations have expired, so this can only be shown as "resolves real Civic attestations" (`resolve-civic`), not as a live Civic-gated thaw.
 6. **Keeper (S8):** the close event has no wallet, and the closed account's data is gone. The freeze crank should derive each known holder's attestation PDA and check that it exists, rather than decode events.
