@@ -30,13 +30,14 @@ jobs:
 
       - name: Install Solana CLI
         run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.15/install)"
+          # Local dev uses Agave 3.0.15, which has no public release; 3.0.14 is the nearest published 3.0.x
+          curl -sSfL https://release.anza.xyz/v3.0.14/install -o "$RUNNER_TEMP/solana-install.sh"
+          sh "$RUNNER_TEMP/solana-install.sh"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          "$HOME/.local/share/solana/install/active_release/bin/solana" --version
 
       - name: Install Anchor CLI
-        run: |
-          cargo install --git https://github.com/solana-foundation/anchor \
-            --tag v0.32.2 anchor-cli --locked
+        run: cargo install anchor-cli --version 0.32.2 --locked
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -51,6 +52,7 @@ jobs:
         run: |
           mkdir -p ~/.config/solana
           solana-keygen new --no-bip39-passphrase --outfile ~/.config/solana/id.json
+          solana-keygen new --no-bip39-passphrase --outfile ./test-keypair.json
           solana config set --url localhost
 
       - name: Build programs

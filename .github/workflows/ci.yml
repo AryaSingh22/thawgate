@@ -8,7 +8,8 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SOLANA_VERSION: "3.0.15"
+  # Local dev uses Agave 3.0.15, which has no public release; 3.0.14 is the nearest published 3.0.x
+  SOLANA_VERSION: "3.0.14"
   ANCHOR_VERSION: "0.32.2"
   NODE_VERSION: "20"
 
@@ -37,12 +38,13 @@ jobs:
 
       - name: Install Solana CLI
         run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install -o "$RUNNER_TEMP/solana-install.sh"
+          sh "$RUNNER_TEMP/solana-install.sh"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          "$HOME/.local/share/solana/install/active_release/bin/solana" --version
 
       - name: Install Anchor CLI
-        run: |
-          cargo install --git https://github.com/solana-foundation/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+        run: cargo install anchor-cli --version ${{ env.ANCHOR_VERSION }} --locked
 
       - name: Run clippy (zero warnings policy)
         run: cargo clippy --workspace --all-targets -- -D warnings
