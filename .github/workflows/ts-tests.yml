@@ -53,7 +53,10 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install Anchor CLI
-        run: cargo install anchor-cli --version ${{ env.ANCHOR_VERSION }} --locked
+        run: |
+          # anchor-cli pulls hidapi (solana-remote-wallet), which links the system libudev
+          sudo apt-get update -y && sudo apt-get install -y libudev-dev pkg-config
+          cargo install anchor-cli --version ${{ env.ANCHOR_VERSION }} --locked
 
       - name: Build programs
         run: |

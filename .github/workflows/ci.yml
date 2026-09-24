@@ -44,7 +44,10 @@ jobs:
           "$HOME/.local/share/solana/install/active_release/bin/solana" --version
 
       - name: Install Anchor CLI
-        run: cargo install anchor-cli --version ${{ env.ANCHOR_VERSION }} --locked
+        run: |
+          # anchor-cli pulls hidapi (solana-remote-wallet), which links the system libudev
+          sudo apt-get update -y && sudo apt-get install -y libudev-dev pkg-config
+          cargo install anchor-cli --version ${{ env.ANCHOR_VERSION }} --locked
 
       - name: Run clippy (zero warnings policy)
         run: cargo clippy --workspace --all-targets -- -D warnings
