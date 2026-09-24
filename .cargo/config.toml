@@ -1,4 +1,4 @@
-# SBF builds use the platform-tools toolchain (cargo/rustc 1.84 with Solana CLI 3.0.15), not the
+# SBF builds use the platform-tools toolchain (cargo/rustc 1.84 with Solana CLI 3.0.14), not the
 # host toolchain. Resolve dependencies to versions compatible with the programs' rust-version
 # (1.84) so edition-2024 crates never enter Cargo.lock. Same effect as `resolver = "3"`, which
 # the Anchor 0.32 CLI cannot parse.

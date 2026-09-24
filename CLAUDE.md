@@ -20,7 +20,7 @@ ANCHOR_WALLET=./test-keypair.json yarn test:unit   # ts-mocha tests/unit against
 ```
 `frontend/` (@thawgate/console) and `tui/` are not yarn workspaces: run `npm install` and build inside each one.
 
-Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for IDL builds), Solana CLI 3.0.15. The avm prebuilt 0.32.x binaries need glibc 2.39 and WSL Ubuntu 22.04 has 2.35, so install with `avm install 0.32.2 --from-source`. `tests/fixtures/` holds devnet dumps of Token ACL, the ABL gate, SAS and S&A (see `tests/fixtures/README.md`).
+Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for IDL builds), Solana CLI 3.0.14 (same as CI; there is no 3.0.15 release). The avm prebuilt 0.32.x binaries need glibc 2.39 and WSL Ubuntu 22.04 has 2.35, so install with `avm install 0.32.2 --from-source`. `tests/fixtures/` holds devnet dumps of Token ACL, the ABL gate, SAS and S&A (see `tests/fixtures/README.md`).
 
 ## Programs (Anchor.toml, localnet = devnet)
 | Program | ID | Upgrade authority |

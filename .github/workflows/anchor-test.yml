@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Explicit bash runs steps with `-eo pipefail`, so `cmd | tee log` fails when cmd fails
+defaults:
+  run:
+    shell: bash
+
 jobs:
   anchor-test:
     runs-on: ubuntu-latest
@@ -30,7 +35,7 @@ jobs:
 
       - name: Install Solana CLI
         run: |
-          # Local dev uses Agave 3.0.15, which has no public release; 3.0.14 is the nearest published 3.0.x
+          # Same as local dev. There is no 3.0.15 release (the `stable` channel once served an untagged v3.0 build labelled 3.0.15)
           curl -sSfL https://release.anza.xyz/v3.0.14/install -o "$RUNNER_TEMP/solana-install.sh"
           sh "$RUNNER_TEMP/solana-install.sh"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH

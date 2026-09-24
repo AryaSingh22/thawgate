@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Explicit bash runs steps with `-eo pipefail`, so `cmd | tee log` fails when cmd fails
+defaults:
+  run:
+    shell: bash
+
 jobs:
   rust-tests:
     runs-on: ubuntu-latest

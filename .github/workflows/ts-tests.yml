@@ -6,9 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# Explicit bash runs steps with `-eo pipefail`, so `cmd | tee log` fails when cmd fails
+defaults:
+  run:
+    shell: bash
+
 env:
   NODE_VERSION: "20"
-  # Local dev uses Agave 3.0.15, which has no public release; 3.0.14 is the nearest published 3.0.x
+  # Same as local dev. There is no 3.0.15 release (the `stable` channel once served an untagged v3.0 build labelled 3.0.15)
   SOLANA_VERSION: "3.0.14"
   ANCHOR_VERSION: "0.32.2"
 

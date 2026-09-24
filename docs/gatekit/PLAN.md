@@ -158,6 +158,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
   6. blacklist a third → denied
   7. seize works
 - [ ] Deploy to devnet: the gate (new ID) and upgraded sss-token/hook (or new IDs if a keypair is missing). Run the same story against devnet with the S3 credential.
+- [ ] Fix the failing e2e lifecycle tests in `tests/integration/` (`anchor test`: 7–8 of 75 fail per run). `| tee` hid them in CI until S1 added `pipefail`; details in LOG.md S1. (1) `transfer_authority` can't hand authority back to a previous holder: `new_master_role` is `init` and the old role PDA still exists, so it fails with "already in use" (SSS-1 Step 16, SSS-2 Step 15, every run). (2) SSS-2 Step 08 `seize` doesn't pass `seizerRole` (every run). (3) Read-after-write races: `.rpc()` confirms at `processed` and the next read is at `confirmed`, so it sees stale or missing state. SSS-2 Step 02 failed in all 3 runs; SSS-1 Steps 02/08/09 and SSS-2 Steps 04/06 failed in some. (4) SSS-2 Step 16 is downstream of the others.
 - **Done when:** the story passes on devnet. LOG.md has every tx link, the CU per step, and `anchor build` time.
 
 ### Wed 30 · Buffer + C1
