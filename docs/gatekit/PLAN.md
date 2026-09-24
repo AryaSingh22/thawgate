@@ -125,7 +125,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
   - owner == SAS
   - `data[0] == 2`
   - credential and schema match the policy
-  - the attestation's own address == `find_program_address(["attestation", cred, schema, nonce], SAS)`. Token ACL forwards the gate's extra accounts unchecked, so without this anyone can freeze a KYC'd holder by passing an empty address as the attestation (SPIKES.md S3)
+  - fail closed: deny when the extra accounts are missing, since Token ACL calls the gate with only its 5 base accounts if the caller omits the extra-metas account. Token ACL itself derives the attestation's address from the gate's meta list and rejects a substitute (S4 test cases 6a/6b; SPIKES.md S3, corrected)
   - `nonce == owner`
   - header `expiry == 0 || > now` (offset `133 + data_len`; the demo schema has no expiry field)
   - optional `min_kyc_level` from schema data (`kyc_level` is at byte 101)
@@ -144,6 +144,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
 - [ ] `StablecoinConfig`: add `compliance_mode: u8` (0 Hook, 1 Acl, 2 Both) and bump `STABLECOIN_CONFIG_SIZE`. New mints only; existing devnet mints stay SSS-legacy.
 - [ ] `initialize`: add the **Pausable** extension (pause authority = config PDA). DefaultAccountState=Frozen is required in ACL modes.
 - [ ] New `enable_token_acl(gating_program)`: CPI Token ACL `create_config` (disc 0) signed by config seeds, then `toggle_permissionless_instructions` (disc 8) to enable thaw + freeze.
+- [ ] sss-token CPIs thawgate-gate `init_policy`, signed by config seeds (the config PDA is the Token ACL freeze authority; a separate payer funds the policy).
 - [ ] Route through Token ACL (`thaw` = 4, `freeze` = 5, config PDA signs): `freeze_account`, `thaw_account`, `add_to_blacklist`, and `seize`'s thaw/refreeze.
 - [ ] Replace the `enable_transfer_hook` feature gates in compliance and seize with `compliance_mode != None`.
 - [ ] `pause`/`unpause` → CPI Token-2022 Pausable (keep the PauseState PDA for the hook in Both mode).

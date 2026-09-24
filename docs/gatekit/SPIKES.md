@@ -182,10 +182,11 @@ Full hex, localnet run (the addresses differ on devnet):
 The holder's key is **not** in the event (checked), which confirms RESEARCH.md §2.
 
 ### Findings that matter for later sessions
-1. **S5, security: the gate must re-derive the attestation PDA on-chain.**
-   - Token ACL forwards the gate's extra accounts without validating them: `freeze_permissionless.rs` hands `remaining_accounts` straight to `invoke_can_freeze_permissionless` ([source](https://github.com/solana-foundation/token-acl/blob/master/program/src/instructions/freeze_permissionless.rs)).
-   - `can_freeze_permissionless` returns Ok when the attestation is missing. So a caller who passes any empty address as "the attestation" would freeze a KYC'd holder.
-   - The gate must therefore require `attestation.key == find_program_address(["attestation", credential, schema, nonce], SAS)`, where `nonce` comes from the token account's owner.
+1. **S5, security: fail closed. Token ACL already enforces the extra accounts' addresses.** *(Corrected in S4. The first version of this finding said Token ACL forwards the gate's extra accounts unchecked, so the gate would have to re-derive the attestation PDA. That misread `freeze_permissionless.rs`, which forwards them through the interface's CPI helper.)*
+   - Token ACL calls the gate through `invoke_can_thaw_permissionless` / `invoke_can_freeze_permissionless` ([interface/src/onchain.rs](https://github.com/solana-foundation/token-acl/blob/master/interface/src/onchain.rs)). They build the call with `ExtraAccountMetaList::add_to_cpi_instruction`, which derives every extra account's address from the gate's own extra-metas list and fails unless the caller supplied exactly that account.
+   - **Tested in S4** (`tests/gate/gate.test.ts`, case 6b): a freeze crank on a clean holder with the blacklisted wallet's real `BlacklistEntry` swapped in is rejected by Token ACL with `IncorrectAccount` (`custom program error: 0xa261c2c0`) before the gate runs. The reverse swap on thaw is rejected the same way.
+   - **The gap:** if the caller leaves out the extra-metas account, Token ACL still calls the gate, with only the five base accounts. The gate must deny then (case 6a: `TG:DENY:MISSING_ACCOUNTS`), above all in `can_freeze_permissionless`, which returns Ok when the attestation is missing.
+   - The gate still checks each extra account's owner, discriminator and fields (for SAS: owner = SAS, `data[0] == 2`, credential, schema, nonce, expiry). Re-deriving the attestation PDA inside the gate is not needed.
 2. **Owner seed:** Token ACL checks `token_account.owner == token_account_owner` before calling the gate, on permissionless freeze as well as thaw (same source). So key [3] is a safe seed that needs no account-data read, and data([1], 32..64) works too; both resolved identically.
 3. **Expiry:** the gate checks the header `expiry`, at offset `133 + data_len` (140 for the demo schema). It is part of SAS's account format for every issuer; our schema has no expiry field of its own.
 4. `kyc_level` is the first data field, so it sits at the fixed offset 101. That makes `min_kyc_level` a one-byte read.
