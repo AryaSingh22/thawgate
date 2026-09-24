@@ -116,6 +116,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
 - [ ] Policies in this session: **ImmutableOwner required**; blacklist (reuse the hook's `BlacklistEntryMirror`); allowlist (`AllowlistEntry`). Every exit logs `TG:ALLOW:<CODE>` or `TG:DENY:<CODE>`.
 - [ ] Vendor Token ACL constants in `gate/src/token_acl.rs`. **Don't depend on `token-acl-interface`** (pubkey ^4 conflict).
 - [ ] Tests (localnet with fixtures): create mint → Token ACL config with our gate → allow-listed wallet thaws; blacklisted is denied; a non-ImmutableOwner account is denied; freeze crank works on a blacklisted wallet and fails on a clean one.
+- [ ] Test harness uses confirmed commitment for send + read; gate tests run in their own CI job.
 - **Done when:** those tests pass.
 - **Kickoff:** *"S4: plan first. Build programs/thawgate-gate per PLAN.md S4 and RESEARCH.md §1.2 and §7."*
 
@@ -146,6 +147,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
 - [ ] `pause`/`unpause` → CPI Token-2022 Pausable (keep the PauseState PDA for the hook in Both mode).
 - [ ] Update the SDK presets: SSS-ACL (new default), SSS-2 (hook, strict), Both.
 - [ ] Fix hook execute to map the SPL transfer-hook discriminator; add a test doing a real transfer_checked through Token-2022 with the hook; record the real hook CU.
+- [ ] Fix the e2e seize test (`tests/integration/sss2.integration.ts`, SSS-2 Step 08, fails every run): it doesn't pass `seizerRole`, so the client rejects the call with `Account seizerRole not provided`. `| tee` hid it until S1; see LOG.md S1.
 - **Done when:** existing SSS-1/2 tests still pass, and new ACL-mode tests (freeze, blacklist, seize, pause blocks a transfer) pass.
 
 ### S7 · End-to-end + devnet deploy
@@ -158,7 +160,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
   6. blacklist a third → denied
   7. seize works
 - [ ] Deploy to devnet: the gate (new ID) and upgraded sss-token/hook (or new IDs if a keypair is missing). Run the same story against devnet with the S3 credential.
-- [ ] Fix the failing e2e lifecycle tests in `tests/integration/` (`anchor test`: 7–8 of 75 fail per run). `| tee` hid them in CI until S1 added `pipefail`; details in LOG.md S1. (1) `transfer_authority` can't hand authority back to a previous holder: `new_master_role` is `init` and the old role PDA still exists, so it fails with "already in use" (SSS-1 Step 16, SSS-2 Step 15, every run). (2) SSS-2 Step 08 `seize` doesn't pass `seizerRole` (every run). (3) Read-after-write races: `.rpc()` confirms at `processed` and the next read is at `confirmed`, so it sees stale or missing state. SSS-2 Step 02 failed in all 3 runs; SSS-1 Steps 02/08/09 and SSS-2 Steps 04/06 failed in some. (4) SSS-2 Step 16 is downstream of the others.
+- [ ] Fix the failing e2e lifecycle tests in `tests/integration/` (`anchor test`: 7–8 of 75 fail per run). `| tee` hid them in CI until S1 added `pipefail`; details in LOG.md S1. (1) `transfer_authority` can't hand authority back to a previous holder: `new_master_role` is `init` and the old role PDA still exists, so it fails with "already in use" (SSS-1 Step 16, SSS-2 Step 15, every run). (2) Read-after-write races: `.rpc()` confirms at `processed` and the next read is at `confirmed`, so it sees stale or missing state. SSS-2 Step 02 failed in all 3 runs; SSS-1 Steps 02/08/09 and SSS-2 Steps 04/06 failed in some. (3) SSS-2 Step 16 is downstream of the others. The SSS-2 Step 08 seize failure moved to S6.
 - **Done when:** the story passes on devnet. LOG.md has every tx link, the CU per step, and `anchor build` time.
 
 ### Wed 30 · Buffer + C1
