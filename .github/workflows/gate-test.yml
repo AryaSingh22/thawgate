@@ -1,0 +1,86 @@
+name: Gate Tests
+
+# The ThawGate gate (programs/thawgate-gate) on its own: Rust unit tests plus the localnet suite in tests/gate,
+# run by scripts/test-gate.sh against the real Token ACL program and devnet Token-2022 (tests/fixtures).
+# Separate from "Anchor Integration Tests", which carries the legacy SSS failures until S7.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Explicit bash runs steps with `-eo pipefail`, so `cmd | tee log` fails when cmd fails
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  gate-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-gate-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Solana CLI
+        run: |
+          # Same as local dev (Agave 3.0.14); see anchor-test.yml
+          curl -sSfL https://release.anza.xyz/v3.0.14/install -o "$RUNNER_TEMP/solana-install.sh"
+          sh "$RUNNER_TEMP/solana-install.sh"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          "$HOME/.local/share/solana/install/active_release/bin/solana" --version
+
+      - name: Install Anchor CLI
+        run: |
+          # anchor-cli pulls hidapi (solana-remote-wallet), which links the system libudev
+          sudo apt-get update -y && sudo apt-get install -y libudev-dev pkg-config
+          cargo install anchor-cli --version 0.32.2 --locked
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Generate test keypair
+        run: |
+          mkdir -p ~/.config/solana
+          solana-keygen new --no-bip39-passphrase --outfile ~/.config/solana/id.json
+          solana-keygen new --no-bip39-passphrase --outfile ./test-keypair.json
+
+      - name: Build the gate
+        run: anchor build -p thawgate_gate
+
+      - name: Verify program IDs
+        run: scripts/verify-ids.sh
+
+      - name: Rust unit tests
+        run: cargo test -p thawgate-gate
+
+      - name: Localnet gate suite
+        run: SKIP_BUILD=1 yarn test:gate
+
+      - name: Upload validator log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-validator-log
+          path: tests/gate/.validator.log
