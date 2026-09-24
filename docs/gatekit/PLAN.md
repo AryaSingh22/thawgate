@@ -145,6 +145,7 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
 - [ ] Replace the `enable_transfer_hook` feature gates in compliance and seize with `compliance_mode != None`.
 - [ ] `pause`/`unpause` → CPI Token-2022 Pausable (keep the PauseState PDA for the hook in Both mode).
 - [ ] Update the SDK presets: SSS-ACL (new default), SSS-2 (hook, strict), Both.
+- [ ] Fix hook execute to map the SPL transfer-hook discriminator; add a test doing a real transfer_checked through Token-2022 with the hook; record the real hook CU.
 - **Done when:** existing SSS-1/2 tests still pass, and new ACL-mode tests (freeze, blacklist, seize, pause blocks a transfer) pass.
 
 ### S7 · End-to-end + devnet deploy
