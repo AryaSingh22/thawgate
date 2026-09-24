@@ -8,7 +8,8 @@ on:
 
 env:
   NODE_VERSION: "20"
-  SOLANA_VERSION: "1.18.26"
+  SOLANA_VERSION: "3.0.15"
+  ANCHOR_VERSION: "0.32.2"
 
 jobs:
   ts-tests:
@@ -25,9 +26,8 @@ jobs:
 
       - name: Install Solana CLI
         run: |
-          wget https://github.com/solana-labs/solana/releases/download/v${{ env.SOLANA_VERSION }}/solana-release-x86_64-unknown-linux-gnu.tar.bz2
-          tar jxf solana-release-x86_64-unknown-linux-gnu.tar.bz2
-          echo "$GITHUB_WORKSPACE/solana-release/bin" >> $GITHUB_PATH
+          sh -c "$(curl -sSfL https://release.anza.xyz/v${{ env.SOLANA_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Generate test keypair
         run: solana-keygen new --no-bip39-passphrase --outfile ./test-keypair.json
@@ -51,12 +51,12 @@ jobs:
 
       - name: Install Anchor CLI
         run: |
-          cargo install --git https://github.com/coral-xyz/anchor \
-            --tag v0.30.1 anchor-cli
+          cargo install --git https://github.com/solana-foundation/anchor \
+            --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
 
       - name: Build programs
         run: |
-          $GITHUB_WORKSPACE/solana-release/bin/solana config set --url localhost
+          solana config set --url localhost
           anchor build
 
       - name: Run unit tests
@@ -64,8 +64,9 @@ jobs:
           ANCHOR_WALLET: ./test-keypair.json
           ANCHOR_PROVIDER_URL: http://127.0.0.1:8899
         run: |
-          anchor localnet --skip-build &
-          sleep 15
+          # anchor 0.32 `localnet` waits for a line on stdin and panics on EOF, so keep stdin open
+          anchor localnet --skip-build < <(sleep 3600) &
+          timeout 120 bash -c 'until [ "$(solana block-height -u l 2>/dev/null || echo 0)" -ge 30 ]; do sleep 2; done'
           yarn test:unit
 
       - name: Run SDK tests

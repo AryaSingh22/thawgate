@@ -10,7 +10,7 @@
         "test": "echo 'No tests implemented yet for indexer'"
     },
     "dependencies": {
-        "@coral-xyz/anchor": "^0.30.1",
+        "@coral-xyz/anchor": "^0.32.1",
         "@solana/web3.js": "^1.95.0",
         "@thawgate/shared": "file:../shared",
         "fastify": "^5.7.4",

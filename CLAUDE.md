@@ -6,6 +6,7 @@ Research and plan live in `docs/gatekit/` (PLAN.md = per-session checklist). The
 
 ## Where to build
 - Build in **WSL at `~/thawgate`** (Linux filesystem). Never run `anchor build` over `/mnt/c`; it's the slow path.
+- `~/thawgate/target` is a symlink to the shared Cargo target dir `~/.cargo/targets/solana-stablecoin-standard`. Keep it. The Anchor CLI reads program keypairs from `./target/deploy/` and writes a *new random* keypair if one is missing. Only `~/.bashrc` sets `CARGO_TARGET_DIR`, so export it yourself in non-interactive shells.
 - Devnet only. The gate is unaudited, so no mainnet deploys.
 
 ## Commands
@@ -13,13 +14,13 @@ Research and plan live in `docs/gatekit/` (PLAN.md = per-session checklist). The
 anchor build                 # all programs
 cargo test --workspace       # Rust unit tests
 yarn install                 # TS workspaces: sdk, cli, services/*
-yarn workspace @thawgate/sdk build && yarn workspace @thawgate/shared build   # once per fresh clone: cli/services type against their dist/
-yarn typecheck               # tsc --noEmit in every workspace
-yarn test:unit               # ts-mocha tests/unit; needs a local validator on :8899
+yarn typecheck               # builds sdk + shared dist/, then tsc --noEmit in every workspace
+anchor localnet --skip-build # validator on :8899 with the 3 programs + tests/fixtures (Anchor.toml [[test.genesis]]); Enter stops it. In scripts keep stdin open (0.32.2 panics on EOF and orphans the validator)
+ANCHOR_WALLET=./test-keypair.json yarn test:unit   # ts-mocha tests/unit against that validator
 ```
 `frontend/` (@thawgate/console) and `tui/` are not yarn workspaces: run `npm install` and build inside each one.
 
-Toolchain today: Anchor 0.30.1 with the `patches/anchor-syn` patch. S1 moves the workspace to 0.32.2.
+Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for IDL builds), Solana CLI 3.0.15. The avm prebuilt 0.32.x binaries need glibc 2.39 and WSL Ubuntu 22.04 has 2.35, so install with `avm install 0.32.2 --from-source`. `tests/fixtures/` holds devnet dumps of Token ACL, the ABL gate, SAS and S&A (see `tests/fixtures/README.md`).
 
 ## Programs (Anchor.toml, localnet = devnet)
 | Program | ID | Upgrade authority |

@@ -154,7 +154,8 @@ pub fn seize_handler<'info>(ctx: Context<'_, '_, '_, 'info, Seize<'info>>) -> Re
         ctx.accounts.mint.decimals,
     )?;
 
-    // Anchor-spl 0.30.1 ignores with_remaining_accounts, so we manually append them to the IX Metas
+    // anchor-spl's token_2022::transfer_checked ignores remaining_accounts (still true in 0.32.2),
+    // so we manually append them (transfer hook extra accounts) to the IX Metas
     for acc in ctx.remaining_accounts.iter() {
         transfer_ix.accounts.push(AccountMeta {
             pubkey: *acc.key,

@@ -30,14 +30,13 @@ jobs:
 
       - name: Install Solana CLI
         run: |
-          wget https://github.com/solana-labs/solana/releases/download/v1.18.26/solana-release-x86_64-unknown-linux-gnu.tar.bz2
-          tar jxf solana-release-x86_64-unknown-linux-gnu.tar.bz2
-          echo "$GITHUB_WORKSPACE/solana-release/bin" >> $GITHUB_PATH
+          sh -c "$(curl -sSfL https://release.anza.xyz/v3.0.15/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Install Anchor CLI
         run: |
-          cargo install --git https://github.com/coral-xyz/anchor \
-            --tag v0.30.1 anchor-cli
+          cargo install --git https://github.com/solana-foundation/anchor \
+            --tag v0.32.2 anchor-cli --locked
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -51,8 +50,8 @@ jobs:
       - name: Generate test keypair
         run: |
           mkdir -p ~/.config/solana
-          $GITHUB_WORKSPACE/solana-release/bin/solana-keygen new --no-bip39-passphrase --outfile ~/.config/solana/id.json
-          $GITHUB_WORKSPACE/solana-release/bin/solana config set --url localhost
+          solana-keygen new --no-bip39-passphrase --outfile ~/.config/solana/id.json
+          solana config set --url localhost
 
       - name: Build programs
         run: anchor build

@@ -3,7 +3,7 @@ name = "sss-token"
 version = "0.1.0"
 description = "Solana Stablecoin Standard — Core Token Program"
 edition = "2021"
-rust-version = "1.72.0"
+rust-version = "1.84"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -23,7 +23,7 @@ anchor-spl = { workspace = true }
 spl-token-2022 = { workspace = true }
 spl-transfer-hook-interface = { workspace = true }
 # Prevent Edition 2024 transitive upgrades during SBF compile
-blake3 = "=1.5.0"
+blake3 = "=1.5.5"
 toml_edit = "=0.21.1"
 toml_datetime = "=0.6.6"
 bytemuck_derive = "=1.8.1"

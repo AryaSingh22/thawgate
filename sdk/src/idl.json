@@ -11,6 +11,111 @@
   ],
   "instructions": [
     {
+      "name": "add_to_allowlist_v3",
+      "docs": [
+        "Adds a wallet to the allowlist (SSS-3 only).",
+        "",
+        "Feature-gated: requires enable_allowlist.",
+        "Only MasterAuthority can manage the allowlist."
+      ],
+      "discriminator": [
+        233,
+        58,
+        198,
+        167,
+        13,
+        130,
+        79,
+        217
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  99,
+                  111,
+                  105,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority_role"
+        },
+        {
+          "name": "wallet",
+          "docs": [
+            "The wallet to add to the allowlist."
+          ]
+        },
+        {
+          "name": "allowlist_entry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  108,
+                  108,
+                  111,
+                  119,
+                  108,
+                  105,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "add_to_blacklist",
       "docs": [
         "Adds an address to the blacklist (SSS-2 only).",
@@ -153,6 +258,85 @@
           "type": "string"
         }
       ]
+    },
+    {
+      "name": "apply_pending_balance",
+      "docs": [
+        "Applies pending confidential balance credits (SSS-3 only).",
+        "",
+        "Feature-gated: requires enable_confidential_transfers."
+      ],
+      "discriminator": [
+        69,
+        71,
+        130,
+        63,
+        82,
+        162,
+        113,
+        185
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "The wallet owner applying their pending balance."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  99,
+                  111,
+                  105,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "token_account",
+          "docs": [
+            "The token account to apply pending balance to."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token-2022 program."
+          ]
+        }
+      ],
+      "args": []
     },
     {
       "name": "burn_tokens",
@@ -335,6 +519,85 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "configure_confidential_account",
+      "docs": [
+        "Configures a token account for confidential transfers (SSS-3 only).",
+        "",
+        "Feature-gated: requires enable_confidential_transfers."
+      ],
+      "discriminator": [
+        36,
+        212,
+        145,
+        231,
+        191,
+        23,
+        188,
+        119
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "docs": [
+            "The wallet owner configuring their confidential transfer account."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  99,
+                  111,
+                  105,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "token_account",
+          "docs": [
+            "The token account to configure for confidential transfers."
+          ],
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token-2022 program."
+          ]
+        }
+      ],
+      "args": []
     },
     {
       "name": "freeze_account",
@@ -862,6 +1125,104 @@
             "The operator's role record PDA.",
             "Must be either Pauser or MasterAuthority with active status."
           ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "remove_from_allowlist_v3",
+      "docs": [
+        "Removes a wallet from the allowlist (SSS-3 only).",
+        "",
+        "Feature-gated: requires enable_allowlist.",
+        "Only MasterAuthority can manage the allowlist."
+      ],
+      "discriminator": [
+        7,
+        32,
+        13,
+        36,
+        151,
+        42,
+        203,
+        122
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  99,
+                  111,
+                  105,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority_role"
+        },
+        {
+          "name": "wallet"
+        },
+        {
+          "name": "allowlist_entry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  108,
+                  108,
+                  111,
+                  119,
+                  108,
+                  105,
+                  115,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -1656,6 +2017,19 @@
   ],
   "accounts": [
     {
+      "name": "AllowlistEntry",
+      "discriminator": [
+        42,
+        59,
+        88,
+        1,
+        124,
+        138,
+        92,
+        236
+      ]
+    },
+    {
       "name": "BlacklistEntry",
       "discriminator": [
         218,
@@ -1762,6 +2136,32 @@
       ]
     },
     {
+      "name": "AllowlistAdded",
+      "discriminator": [
+        102,
+        147,
+        146,
+        236,
+        103,
+        153,
+        16,
+        151
+      ]
+    },
+    {
+      "name": "AllowlistRemoved",
+      "discriminator": [
+        47,
+        69,
+        78,
+        173,
+        196,
+        109,
+        163,
+        172
+      ]
+    },
+    {
       "name": "AuthorityTransferred",
       "discriminator": [
         245,
@@ -1772,6 +2172,32 @@
         92,
         22,
         64
+      ]
+    },
+    {
+      "name": "ConfidentialAccountConfigured",
+      "discriminator": [
+        123,
+        117,
+        217,
+        151,
+        45,
+        14,
+        147,
+        26
+      ]
+    },
+    {
+      "name": "PendingBalanceApplied",
+      "discriminator": [
+        129,
+        212,
+        242,
+        132,
+        72,
+        109,
+        183,
+        239
       ]
     },
     {
@@ -2021,6 +2447,11 @@
       "code": 6030,
       "name": "NotPaused",
       "msg": "Not paused: token operations are not currently suspended"
+    },
+    {
+      "code": 6031,
+      "name": "AllowlistEntryNotActive",
+      "msg": "Allowlist entry not active: the allowlist entry for this wallet has been deactivated"
     }
   ],
   "types": [
@@ -2149,6 +2580,100 @@
       }
     },
     {
+      "name": "AllowlistAdded",
+      "docs": [
+        "Event emitted when a wallet is added to the allowlist."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AllowlistEntry",
+      "docs": [
+        "An entry on the allowlist for an SSS-3 stablecoin.",
+        "",
+        "Derived as a PDA from `[SEED_ALLOWLIST, mint.key(), wallet.key()]`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "docs": [
+              "The Token-2022 mint this allowlist entry belongs to."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "docs": [
+              "The wallet address that is allowlisted."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "added_at",
+            "docs": [
+              "Unix timestamp when the wallet was added to the allowlist."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "active",
+            "docs": [
+              "Whether this entry is currently active."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed for this account."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AllowlistRemoved",
+      "docs": [
+        "Event emitted when a wallet is removed from the allowlist."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuthorityTransferred",
       "docs": [
         "Event emitted when authority is transferred."
@@ -2252,6 +2777,33 @@
       }
     },
     {
+      "name": "ConfidentialAccountConfigured",
+      "docs": [
+        "Event emitted when a confidential account is configured."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
       "name": "InitializeArgs",
       "docs": [
         "Arguments for the initialize instruction."
@@ -2316,6 +2868,20 @@
             "type": {
               "option": "pubkey"
             }
+          },
+          {
+            "name": "enable_confidential_transfers",
+            "docs": [
+              "Whether to enable confidential transfers (SSS-3)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "enable_allowlist",
+            "docs": [
+              "Whether to enable allowlist-based access control (SSS-3)."
+            ],
+            "type": "bool"
           }
         ]
       }
@@ -2427,6 +2993,33 @@
               "PDA bump seed for this account."
             ],
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PendingBalanceApplied",
+      "docs": [
+        "Event emitted when pending balance is applied."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
@@ -2663,6 +3256,20 @@
             "name": "default_account_frozen",
             "docs": [
               "Whether new token accounts are frozen by default (immutable after init)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "enable_confidential_transfers",
+            "docs": [
+              "Whether confidential transfers (SPL Token-2022 extension) are enabled (SSS-3, immutable after init)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "enable_allowlist",
+            "docs": [
+              "Whether allowlist-based access control is enabled (SSS-3, immutable after init)."
             ],
             "type": "bool"
           },
