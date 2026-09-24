@@ -3,6 +3,7 @@ members = [
     "programs/sss-token",
     "programs/transfer-hook",
     "programs/oracle-module",
+    "programs/thawgate-gate",
 ]
 resolver = "2"
 

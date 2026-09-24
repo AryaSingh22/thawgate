@@ -9,11 +9,13 @@ skip-lint = false
 sss_token = { address = "HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ", idl = "target/idl/sss_token.json" }
 transfer_hook = { address = "2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv", idl = "target/idl/transfer_hook.json" }
 oracle_module = { address = "HEuTBAakSu9sojbzjbcgBzsFkRYeRaZJdixqcao5Gvo6", idl = "target/idl/oracle_module.json" }
+thawgate_gate = { address = "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ", idl = "target/idl/thawgate_gate.json" }
 
 [programs.devnet]
 sss_token = { address = "HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ", idl = "target/idl/sss_token.json" }
 transfer_hook = { address = "2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv", idl = "target/idl/transfer_hook.json" }
 oracle_module = { address = "HEuTBAakSu9sojbzjbcgBzsFkRYeRaZJdixqcao5Gvo6", idl = "target/idl/oracle_module.json" }
+thawgate_gate = { address = "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ", idl = "target/idl/thawgate_gate.json" }
 
 [registry]
 url = "https://api.apr.dev"
@@ -43,4 +45,5 @@ address = "De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44"
 program = "tests/fixtures/subscriptions_allowances.so"
 
 [scripts]
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+# tests/gate runs on its own validator setup: scripts/test-gate.sh (yarn test:gate)
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts --ignore 'tests/gate/**'"
