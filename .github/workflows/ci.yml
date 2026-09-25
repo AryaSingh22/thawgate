@@ -16,7 +16,8 @@ env:
   # Same as local dev. There is no 3.0.15 release (the `stable` channel once served an untagged v3.0 build labelled 3.0.15)
   SOLANA_VERSION: "3.0.14"
   ANCHOR_VERSION: "0.32.2"
-  NODE_VERSION: "20"
+  # Node 22: commander@15 (via @solana/errors 6.x) requires >= 22.12; local dev runs 22.17
+  NODE_VERSION: "22"
 
 jobs:
   rust-checks:

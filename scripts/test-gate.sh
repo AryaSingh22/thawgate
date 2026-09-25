@@ -29,7 +29,9 @@ solana-test-validator --reset --ledger "$LEDGER" --quiet \
   --bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tests/fixtures/token_2022.so \
   "${ACCOUNTS[@]}" > "$LOG" 2>&1 &
 VPID=$!
-trap 'kill $VPID 2>/dev/null; wait $VPID 2>/dev/null; rm -rf "$FIXTURES"' EXIT
+# `|| true`: wait returns the killed validator's 143, and under set -e a failing command in the EXIT trap becomes the
+# script's exit status, masking the test result.
+trap 'kill $VPID 2>/dev/null || true; wait $VPID 2>/dev/null || true; rm -rf "$FIXTURES"' EXIT
 
 for _ in $(seq 1 60); do
   solana cluster-version -u l > /dev/null 2>&1 && break

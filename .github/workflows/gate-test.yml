@@ -84,3 +84,4 @@ jobs:
         with:
           name: gate-validator-log
           path: tests/gate/.validator.log
+          include-hidden-files: true  # upload-artifact v4 skips dotfiles by default
