@@ -127,10 +127,10 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
   - credential and schema match the policy
   - fail closed: deny when the extra accounts are missing, since Token ACL calls the gate with only its 5 base accounts if the caller omits the extra-metas account. Token ACL itself derives the attestation's address from the gate's meta list and rejects a substitute (S4 test cases 6a/6b; SPIKES.md S3, corrected)
   - `nonce == owner`
-  - header `expiry == 0 || > now` (offset `133 + data_len`; the demo schema has no expiry field)
+  - header `expiry == 0 || > now` (offset `133 + data_len`; the demo schema has no expiry field). *Built (S5):* `expiry == 0 || expiry >= now`, the SAS program's own rule (`create_attestation.rs:64`), so the expiry second itself is live
   - optional `min_kyc_level` from schema data (`kyc_level` is at byte 101)
-- [ ] Extra metas: SAS program, credential, schema, then the attestation as an external PDA with seeds `[lit "attestation", key(cred), key(schema), data(ta, 32..64)]`.
-- [ ] `can_freeze` returns Ok **only** if the attestation is missing, closed or expired (anti-grief).
+- [ ] Extra metas: SAS program, credential, schema, then the attestation as an external PDA with seeds `[lit "attestation", key(cred), key(schema), data(ta, 32..64)]`. *Built (S5):* `key(3)` (the owner) in place of `data(ta, 32..64)`; S3 showed both resolve to the same PDA.
+- [ ] `can_freeze` returns Ok **only** if the attestation is missing, closed or expired (anti-grief). *Changed in S5:* freeze is allowed exactly when some policy flags the owner, which includes `kyc_level` below `min_kyc_level`. Griefing is still impossible, because Token ACL enforces the attestation address and its data is issuer-signed.
 - [ ] Optional (cut ladder): `nonce_mode = SasNoncePda` in `GatePolicy` for Civic-format attestations, where nonce = `PDA(["nonce", owner], SAS)`: one more extra meta (SPIKES.md S3).
 - [ ] Tests with the SAS fixture:
   - attested → thaw
@@ -232,6 +232,10 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
 - [ ] README: pitch line (MARKET.md §4), a 20-second GIF of unlock → revoke → frozen, architecture diagram (Token ACL → ThawGate policy → SAS/blacklist/allowlist/Range), 5-minute quickstart, program IDs, and "Built on" (Token ACL, SAS, S&A).
 - [ ] Docs:
   - `docs/` → `docs/thawgate/` (gate spec with reason codes, policy config, integrator guide "swap your gate in 2 instructions", keeper ops, reserves)
+  - Integrator guide TODOs from S5:
+    - Tightening a policy (raising `min_kyc_level`, switching to `AllowOnly`) makes holders who no longer comply permissionlessly freezable, by design (LOG.md S5).
+    - `BypassForPdas` still requires ImmutableOwner on the vault. Orca Whirlpool adds it to vaults created since #974 (2025-06-23); older Token-2022 Orca vaults, and venues that don't add it, are denied `NO_IMMUTABLE_OWNER`.
+    - SAS expiry: an attestation is live while `expiry == 0 || expiry >= now` (the SAS program's rule; SAS's kit example checks `now < expiry`).
   - SSS docs move under `docs/examples/sss/`
   - SUBMISSION.md → replace with the new submission text
 - [ ] Finalize `DISCLOSURE.md` (fill the placeholders; link `git diff pre-worlds-fair..HEAD` stats).

@@ -110,3 +110,54 @@ One entry per session: shipped / links / next. This is the "built during the hac
     - kit needs one signer instance per address.
 - **Links:** no on-chain tx (localnet only). Commits `cd4acc9` (gate + tests) and `696f974` (S3 correction).
 - **Next:** S5 SAS policy. Extend `Layout` with the SAS group (SAS program, credential, schema, attestation with nonce = owner). Decide `BypassForPdas` there. Check owner = SAS, `data[0] == 2`, credential and schema, and the header `expiry` at `133 + data_len`. Record the thaw CU with SAS.
+
+## S5 · 2026-09-26 · SAS policy + BypassForPdas
+- **CI first.** On the S4 push `29e2f8f` all 5 workflows were red.
+  - **Gate Tests:** 11/11 cases passed, then `scripts/test-gate.sh` exited 143. Its EXIT trap ran `wait $VPID`, which returned the killed validator's 143, and under `set -e` that became the script's status. S4's "passed twice in a row" was read from mocha's output, not the exit code. The trap now uses `|| true`. Checked: a clean run exits 0, and a run with a forced failing test exits 1. The failure-log upload also skipped the dotfile `tests/gate/.validator.log`; it now sets `include-hidden-files`.
+  - **Full CI, TypeScript Tests, Anchor Integration Tests, CI:** `yarn install` failed on Node 20: `commander@15.0.0` needs Node ≥ 22.12. It comes from `@solana/errors` 6.10.0 through the S2 spike devDependencies. Those workflows now use Node 22 (`89f980a`), after which Gate Tests, TypeScript Tests, CI and Full CI were green.
+  - **Anchor Integration** then reached its tests: 66 passing / 10 failing. That's the 9 known SSS e2e failures (S1; fixed in S6/S7) plus `thawgate-gate`, failing with the bundled Token-2022's "Failed to reallocate account data". S4's exclusion never worked: the unquoted `tests/**/*.ts` is expanded by the shell, and the root's mocha 5.0.5 has no `--ignore`. The script now names `tests/unit/*.ts tests/integration/*.ts`, the same six files as before S4 (`fa099a2`).
+- **Shipped:** the SAS KYC policy and `BypassForPdas` in `programs/thawgate-gate` (`8b37365`).
+  - **Extra metas:** with `require_sas`, the SAS group follows the S4 accounts: SAS program, credential, schema, then the attestation as an external PDA of SAS with seeds `["attestation", key(cred), key(schema), key(3 = owner)]`. The S4 indices don't move. `key(3)` replaces PLAN's `data(ta, 32..64)`; S3 showed both resolve to the same address.
+  - **Attestation read** (`src/sas.rs`, vendored layout, pinned by a unit test against the 180 bytes SAS wrote in S3):
+    - empty or closed means no credential;
+    - otherwise it checks owner = SAS, discriminator 2, credential and schema = policy, and nonce = owner. Any mismatch → `BAD_CREDENTIAL`, which denies thaw **and** freeze;
+    - expired when `expiry != 0 && expiry < now`;
+    - `min_kyc_level` is compared with the first data byte.
+  - **Expiry rule:** taken from the SAS program, `create_attestation.rs:64` (commit `44a58eea`), which rejects `expiry < clock.unix_timestamp && expiry != 0`. So an attestation is live during its expiry second. SAS's kit example (`sas-standard-kit-demo.ts:193`) instead checks `now < expiry`, and treats `expiry == 0` as expired. sas-lib has no comparison at all.
+  - **Decision rule:** a thaw passes when no policy flags the owner; a freeze passes only when one does. The flags, in precedence order: blacklist, AllowOnly, no/expired/below-minimum credential. So **tightening a policy (raising `min_kyc_level`, switching to `AllowOnly`) makes holders who no longer comply permissionlessly freezable, by design.** This replaces PLAN's "freeze only if missing, closed or expired". Griefing is still impossible, because Token ACL enforces the attestation's address and its data is issuer-signed. New codes: `TG:ALLOW:KYC | PDA_ALLOWLISTED | NO_CREDENTIAL | CREDENTIAL_EXPIRED | KYC_LEVEL_TOO_LOW` and `TG:DENY:NO_CREDENTIAL | CREDENTIAL_EXPIRED | KYC_LEVEL_TOO_LOW | BAD_CREDENTIAL`.
+  - **BypassForPdas:** an owner that is off-curve **and** has an active allowlist entry skips SAS, and the freeze crank can't freeze it. Allowlisted on-curve wallets and deactivated PDAs still need a credential.
+    - ImmutableOwner stays required. The S2 Orca vault has it: the spike recorded `orcaVaultImmutableOwner: true`, and Whirlpool's `initialize_vault_token_account` (`util/token_2022.rs:463`) always adds it. It has done so since Orca #974 (`6352a9b61a`, 2025-06-23), so older Token-2022 Orca vaults lack it (S16 integrator guide).
+    - The off-curve check uses `solana-curve25519`'s `validate_edwards`, the `sol_curve_validate_point` syscall, because `Pubkey::is_on_curve` is `unimplemented!()` on SBF.
+    - `update_policy` rejects `BypassForPdas` without `require_sas`, and `require_sas` without a credential and schema.
+  - **Tests:**
+    - Rust: `cargo test -p thawgate-gate` 27 passed (16 in S4); `cargo test --workspace` 118 passed / 0 failed.
+    - Localnet: `tests/gate/sas.test.ts` has 12 cases on the real SAS program (`tests/fixtures/sas.so`). The credential, schema, attestations and revoke all go through sas-lib 1.0.10; only the forged attestation in case 8 is injected at genesis.
+    - Cases: attested thaws; no attestation, expired, and `kyc_level` 2 under min 3 are each denied and freezable; valid can't be frozen; closed (revoked) is freezable and can't re-thaw; missing extras deny thaw and freeze; a SAS-owned account with another credential is denied both ways; BypassForPdas uses vaults built like Whirlpool's (keypair account, ImmutableOwner, then `InitializeAccount3` to the pool PDA).
+    - The expired case waits until the chain clock is strictly past `expiry`.
+    - `yarn test:gate`: 23 passing (11 S4 + 12 S5), twice in a row with identical CU. `anchor build` (all programs) and `yarn typecheck` green; verify-ids OK after every build.
+  - **CU** (localnet, same method as S4). Deterministic keys, and both runs were identical:
+
+    | Operation | tx total | gate frame |
+    |---|---|---|
+    | `thaw_permissionless`, SAS, attested (min level 1) | 31,604 | 4,798 |
+    | `freeze_permissionless`, SAS, revoked (closed) | 41,546 | 4,238 |
+    | `freeze_permissionless`, SAS, expired | 37,320 | 4,512 |
+    | `thaw_permissionless`, BypassForPdas, allowlisted pool PDA | 40,428 | 5,401 |
+
+    - The S4 rows, re-measured with the S5 binary: 26,191 / 3,385 · 32,103 / 4,119 · 29,366 / 4,382 · 29,079 / 4,093. That's +16 to +33 CU against S4, from code the S5 binary adds on the shared path.
+    - The SAS check adds ~1.4k CU to the gate frame over the open policy. Tx totals vary with the resolved addresses, as in S2: Token ACL derives each extra PDA.
+    - `thawgate_gate.so` is 290,016 bytes (279,112 in S4).
+  - **Harness finding:** until the confirmed bank passes slot 0, the RPC rejects v0 transactions with `invalid transaction: Attempt to debit an account but found no record of a prior credit`. Legacy transactions pass. Reproduced 2/2 with a scratch kit script; it caused one local suite failure. `test-gate.sh` now waits for confirmed slot ≥ 1 (3/3 v0 sends accepted), not just `cluster-version`.
+- **CI on `8b37365`:** Gate Tests, CI, Full CI and TypeScript Tests are green.
+  - Gate Tests (run 36188517038): Rust 27 passed; localnet 23 passing, with CU identical to the local table.
+  - Anchor Integration: 69 passing / 6 failing, all known SSS e2e classes from S1, and no longer includes `thawgate-gate`:
+    - SSS-1 Step 16 and SSS-2 Step 15, "already in use";
+    - SSS-2 Step 08, `seizerRole` not provided;
+    - SSS-2 Step 06, the `isFrozen` race;
+    - SSS-2 Step 16, downstream of the above;
+    - SSS-1 Step 04, `TokenAccountNotFoundError`. That's the same read-after-write race, on a step S1 hadn't seen fail.
+- **Links:** no on-chain tx (localnet only). Commits `89f980a` (CI fixes), `fa099a2` (legacy test glob), `8b37365` (S5).
+- **Next:** S6, sss-token in Token ACL mode (it writes real registry entries; the genesis injection goes). Still open:
+  - Devnet credential and schema (`BYSdZK…`, `Fovh6z…`) wait on SOL for the spike payer.
+  - Civic nonce mode stays on the cut ladder.
+  - S8 keeper: a revoked, expired or below-minimum holder is freezable by anyone, so the keeper only has to find them.
