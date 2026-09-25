@@ -32,3 +32,17 @@ pub const MAX_URI_LEN: usize = 200;
 
 /// Maximum length for blacklist reason string (SSS-2).
 pub const MAX_REASON_LEN: usize = 100;
+
+/// `StablecoinConfig.compliance_mode` 0: compliance through the transfer hook when `enable_transfer_hook` is set
+/// (SSS-1/SSS-2 as before). Configs created before the field existed read as this mode.
+pub const COMPLIANCE_MODE_HOOK: u8 = 0;
+
+/// `compliance_mode` 1: Token ACL (sRFC 37) with the ThawGate gate. Frozen by default, Pausable, TokenMetadata;
+/// no transfer hook.
+pub const COMPLIANCE_MODE_ACL: u8 = 1;
+
+/// `compliance_mode` 2: Token ACL plus the transfer hook ("strict mode").
+pub const COMPLIANCE_MODE_BOTH: u8 = 2;
+
+/// TokenMetadata key through which Token ACL clients find a mint's gate (@token-acl/sdk `TOKEN_ACL_METADATA_KEY`).
+pub const TOKEN_ACL_METADATA_KEY: &str = "token_acl";

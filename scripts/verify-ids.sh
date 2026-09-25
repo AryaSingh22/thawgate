@@ -51,6 +51,19 @@ for entry in "${PROGRAMS[@]}"; do
   fi
 done
 
+# Program IDs one program vendors for another (no crate dependency) must match that program's declare_id!.
+# "<file>:<const>:<crate dir of the program it names>"
+VENDORED=(
+  "programs/transfer-hook/src/execute.rs:SSS_TOKEN_PROGRAM_ID:sss-token"
+  "programs/sss-token/src/thawgate.rs:THAWGATE_GATE_ID:thawgate-gate"
+)
+for entry in "${VENDORED[@]}"; do
+  IFS=: read -r file const dir <<< "$entry"
+  vendored_id=$(grep "pub const $const: Pubkey" "$file" | grep -oP '"[^"]+"' | tr -d '"')
+  src_id=$(grep 'declare_id!' "programs/$dir/src/lib.rs" | grep -oP '"[^"]+"' | tr -d '"')
+  check "$file $const" "$src_id" "$vendored_id"
+done
+
 # Deployed programs must match DEPLOYMENT.md.
 for name in sss-token transfer-hook; do
   src_id=$(grep 'declare_id!' "programs/$name/src/lib.rs" | grep -oP '"[^"]+"' | tr -d '"')

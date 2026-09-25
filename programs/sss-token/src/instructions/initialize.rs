@@ -7,15 +7,23 @@
 //! 4. Creates the MasterAuthority RoleRecord PDA
 //!
 //! Extension flags (`enable_permanent_delegate`, `enable_transfer_hook`,
-//! `default_account_frozen`) are immutable after this instruction completes.
+//! `default_account_frozen`) and `compliance_mode` are immutable after this instruction completes.
+//!
+//! Token ACL modes (`compliance_mode` Acl or Both) also add Pausable (pause authority = config PDA) and
+//! MetadataPointer + TokenMetadata on the mint itself (update authority = config PDA). `enable_token_acl` later
+//! writes the metadata's `token_acl` field, whose rent is funded here.
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program::invoke_signed;
 use anchor_spl::token_2022;
+use anchor_spl::token_2022::spl_token_2022::extension::{metadata_pointer, pausable, ExtensionType};
 use anchor_spl::token_interface::TokenInterface;
+use spl_token_metadata_interface::state::TokenMetadata;
 
 use crate::constants::*;
 use crate::errors::SssError;
 use crate::state::*;
+use crate::thawgate::THAWGATE_GATE_ID;
 
 /// Arguments for the initialize instruction.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -40,6 +48,32 @@ pub struct InitializeArgs {
     pub enable_confidential_transfers: bool,
     /// Whether to enable allowlist-based access control (SSS-3).
     pub enable_allowlist: bool,
+    /// `COMPLIANCE_MODE_HOOK` (0), `_ACL` (1) or `_BOTH` (2). Last field, so clients built before S6 that omit it
+    /// encode 0 (Hook, the old behavior).
+    pub compliance_mode: u8,
+}
+
+impl InitializeArgs {
+    fn uses_token_acl(&self) -> bool {
+        matches!(self.compliance_mode, COMPLIANCE_MODE_ACL | COMPLIANCE_MODE_BOTH)
+    }
+
+    /// Token ACL needs DefaultAccountState (it refuses `create_config` otherwise) and frozen-by-default accounts;
+    /// Both mode is the only Token ACL mode with the hook.
+    pub fn validate_compliance_mode(&self) -> Result<()> {
+        match self.compliance_mode {
+            COMPLIANCE_MODE_HOOK => Ok(()),
+            COMPLIANCE_MODE_ACL | COMPLIANCE_MODE_BOTH => {
+                let wants_hook = self.compliance_mode == COMPLIANCE_MODE_BOTH;
+                require!(
+                    self.default_account_frozen && self.enable_transfer_hook == wants_hook,
+                    SssError::InvalidComplianceMode
+                );
+                Ok(())
+            }
+            _ => err!(SssError::InvalidComplianceMode),
+        }
+    }
 }
 
 /// Accounts required for the initialize instruction.
@@ -122,6 +156,8 @@ pub struct StablecoinInitialized {
     pub default_account_frozen: bool,
     /// Unix timestamp of initialization.
     pub timestamp: i64,
+    /// `COMPLIANCE_MODE_HOOK`, `_ACL` or `_BOTH` (appended in S6).
+    pub compliance_mode: u8,
 }
 
 /// Handler for the initialize instruction.
@@ -138,21 +174,38 @@ pub fn initialize_handler(ctx: Context<Initialize>, args: InitializeArgs) -> Res
     if args.enable_transfer_hook {
         require!(args.hook_program_id.is_some(), SssError::InvalidConfig);
     }
+    args.validate_compliance_mode()?;
 
     let clock = Clock::get()?;
     let mint_key = ctx.accounts.mint.key();
-    let config_seeds = &[SEED_CONFIG, mint_key.as_ref()];
-    let (_, config_bump) = Pubkey::find_program_address(config_seeds, ctx.program_id);
+    let config_key = ctx.accounts.config.key();
+    let config_bump = ctx.bumps.config;
+    let config_signer: &[&[&[u8]]] = &[&[SEED_CONFIG, mint_key.as_ref(), &[config_bump]]];
 
     // Determine the extensions to enable and compute required space for mint
     let extension_types = build_extension_list(&args);
-    let mint_space = anchor_spl::token_2022::spl_token_2022::extension::ExtensionType::try_calculate_account_len::<
+    let mint_space = ExtensionType::try_calculate_account_len::<
         anchor_spl::token_2022::spl_token_2022::state::Mint,
     >(&extension_types)?;
 
+    // TokenMetadata is variable-length: Token-2022 reallocates the mint when it is written, so the account is
+    // created at the fixed size and funded for the final one, including the `token_acl` field that
+    // `enable_token_acl` adds (the value is the gate's base58 ID).
+    let metadata = args.uses_token_acl().then(|| TokenMetadata {
+        name: args.name.clone(),
+        symbol: args.symbol.clone(),
+        uri: args.uri.clone(),
+        additional_metadata: vec![(TOKEN_ACL_METADATA_KEY.to_string(), THAWGATE_GATE_ID.to_string())],
+        ..Default::default()
+    });
+    let metadata_space = match &metadata {
+        Some(m) => m.tlv_size_of()?,
+        None => 0,
+    };
+
     // Create the mint account via system program
     let rent = &ctx.accounts.rent;
-    let lamports = rent.minimum_balance(mint_space);
+    let lamports = rent.minimum_balance(mint_space + metadata_space);
 
     anchor_lang::system_program::create_account(
         CpiContext::new(
@@ -191,9 +244,16 @@ pub fn initialize_handler(ctx: Context<Initialize>, args: InitializeArgs) -> Res
         )?;
     }
 
+    // 4-5. Token ACL modes: Pausable (the config PDA pauses) and a metadata pointer to the mint itself
+    if args.uses_token_acl() {
+        let ix = pausable::instruction::initialize(&token_2022::ID, &mint_key, &config_key)?;
+        anchor_lang::solana_program::program::invoke(&ix, std::slice::from_ref(&mint_info))?;
+        let ix = metadata_pointer::instruction::initialize(&token_2022::ID, &mint_key, Some(config_key), Some(mint_key))?;
+        anchor_lang::solana_program::program::invoke(&ix, std::slice::from_ref(&mint_info))?;
+    }
+
     // Initialize the mint itself
     // Mint authority = config PDA, Freeze authority = config PDA
-    let config_key = ctx.accounts.config.key();
     anchor_spl::token_2022::initialize_mint2(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -205,6 +265,21 @@ pub fn initialize_handler(ctx: Context<Initialize>, args: InitializeArgs) -> Res
         &config_key,
         Some(&config_key),
     )?;
+
+    // Token ACL modes: TokenMetadata on the mint, signed by the config PDA as mint authority
+    if let Some(m) = &metadata {
+        let ix = spl_token_metadata_interface::instruction::initialize(
+            &token_2022::ID,
+            &mint_key,
+            &config_key,
+            &mint_key,
+            &config_key,
+            m.name.clone(),
+            m.symbol.clone(),
+            m.uri.clone(),
+        );
+        invoke_signed(&ix, &[mint_info.clone(), ctx.accounts.config.to_account_info()], config_signer)?;
+    }
 
     // Initialize StablecoinConfig PDA
     let config = &mut ctx.accounts.config;
@@ -223,6 +298,7 @@ pub fn initialize_handler(ctx: Context<Initialize>, args: InitializeArgs) -> Res
     config.total_minted = 0;
     config.total_burned = 0;
     config.bump = config_bump;
+    config.compliance_mode = args.compliance_mode;
 
     // Initialize PauseState PDA
     let pause_state = &mut ctx.accounts.pause_state;
@@ -252,30 +328,28 @@ pub fn initialize_handler(ctx: Context<Initialize>, args: InitializeArgs) -> Res
         enable_transfer_hook: args.enable_transfer_hook,
         default_account_frozen: args.default_account_frozen,
         timestamp: clock.unix_timestamp,
+        compliance_mode: args.compliance_mode,
     });
 
     Ok(())
 }
 
-/// Builds the list of Token-2022 extensions to enable based on the init args.
-fn build_extension_list(
-    args: &InitializeArgs,
-) -> Vec<anchor_spl::token_2022::spl_token_2022::extension::ExtensionType> {
+/// Builds the list of fixed-size Token-2022 extensions to enable based on the init args (TokenMetadata is
+/// variable-length and is sized separately).
+pub fn build_extension_list(args: &InitializeArgs) -> Vec<ExtensionType> {
     let mut extensions = Vec::new();
     if args.enable_permanent_delegate {
-        extensions.push(
-            anchor_spl::token_2022::spl_token_2022::extension::ExtensionType::PermanentDelegate,
-        );
+        extensions.push(ExtensionType::PermanentDelegate);
     }
     if args.enable_transfer_hook {
-        extensions.push(
-            anchor_spl::token_2022::spl_token_2022::extension::ExtensionType::TransferHook,
-        );
+        extensions.push(ExtensionType::TransferHook);
     }
     if args.default_account_frozen {
-        extensions.push(
-            anchor_spl::token_2022::spl_token_2022::extension::ExtensionType::DefaultAccountState,
-        );
+        extensions.push(ExtensionType::DefaultAccountState);
+    }
+    if args.uses_token_acl() {
+        extensions.push(ExtensionType::Pausable);
+        extensions.push(ExtensionType::MetadataPointer);
     }
     extensions
 }

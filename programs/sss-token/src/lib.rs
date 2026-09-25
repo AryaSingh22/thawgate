@@ -23,6 +23,8 @@ pub mod constants;
 pub mod errors;
 pub mod instructions;
 pub mod state;
+pub mod thawgate;
+pub mod token_acl;
 
 use instructions::*;
 use state::*;
@@ -120,28 +122,39 @@ pub mod sss_token {
         instructions::roles::handler_transfer_authority(ctx, new_authority)
     }
 
-    /// Adds an address to the blacklist (SSS-2 only).
+    /// Adds an address to the blacklist (SSS-2 and Token ACL modes).
     ///
-    /// Feature-gated: requires enable_transfer_hook.
+    /// Feature-gated: requires compliance (enable_transfer_hook, or compliance_mode Acl/Both).
     /// Creates a BlacklistEntry and freezes the target's token account.
     pub fn add_to_blacklist(ctx: Context<AddToBlacklist>, reason: String) -> Result<()> {
         instructions::compliance::handler_add_to_blacklist(ctx, reason)
     }
 
-    /// Removes an address from the blacklist (SSS-2 only).
+    /// Removes an address from the blacklist (SSS-2 and Token ACL modes).
     ///
-    /// Feature-gated: requires enable_transfer_hook.
+    /// Feature-gated: requires compliance (enable_transfer_hook, or compliance_mode Acl/Both).
     /// Deactivates the BlacklistEntry. Does NOT auto-thaw.
     pub fn remove_from_blacklist(ctx: Context<RemoveFromBlacklist>) -> Result<()> {
         instructions::compliance::handler_remove_from_blacklist(ctx)
     }
 
-    /// Seizes all tokens from a frozen, blacklisted account (SSS-2 only).
+    /// Seizes all tokens from a frozen, blacklisted account (SSS-2 and Token ACL modes).
     ///
-    /// Feature-gated: requires both enable_transfer_hook and enable_permanent_delegate.
+    /// Feature-gated: requires compliance (the hook or Token ACL) and enable_permanent_delegate.
     /// Uses permanent delegate authority to transfer without owner consent.
     pub fn seize<'info>(ctx: Context<'_, '_, '_, 'info, Seize<'info>>) -> Result<()> {
         instructions::seize::seize_handler(ctx)
+    }
+
+    // ====================================================================
+    // Token ACL mode (S6)
+    // ====================================================================
+
+    /// Puts a Token ACL mode mint under Token ACL with the ThawGate gate and creates its gate policy.
+    ///
+    /// Requires compliance_mode Acl or Both and the MasterAuthority. The config PDA signs every CPI.
+    pub fn enable_token_acl(ctx: Context<EnableTokenAcl>, policy: GatePolicyConfig) -> Result<()> {
+        instructions::enable_token_acl::enable_token_acl_handler(ctx, policy)
     }
 
     // ====================================================================

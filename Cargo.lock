@@ -2705,6 +2705,7 @@ dependencies = [
  "constant_time_eq",
  "getrandom 0.2.14",
  "spl-token-2022",
+ "spl-token-metadata-interface",
  "spl-transfer-hook-interface",
  "toml_datetime 0.6.6",
  "toml_edit 0.21.1",

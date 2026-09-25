@@ -1,9 +1,17 @@
 //! Pause and unpause instructions — halts or resumes token operations.
 //!
 //! When paused, mint, burn, and transfer operations are blocked.
-//! Compliance operations (freeze, thaw, seize) still work while paused.
+//! Compliance operations (freeze, thaw, seize) still work while paused, except seize on a mint with the
+//! transfer hook (Hook and Both modes): the hook rejects every transfer while PauseState is paused (see seize.rs).
+//!
+//! Hook mode: the PauseState PDA is the switch; the transfer hook and mint/burn read it.
+//! Token ACL modes (Acl, Both): the mint's Token-2022 Pausable extension is the switch for transfers, mint and burn
+//! (pause authority = config PDA), and PauseState is kept in step for mint/burn and, in Both mode, the hook.
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program::invoke_signed;
+use anchor_spl::token_2022::spl_token_2022::extension::pausable;
+use anchor_spl::token_2022::Token2022;
 
 use crate::constants::*;
 use crate::errors::SssError;
@@ -21,6 +29,7 @@ pub struct PauseOrUnpause<'info> {
         mut,
         seeds = [SEED_CONFIG, config.mint.as_ref()],
         bump = config.bump,
+        has_one = mint @ SssError::InvalidMint,
     )]
     pub config: Account<'info, StablecoinConfig>,
 
@@ -35,6 +44,34 @@ pub struct PauseOrUnpause<'info> {
     /// The operator's role record PDA.
     /// Must be either Pauser or MasterAuthority with active status.
     pub operator_role: Account<'info, RoleRecord>,
+
+    /// The config's mint: Token ACL mode pauses it through Token-2022 Pausable.
+    /// CHECK: `has_one` on config; Token-2022 validates it.
+    #[account(mut)]
+    pub mint: UncheckedAccount<'info>,
+
+    /// Token-2022 program (Pausable CPI).
+    pub token_program: Program<'info, Token2022>,
+}
+
+impl<'info> PauseOrUnpause<'info> {
+    /// Token-2022 Pausable `pause` / `resume`, signed by the config PDA (the pause authority). Token ACL modes only;
+    /// Hook-mode mints have no Pausable extension.
+    fn set_mint_paused(&self, paused: bool) -> Result<()> {
+        if !self.config.uses_token_acl() {
+            return Ok(());
+        }
+        let (token_program, mint, config) = (self.token_program.key, self.mint.key, &self.config.key());
+        let ix = if paused {
+            pausable::instruction::pause(token_program, mint, config, &[])?
+        } else {
+            pausable::instruction::resume(token_program, mint, config, &[])?
+        };
+        let mint_key = self.config.mint;
+        let seeds: &[&[&[u8]]] = &[&[SEED_CONFIG, mint_key.as_ref(), &[self.config.bump]]];
+        invoke_signed(&ix, &[self.mint.to_account_info(), self.config.to_account_info()], seeds)?;
+        Ok(())
+    }
 }
 
 /// Event emitted when token operations are paused.
@@ -96,6 +133,8 @@ pub fn handler_pause(ctx: Context<PauseOrUnpause>) -> Result<()> {
     // MED-001: Guard against double-pause
     require!(!ctx.accounts.pause_state.paused, SssError::AlreadyPaused);
 
+    ctx.accounts.set_mint_paused(true)?;
+
     let clock = Clock::get()?;
 
     // Update pause state
@@ -129,6 +168,8 @@ pub fn handler_unpause(ctx: Context<PauseOrUnpause>) -> Result<()> {
 
     // MED-001: Guard against double-unpause (not-yet-paused)
     require!(ctx.accounts.pause_state.paused, SssError::NotPaused);
+
+    ctx.accounts.set_mint_paused(false)?;
 
     let clock = Clock::get()?;
 

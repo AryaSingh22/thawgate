@@ -1,15 +1,20 @@
-//! Seize instruction — seizes all tokens from a frozen, blacklisted account (SSS-2 only).
+//! Seize instruction — seizes all tokens from a frozen, blacklisted account (SSS-2 and Token ACL modes).
 //!
 //! Uses the permanent delegate extension to transfer tokens without owner consent.
-//! Requires: enable_transfer_hook, enable_permanent_delegate, active blacklist entry,
+//! Requires: compliance enabled (hook or Token ACL), enable_permanent_delegate, active blacklist entry,
 //! and frozen source account.
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program::invoke_signed;
+use anchor_spl::token_2022::spl_token_2022::extension::pausable::{self, PausableConfig};
+use anchor_spl::token_2022::spl_token_2022::extension::{BaseStateWithExtensions, StateWithExtensions};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::constants::*;
 use crate::errors::SssError;
+use crate::instructions::freeze_route::{self, FreezeRoute};
 use crate::state::*;
+use crate::token_acl::{MINT_CONFIG_SEED, TOKEN_ACL_ID};
 
 /// Accounts required for the seize instruction.
 #[derive(Accounts)]
@@ -79,6 +84,49 @@ pub struct Seize<'info> {
 
     /// Token-2022 program.
     pub token_program: Interface<'info, TokenInterface>,
+
+    /// Token ACL program (thaws and refreezes once Token ACL holds the mint's freeze authority).
+    /// CHECK: address constraint.
+    #[account(address = TOKEN_ACL_ID)]
+    pub token_acl_program: UncheckedAccount<'info>,
+
+    /// The mint's Token ACL MintConfig PDA; may not exist (Hook-mode mints).
+    /// CHECK: PDA constraint; only Token ACL reads it.
+    #[account(seeds = [MINT_CONFIG_SEED, mint.key().as_ref()], bump, seeds::program = token_acl_program.key())]
+    pub mint_config: UncheckedAccount<'info>,
+}
+
+impl<'info> Seize<'info> {
+    fn route(&self) -> FreezeRoute<'_, 'info> {
+        FreezeRoute {
+            config: self.config.as_ref(),
+            mint: &self.mint,
+            token_account: self.source_token_account.as_ref(),
+            mint_config: self.mint_config.as_ref(),
+            token_acl_program: self.token_acl_program.as_ref(),
+            token_program: self.token_program.as_ref(),
+        }
+    }
+
+    /// Whether the mint has the Pausable extension and is paused (Token ACL modes).
+    fn mint_paused(&self) -> Result<bool> {
+        let info = self.mint.to_account_info();
+        let data = info.try_borrow_data()?;
+        let mint = StateWithExtensions::<anchor_spl::token_2022::spl_token_2022::state::Mint>::unpack(&data)?;
+        Ok(mint.get_extension::<PausableConfig>().map(|p| bool::from(p.paused)).unwrap_or(false))
+    }
+
+    /// Token-2022 Pausable `resume` or `pause`, signed by the config PDA (the pause authority).
+    fn set_paused(&self, paused: bool, signer_seeds: &[&[&[u8]]]) -> Result<()> {
+        let (token_program, mint, config) = (self.token_program.key, &self.mint.key(), &self.config.key());
+        let ix = if paused {
+            pausable::instruction::pause(token_program, mint, config, &[])?
+        } else {
+            pausable::instruction::resume(token_program, mint, config, &[])?
+        };
+        invoke_signed(&ix, &[self.mint.to_account_info(), self.config.to_account_info()], signer_seeds)?;
+        Ok(())
+    }
 }
 
 /// Event emitted when tokens are seized.
@@ -98,17 +146,22 @@ pub struct TokensSeized {
     pub timestamp: i64,
 }
 
-/// Handler for the seize instruction (SSS-2 only).
+/// Handler for the seize instruction.
 ///
-/// Feature-gated: requires both `enable_transfer_hook` and `enable_permanent_delegate`.
+/// Feature-gated: requires `config.compliance_enabled()` (the hook or Token ACL) and `enable_permanent_delegate`.
 /// Seizes ALL tokens from a frozen, blacklisted account and transfers them to the
 /// treasury. The seized amount is added to total_burned (seizure is treated as
 /// equivalent to a burn from the circulating supply perspective, since the tokens
 /// are moved to a controlled treasury rather than destroyed).
+///
+/// A Pausable mint (Token ACL modes) that is paused is resumed for the transfer and paused again within this
+/// instruction, so seizing keeps working while paused and nothing else sees the mint unpaused. The transfer
+/// hook's own PauseState check is separate: on a paused hook mint (Hook and Both modes) it still rejects the
+/// transfer.
 pub fn seize_handler<'info>(ctx: Context<'_, '_, '_, 'info, Seize<'info>>) -> Result<()> {
-    // SSS-2 feature gate — FIRST LINE of handler body
+    // Compliance feature gate — FIRST LINE of handler body
     require!(
-        ctx.accounts.config.enable_transfer_hook,
+        ctx.accounts.config.compliance_enabled(),
         SssError::FeatureNotEnabled
     );
 
@@ -129,17 +182,13 @@ pub fn seize_handler<'info>(ctx: Context<'_, '_, '_, 'info, Seize<'info>>) -> Re
     let signer_seeds: &[&[&[u8]]] = &[&[SEED_CONFIG, mint_key.as_ref(), &[config_bump]]];
 
     // Thaw the account before transferring (Token-2022 requirement)
-    anchor_spl::token_2022::thaw_account(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token_2022::ThawAccount {
-                account: ctx.accounts.source_token_account.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
-                authority: ctx.accounts.config.to_account_info(),
-            },
-            signer_seeds,
-        ),
-    )?;
+    freeze_route::thaw(&ctx.accounts.route(), signer_seeds)?;
+
+    // Pausable blocks every transfer, the permanent delegate's included (Token-2022 `MintPaused`)
+    let paused = ctx.accounts.mint_paused()?;
+    if paused {
+        ctx.accounts.set_paused(false, signer_seeds)?;
+    }
 
     // Transfer ALL tokens from source to treasury using permanent delegate authority
     // The config PDA is the permanent delegate
@@ -182,18 +231,12 @@ pub fn seize_handler<'info>(ctx: Context<'_, '_, '_, 'info, Seize<'info>>) -> Re
         signer_seeds,
     )?;
 
+    if paused {
+        ctx.accounts.set_paused(true, signer_seeds)?;
+    }
+
     // Re-freeze the account after seizing
-    anchor_spl::token_2022::freeze_account(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token_2022::FreezeAccount {
-                account: ctx.accounts.source_token_account.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
-                authority: ctx.accounts.config.to_account_info(),
-            },
-            signer_seeds,
-        ),
-    )?;
+    freeze_route::freeze(&ctx.accounts.route(), signer_seeds)?;
 
     // Update total_burned — seizure counted as removal from circulating supply
     let config = &mut ctx.accounts.config;

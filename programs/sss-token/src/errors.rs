@@ -139,4 +139,16 @@ pub enum SssError {
     /// The allowlist entry for this wallet is not active (SSS-3).
     #[msg("Allowlist entry not active: the allowlist entry for this wallet has been deactivated")]
     AllowlistEntryNotActive,
+
+    /// `compliance_mode` is out of range or inconsistent with the other initialize flags.
+    #[msg("Invalid compliance mode: use 0 (Hook), 1 (Acl: default_account_frozen, no hook) or 2 (Both: default_account_frozen and the hook)")]
+    InvalidComplianceMode,
+
+    /// A Token ACL instruction was called on a mint created in Hook mode.
+    #[msg("Not a Token ACL mint: this instruction needs compliance_mode Acl or Both")]
+    NotTokenAclMode,
+
+    /// The mint's freeze authority is neither this config nor its Token ACL MintConfig.
+    #[msg("Unknown freeze authority: the mint's freeze authority is neither the config PDA nor the Token ACL MintConfig")]
+    UnknownFreezeAuthority,
 }

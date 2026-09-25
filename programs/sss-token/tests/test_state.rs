@@ -143,6 +143,7 @@ mod test_state {
             total_minted: 0,
             total_burned: 0,
             bump: 0,
+            compliance_mode: 0,
         };
         let pk = Pubkey::new_unique();
         config.authority = pk;

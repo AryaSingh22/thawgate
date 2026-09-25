@@ -1,6 +1,7 @@
-//! Compliance instructions — add_to_blacklist, remove_from_blacklist (SSS-2 only).
+//! Compliance instructions — add_to_blacklist, remove_from_blacklist (SSS-2 and Token ACL modes).
 //!
-//! These instructions are feature-gated: they require `enable_transfer_hook` to be true.
+//! These instructions are feature-gated on `config.compliance_enabled()`: the transfer hook
+//! (`enable_transfer_hook`) or Token ACL (`compliance_mode` Acl/Both) must enforce the blacklist.
 //! The feature gate check is the FIRST line of every handler body.
 
 use anchor_lang::prelude::*;
@@ -8,7 +9,9 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::constants::*;
 use crate::errors::SssError;
+use crate::instructions::freeze_route::{self, FreezeRoute};
 use crate::state::*;
+use crate::token_acl::{MINT_CONFIG_SEED, TOKEN_ACL_ID};
 
 // ============================================================================
 // Add to Blacklist
@@ -76,6 +79,16 @@ pub struct AddToBlacklist<'info> {
 
     /// System program for account creation.
     pub system_program: Program<'info, System>,
+
+    /// Token ACL program (freezes once Token ACL holds the mint's freeze authority).
+    /// CHECK: address constraint.
+    #[account(address = TOKEN_ACL_ID)]
+    pub token_acl_program: UncheckedAccount<'info>,
+
+    /// The mint's Token ACL MintConfig PDA; may not exist (Hook-mode mints).
+    /// CHECK: PDA constraint; only Token ACL reads it.
+    #[account(seeds = [MINT_CONFIG_SEED, mint.key().as_ref()], bump, seeds::program = token_acl_program.key())]
+    pub mint_config: UncheckedAccount<'info>,
 }
 
 /// Event emitted when an address is added to the blacklist.
@@ -93,14 +106,15 @@ pub struct AddedToBlacklist {
     pub timestamp: i64,
 }
 
-/// Handler for the add_to_blacklist instruction (SSS-2 only).
+/// Handler for the add_to_blacklist instruction.
 ///
-/// Feature-gated: requires `enable_transfer_hook` to be true.
-/// Creates a BlacklistEntry PDA and freezes the target's token account.
+/// Feature-gated: requires `config.compliance_enabled()` (the hook or Token ACL).
+/// Creates a BlacklistEntry PDA and freezes the target's token account (through Token ACL once it holds the
+/// mint's freeze authority).
 pub fn handler_add_to_blacklist(ctx: Context<AddToBlacklist>, reason: String) -> Result<()> {
-    // SSS-2 feature gate — FIRST LINE of handler body
+    // Compliance feature gate — FIRST LINE of handler body
     require!(
-        ctx.accounts.config.enable_transfer_hook,
+        ctx.accounts.config.compliance_enabled(),
         SssError::FeatureNotEnabled
     );
 
@@ -128,17 +142,16 @@ pub fn handler_add_to_blacklist(ctx: Context<AddToBlacklist>, reason: String) ->
     let signer_seeds: &[&[&[u8]]] = &[&[SEED_CONFIG, mint_key.as_ref(), &[config_bump]]];
 
     if !ctx.accounts.target_token_account.is_frozen() {
-        anchor_spl::token_2022::freeze_account(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token_2022::FreezeAccount {
-                    account: ctx.accounts.target_token_account.to_account_info(),
-                    mint: ctx.accounts.mint.to_account_info(),
-                    authority: ctx.accounts.config.to_account_info(),
-                },
-                signer_seeds,
-            ),
-        )?;
+        let a = &ctx.accounts;
+        let route = FreezeRoute {
+            config: a.config.as_ref(),
+            mint: &a.mint,
+            token_account: a.target_token_account.as_ref(),
+            mint_config: a.mint_config.as_ref(),
+            token_acl_program: a.token_acl_program.as_ref(),
+            token_program: a.token_program.as_ref(),
+        };
+        freeze_route::freeze(&route, signer_seeds)?;
     }
 
     emit!(AddedToBlacklist {
@@ -211,15 +224,16 @@ pub struct RemovedFromBlacklist {
     pub timestamp: i64,
 }
 
-/// Handler for the remove_from_blacklist instruction (SSS-2 only).
+/// Handler for the remove_from_blacklist instruction.
 ///
-/// Feature-gated: requires `enable_transfer_hook` to be true.
+/// Feature-gated: requires `config.compliance_enabled()` (the hook or Token ACL).
 /// Deactivates the BlacklistEntry PDA. Does NOT automatically thaw the
-/// target's token account — the operator must call thaw_account separately.
+/// target's token account — the operator must call thaw_account separately
+/// (or, under Token ACL, the holder may thaw permissionlessly through the gate).
 pub fn handler_remove_from_blacklist(ctx: Context<RemoveFromBlacklist>) -> Result<()> {
-    // SSS-2 feature gate — FIRST LINE of handler body
+    // Compliance feature gate — FIRST LINE of handler body
     require!(
-        ctx.accounts.config.enable_transfer_hook,
+        ctx.accounts.config.compliance_enabled(),
         SssError::FeatureNotEnabled
     );
 

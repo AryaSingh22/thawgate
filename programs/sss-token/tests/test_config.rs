@@ -20,6 +20,7 @@ mod test_config {
             total_minted: 0,
             total_burned: 0,
             bump: 0,
+            compliance_mode: 0,
         }
     }
 

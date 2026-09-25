@@ -1,14 +1,17 @@
 //! Freeze and thaw instructions — freezes or thaws a target token account.
 //!
 //! Only MasterAuthority or Blacklister roles can freeze/thaw accounts.
-//! Uses the freeze authority PDA (which is the StablecoinConfig PDA).
+//! The StablecoinConfig PDA signs: directly as the Token-2022 freeze authority, or, once Token ACL manages the
+//! mint, as its `MintConfig.freeze_authority` through Token ACL (see `freeze_route`).
 
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 
 use crate::constants::*;
 use crate::errors::SssError;
+use crate::instructions::freeze_route::{self, FreezeRoute};
 use crate::state::*;
+use crate::token_acl::{MINT_CONFIG_SEED, TOKEN_ACL_ID};
 
 /// Accounts required for freeze_account and thaw_account instructions.
 #[derive(Accounts)]
@@ -45,6 +48,29 @@ pub struct FreezeOrThaw<'info> {
 
     /// Token-2022 program.
     pub token_program: Interface<'info, TokenInterface>,
+
+    /// Token ACL program (used once Token ACL holds the mint's freeze authority).
+    /// CHECK: address constraint.
+    #[account(address = TOKEN_ACL_ID)]
+    pub token_acl_program: UncheckedAccount<'info>,
+
+    /// The mint's Token ACL MintConfig PDA; may not exist (Hook-mode mints).
+    /// CHECK: PDA constraint; only Token ACL reads it.
+    #[account(seeds = [MINT_CONFIG_SEED, mint.key().as_ref()], bump, seeds::program = token_acl_program.key())]
+    pub mint_config: UncheckedAccount<'info>,
+}
+
+impl<'info> FreezeOrThaw<'info> {
+    fn route(&self) -> FreezeRoute<'_, 'info> {
+        FreezeRoute {
+            config: self.config.as_ref(),
+            mint: &self.mint,
+            token_account: self.target_token_account.as_ref(),
+            mint_config: self.mint_config.as_ref(),
+            token_acl_program: self.token_acl_program.as_ref(),
+            token_program: self.token_program.as_ref(),
+        }
+    }
 }
 
 /// Event emitted when a token account is frozen.
@@ -112,18 +138,7 @@ pub fn handler_freeze(ctx: Context<FreezeOrThaw>) -> Result<()> {
     let config_bump = ctx.accounts.config.bump;
     let signer_seeds: &[&[&[u8]]] = &[&[SEED_CONFIG, mint_key.as_ref(), &[config_bump]]];
 
-    // Freeze the token account via CPI
-    anchor_spl::token_2022::freeze_account(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token_2022::FreezeAccount {
-                account: ctx.accounts.target_token_account.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
-                authority: ctx.accounts.config.to_account_info(),
-            },
-            signer_seeds,
-        ),
-    )?;
+    freeze_route::freeze(&ctx.accounts.route(), signer_seeds)?;
 
     emit!(AccountFrozen {
         mint: mint_key,
@@ -150,18 +165,7 @@ pub fn handler_thaw(ctx: Context<FreezeOrThaw>) -> Result<()> {
     let config_bump = ctx.accounts.config.bump;
     let signer_seeds: &[&[&[u8]]] = &[&[SEED_CONFIG, mint_key.as_ref(), &[config_bump]]];
 
-    // Thaw the token account via CPI
-    anchor_spl::token_2022::thaw_account(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token_2022::ThawAccount {
-                account: ctx.accounts.target_token_account.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
-                authority: ctx.accounts.config.to_account_info(),
-            },
-            signer_seeds,
-        ),
-    )?;
+    freeze_route::thaw(&ctx.accounts.route(), signer_seeds)?;
 
     emit!(AccountThawed {
         mint: mint_key,
