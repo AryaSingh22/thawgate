@@ -45,5 +45,6 @@ address = "De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44"
 program = "tests/fixtures/subscriptions_allowances.so"
 
 [scripts]
-# tests/gate runs on its own validator setup: scripts/test-gate.sh (yarn test:gate)
-test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts --ignore 'tests/gate/**'"
+# tests/gate runs on its own validator setup: scripts/test-gate.sh (yarn test:gate). The legacy suite is named by
+# directory: the shell expands the globs (so `**` matched one level), and mocha 5 has no --ignore.
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/unit/*.ts tests/integration/*.ts"
