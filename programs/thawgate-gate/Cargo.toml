@@ -1,7 +1,7 @@
 [package]
 name = "thawgate-gate"
 version = "0.1.0"
-description = "ThawGate: Token ACL (sRFC 37) gating program with issuer blacklist and allowlist policies"
+description = "ThawGate: Token ACL (sRFC 37) gating program with issuer blacklist, allowlist and SAS KYC policies"
 edition = "2021"
 rust-version = "1.84"
 
@@ -22,6 +22,9 @@ anchor-lang = { workspace = true }
 spl-token-2022 = { workspace = true }
 spl-tlv-account-resolution = { workspace = true }
 spl-discriminator = "0.4.1"
+# On-curve check for BypassForPdas: `validate_edwards` is the `sol_curve_validate_point` syscall on SBF, where
+# `Pubkey::is_on_curve` is `unimplemented!()`. Same version spl-token-2022 already pulls in (Cargo.lock).
+solana-curve25519 = "2.2.20"
 # Prevent Edition 2024 transitive upgrades during SBF compile (same pins as transfer-hook)
 blake3 = "=1.5.5"
 toml_edit = "=0.21.1"

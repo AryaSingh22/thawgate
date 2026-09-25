@@ -1,6 +1,6 @@
 # Test fixtures
 
-Third-party programs dumped from devnet with `solana program dump -u d <ID> <file>` on 2026-09-24 (UTC), except `token_2022.so` (2026-09-25). They load into localnet through `[[test.genesis]]` in `Anchor.toml`; `token_2022.so` (and `token_acl.so` again) load through `scripts/test-gate.sh` instead. None of them are built from this repo.
+Third-party programs dumped from devnet with `solana program dump -u d <ID> <file>` on 2026-09-24 (UTC), except `token_2022.so` (2026-09-25). They load into localnet through `[[test.genesis]]` in `Anchor.toml`; `token_2022.so` (and `token_acl.so` and `sas.so` again) load through `scripts/test-gate.sh` instead. None of them are built from this repo.
 
 `token_2022.so` replaces the Token-2022 bundled with the Agave 3.x test validator, whose TokenMetadata initialize fails with "Failed to reallocate account data" (docs/gatekit/SPIKES.md, S2).
 

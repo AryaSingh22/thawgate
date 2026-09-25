@@ -2758,6 +2758,7 @@ dependencies = [
  "bytemuck_derive",
  "constant_time_eq",
  "getrandom 0.2.14",
+ "solana-curve25519",
  "spl-discriminator",
  "spl-tlv-account-resolution",
  "spl-token-2022",

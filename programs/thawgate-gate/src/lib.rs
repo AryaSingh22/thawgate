@@ -2,11 +2,15 @@
 //!
 //! Token ACL calls this program on every permissionless thaw or freeze of a mint whose `MintConfig`
 //! names it as `gating_program`. The answer comes from the mint's `GatePolicy`:
-//! - thaw: the token account has ImmutableOwner, the owner is not on the issuer blacklist and, in
-//!   `AllowOnly` mode, is on the issuer allowlist;
-//! - freeze: only when a policy flags the owner (blacklisted, or not allowlisted in `AllowOnly` mode).
+//! - thaw: the token account has ImmutableOwner and no policy flags the owner. The owner must not be on the
+//!   issuer blacklist; in `AllowOnly` mode it must be on the issuer allowlist; with `require_sas` it needs a live
+//!   SAS attestation at `min_kyc_level` or above. In `BypassForPdas` mode an allowlisted off-curve owner (a pool
+//!   or vault PDA) needs no attestation.
+//! - freeze: only when a policy flags the owner (blacklisted, not allowlisted in `AllowOnly` mode, or a missing,
+//!   revoked, expired or below-minimum credential).
 //!
-//! The issuer registry is sss-token's `BlacklistEntry` / `AllowlistEntry` accounts, read in place.
+//! The issuer registry is sss-token's `BlacklistEntry` / `AllowlistEntry` accounts, read in place; the credential
+//! is a Solana Attestation Service attestation with nonce = the holder wallet.
 //! Every decision is logged as `TG:ALLOW:<CODE>` or `TG:DENY:<CODE>`.
 
 use anchor_lang::prelude::*;
@@ -16,6 +20,7 @@ pub mod errors;
 pub mod instructions;
 pub mod metas;
 pub mod registry;
+pub mod sas;
 pub mod state;
 pub mod token_acl;
 

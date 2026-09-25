@@ -3,8 +3,9 @@
 #   - the ThawGate gate (target/deploy/thawgate_gate.so) at its declare_id! address
 #   - Token ACL from tests/fixtures
 #   - devnet Token-2022 from tests/fixtures (the bundled one fails TokenMetadata initialize on 3.x)
+#   - the Solana Attestation Service (SAS) from tests/fixtures
 #   - sss-token registry entries injected at genesis (tests/gate/registry-fixtures.ts), since sss-token can
-#     only write them for Token ACL mints from S6 on
+#     only write them for Token ACL mints from S6 on, plus one malformed SAS attestation (tests/gate/keys.ts)
 # Usage: [SKIP_BUILD=1] scripts/test-gate.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,17 +28,23 @@ solana-test-validator --reset --ledger "$LEDGER" --quiet \
   --bpf-program "$GATE_ID" target/deploy/thawgate_gate.so \
   --bpf-program TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP tests/fixtures/token_acl.so \
   --bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tests/fixtures/token_2022.so \
+  --bpf-program 22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG tests/fixtures/sas.so \
   "${ACCOUNTS[@]}" > "$LOG" 2>&1 &
 VPID=$!
 # `|| true`: wait returns the killed validator's 143, and under set -e a failing command in the EXIT trap becomes the
 # script's exit status, masking the test result.
 trap 'kill $VPID 2>/dev/null || true; wait $VPID 2>/dev/null || true; rm -rf "$FIXTURES"' EXIT
 
-for _ in $(seq 1 60); do
-  solana cluster-version -u l > /dev/null 2>&1 && break
+# Ready = the confirmed bank is past slot 0. The RPC answers before that, but rejects v0 transactions (all of this
+# suite's) with "invalid transaction: Attempt to debit an account but found no record of a prior credit" while the
+# confirmed bank is still slot 0; legacy transactions pass.
+ready() { [ "$(solana slot -u l --commitment confirmed 2>/dev/null || echo 0)" -ge 1 ]; }
+for _ in $(seq 1 120); do
+  ready && break
   kill -0 $VPID 2>/dev/null || { echo "validator exited, see $LOG"; exit 1; }
-  sleep 2
+  sleep 1
 done
+ready || { echo "validator not ready after 120 s, see $LOG"; exit 1; }
 echo "local validator $(solana cluster-version -u l)"
 
 ANCHOR_PROVIDER_URL=http://127.0.0.1:8899 ANCHOR_WALLET="$PAYER" \

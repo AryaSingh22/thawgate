@@ -7,12 +7,14 @@
 //! accounts: that is denied here (fail closed), for freeze as much as for thaw.
 
 use anchor_lang::prelude::*;
+use solana_curve25519::edwards::{validate_edwards, PodEdwardsPoint};
 use spl_token_2022::extension::{immutable_owner::ImmutableOwner, BaseStateWithExtensions, StateWithExtensions};
 
-use crate::decision::{evaluate, Decision, Deny, Facts, Op};
+use crate::decision::{evaluate, Decision, Deny, Facts, Op, Sas};
 use crate::metas::{Layout, EXTRA_METAS_INDEX, POLICY_INDEX};
 use crate::registry::{self, Entry};
-use crate::state::GatePolicy;
+use crate::sas;
+use crate::state::{AllowlistMode, GatePolicy};
 
 #[derive(Accounts)]
 pub struct CanGate<'info> {
@@ -67,11 +69,28 @@ fn decide(ctx: &Context<CanGate>, op: Op) -> Decision {
         return Decision::Deny(Deny::BadRegistryEntry);
     };
 
+    let sas = match layout.attestation() {
+        None => Sas::NotRequired,
+        // A pool or vault PDA the issuer allowlisted: it cannot hold a credential, so the entry stands in. An
+        // on-curve wallet with an entry still needs one.
+        Some(_)
+            if policy.allowlist_mode == AllowlistMode::BypassForPdas
+                && allowlist == Some(Entry::Active)
+                && is_off_curve(owner) =>
+        {
+            Sas::Bypassed
+        }
+        Some(index) => match sas::read_attestation(extra(index).unwrap(), &policy, owner) {
+            Ok(credential) => Sas::Checked(credential),
+            Err(_) => return Decision::Deny(Deny::BadCredential),
+        },
+    };
+
     let immutable_owner = match op {
         Op::Thaw => has_immutable_owner(&ctx.accounts.token_account),
         Op::Freeze => true, // not a freeze criterion
     };
-    evaluate(op, &Facts { immutable_owner, blacklist, allowlist, allowlist_mode: policy.allowlist_mode })
+    evaluate(op, &Facts { immutable_owner, blacklist, allowlist, allowlist_mode: policy.allowlist_mode, sas })
 }
 
 /// This mint's `GatePolicy`: owned by this program, right discriminator, `policy.mint == mint`.
@@ -94,4 +113,23 @@ fn has_immutable_owner(info: &AccountInfo) -> bool {
     StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data)
         .map(|account| account.get_extension::<ImmutableOwner>().is_ok())
         .unwrap_or(false)
+}
+
+/// Not an ed25519 point, so no private key: a PDA. `Pubkey::is_on_curve` is `unimplemented!()` on SBF;
+/// `validate_edwards` is the `sol_curve_validate_point` syscall there (curve25519-dalek off-chain).
+fn is_off_curve(key: &Pubkey) -> bool {
+    !validate_edwards(&PodEdwardsPoint(key.to_bytes()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pdas_are_off_curve_wallets_are_not() {
+        let (pda, _) = Pubkey::find_program_address(&[b"whirlpool"], &crate::ID);
+        assert!(is_off_curve(&pda));
+        // The S3 spike's holder, a generated keypair (SPIKES.md S3).
+        assert!(!is_off_curve(&pubkey!("4CTEDr7pgqBU4uLkVk2aqu54tPQi9ufUKZVvDv2tgYp2")));
+    }
 }

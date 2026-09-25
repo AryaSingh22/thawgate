@@ -7,11 +7,13 @@
 import assert from "node:assert/strict";
 import { PublicKey } from "@solana/web3.js";
 import { fetchEncodedAccount } from "@solana/kit";
-import { GATE_ID, key, keypair, registryPda, TOKEN_ACL_ID } from "./keys";
+import { GATE_ID, key, keypair, registryPda } from "./keys";
 import {
+  assertDenied,
   createAta,
   createGatedMint,
   createPlainTokenAccount,
+  cuTable,
   extraMetasPda,
   freezeIx,
   fromWeb3,
@@ -24,10 +26,8 @@ import {
   payerSigner,
   policyArgs,
   policyPda,
-  programCu,
   rpc,
   send,
-  Sent,
   sendFails,
   signerOf,
   swapAccount,
@@ -42,16 +42,8 @@ const INCORRECT_ACCOUNT = "custom program error: 0xa261c2c0";
 /** Token ACL's `freeze_permissionless` accounts before the gate's extras. */
 const TOKEN_ACL_FREEZE_BASE_ACCOUNTS = 9;
 
-const cu: Record<string, { tx: number; tokenAcl: number[]; gate: number[] }> = {};
-const recordCu = (label: string, sent: Sent) => {
-  cu[label] = { tx: sent.cu, tokenAcl: programCu(sent.logs, TOKEN_ACL_ID), gate: programCu(sent.logs, GATE_ID) };
-};
-
-/** The gate ran, logged `TG:DENY:<code>`, and the transaction failed. */
-function assertDenied(failure: TxFailed, code: string) {
-  assert.ok(invoked(failure.logs, GATE_ID), `gate not invoked:\n${failure.logs.join("\n")}`);
-  assert.ok(logged(failure.logs, `TG:DENY:${code}`), `no TG:DENY:${code}:\n${failure.logs.join("\n")}`);
-}
+const cu = cuTable();
+const recordCu = cu.record;
 
 /** Token ACL rejected the resolved extras before calling the gate. */
 function assertRejectedByTokenAcl(failure: TxFailed) {
@@ -79,10 +71,7 @@ describe("thawgate-gate", function () {
     alMint = await createGatedMint("al-mint", policyArgs({ allowlistMode: "allowOnly" }));
   });
 
-  after(() => {
-    console.log("\nCU (tx total / Token ACL frame / gate frame):");
-    for (const [label, c] of Object.entries(cu)) console.log(`  ${label}: ${c.tx} / ${c.tokenAcl.join(",")} / ${c.gate.join(",")}`);
-  });
+  after(() => cu.print());
 
   describe("thaw", () => {
     it("Token ACL dispatches to the gate; an open policy thaws a clean wallet", async () => {

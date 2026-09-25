@@ -1,6 +1,8 @@
 /**
- * Writes the REGISTRY entries (tests/gate/keys.ts) as `solana-test-validator --account` JSON files, in
- * sss-token's account layout (programs/sss-token/src/state/{blacklist,allowlist}_entry.rs), owned by sss-token.
+ * Writes the genesis fixtures (tests/gate/keys.ts) as `solana-test-validator --account` JSON files:
+ * - the REGISTRY entries, in sss-token's account layout (programs/sss-token/src/state/{blacklist,allowlist}_entry.rs),
+ *   owned by sss-token;
+ * - FORGED_ATTESTATION, in SAS's attestation layout, owned by SAS.
  *
  *   npx ts-node --transpile-only tests/gate/registry-fixtures.ts <out-dir>
  *
@@ -9,7 +11,19 @@
 import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
-import { key, REGISTRY, registryPda, SSS_TOKEN_ID } from "./keys";
+import { PublicKey } from "@solana/web3.js";
+import {
+  attestationPda,
+  FORGED_ATTESTATION,
+  key,
+  REGISTRY,
+  registryPda,
+  SAS_ID,
+  SAS_ISSUER,
+  sasSchemaPda,
+  SSS_TOKEN_ID,
+  walletKey,
+} from "./keys";
 
 // Account sizes as sss-token allocates them (BLACKLIST_ENTRY_SIZE, ALLOWLIST_ENTRY_SIZE).
 const BLACKLIST_ENTRY_SIZE = 218;
@@ -40,21 +54,31 @@ function encode(kind: "blacklist" | "allowlist", mint: Buffer, wallet: Buffer, a
   return b;
 }
 
-const outDir = process.argv[2];
-if (!outDir) throw new Error("usage: registry-fixtures.ts <out-dir>");
-fs.mkdirSync(outDir, { recursive: true });
-for (const entry of REGISTRY) {
-  const mint = key(entry.mint);
-  const wallet = key(entry.wallet);
-  const [address, bump] = registryPda(entry.kind, mint, wallet);
-  const data = encode(entry.kind, mint.toBuffer(), wallet.toBuffer(), entry.active, bump);
-  const file = path.join(outDir, `${entry.kind}-${entry.mint}-${entry.wallet}.json`);
+/**
+ * SAS attestation layout (SAS create_attestation.rs): discriminator 2 | nonce | credential | schema |
+ * u32 data len + data | signer | expiry i64 | token_account. Data = kyc_level 2, country "IN", as in S3.
+ */
+function encodeAttestation(nonce: PublicKey, credential: PublicKey, schema: PublicKey) {
+  const data = Buffer.from([2, 2, 0, 0, 0, ...Buffer.from("IN")]);
+  const b = Buffer.alloc(1 + 32 * 3 + 4 + data.length + 32 + 8 + 32);
+  let o = 0;
+  b[o++] = 2;
+  for (const k of [nonce, credential, schema]) o += k.toBuffer().copy(b, o);
+  o = b.writeUInt32LE(data.length, o);
+  o += data.copy(b, o);
+  o += key(SAS_ISSUER).toBuffer().copy(b, o); // signer
+  b.writeBigInt64LE(0n, o); // expiry: never; token_account stays zero (not tokenized)
+  return b;
+}
+
+function write(name: string, address: PublicKey, owner: PublicKey, data: Buffer) {
+  const file = path.join(outDir, `${name}.json`);
   const account = {
     pubkey: address.toBase58(),
     account: {
       lamports: rentExempt(data.length),
       data: [data.toString("base64"), "base64"],
-      owner: SSS_TOKEN_ID.toBase58(),
+      owner: owner.toBase58(),
       executable: false,
       rentEpoch: 0,
       space: data.length,
@@ -63,3 +87,21 @@ for (const entry of REGISTRY) {
   fs.writeFileSync(file, JSON.stringify(account));
   console.log(`${address.toBase58()} ${file}`);
 }
+
+const outDir = process.argv[2];
+if (!outDir) throw new Error("usage: registry-fixtures.ts <out-dir>");
+fs.mkdirSync(outDir, { recursive: true });
+for (const entry of REGISTRY) {
+  const mint = key(entry.mint);
+  const wallet = walletKey(entry);
+  const [address, bump] = registryPda(entry.kind, mint, wallet);
+  const data = encode(entry.kind, mint.toBuffer(), wallet.toBuffer(), entry.active, bump);
+  write(`${entry.kind}-${entry.mint}-${entry.wallet}`, address, SSS_TOKEN_ID, data);
+}
+const forged = key(FORGED_ATTESTATION.wallet);
+write(
+  "attestation-forged",
+  attestationPda(forged),
+  SAS_ID,
+  encodeAttestation(forged, key(FORGED_ATTESTATION.credential), sasSchemaPda()),
+);
