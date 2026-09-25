@@ -254,5 +254,14 @@ S6 is split (user, 2026-09-26). S6a (entry below) shipped the program changes an
     - sss-token and hook upgrades = buffer rent(len+37) at peak (refunded to the spill account) + `extend` of (len − 541,720) and (len − 223,400) bytes + fees
   - **Config survey not run:** `getProgramAccounts` timed out on api.devnet.solana.com (one 120 s attempt in S6a, after several in planning). Deferred to S6b with a Helius URL (user).
 - **Where "52k–70k CU" comes from.** Not RESEARCH.md: MARKET.md:10 cites the IssuerForge README, "52 410 – 70 410 CU" per checked transfer vs "2 045" unchecked, measured on devnet. That is IssuerForge's own hook (`DLkwvpN7…`, which checks HolderStatus + VelocityCounter; milestone M1, closed 2026-09-16), with no tx links in their README. PLAN.md S19 shortens it to "52k–70k". Our hook's CU is measured in S6b.
-- **Links:** no on-chain tx.
+- **CI on `2c5398f`:** Full CI, CI, TypeScript Tests and Gate Tests are green.
+  - Gate Tests (run 36196186873): Rust 30 passed; localnet 23 passing.
+  - Anchor Integration Tests (run 36196186692): 68 passing / 7 failing, all known classes and no new ones:
+    - SSS-1 Steps 02 and 04, `TokenAccountNotFoundError`
+    - SSS-1 Step 09, `isFrozen`
+    - SSS-1 Step 16 and SSS-2 Step 15, "already in use"
+    - SSS-2 Step 08, `seizerRole` not provided (S6b)
+    - SSS-2 Step 16, downstream
+  - SSS-1 Step 02 is the same read-after-write race, on a step S1 had seen fail only in SSS-2.
+- **Links:** no on-chain tx. Commits `07d1ce6` (hook), `6e49c41` (sss-token), `1bc2e02` (tests), `2c5398f` (log).
 - **Next:** S6b, per the handoff at the top of this file.
