@@ -19,6 +19,10 @@ pub const SEED_PAUSE: &[u8] = b"pause_state";
 /// PDA seed prefix for blacklist entries (shared with sss-token program).
 pub const SEED_BLACKLIST: &[u8] = b"blacklist";
 
+/// The sss-token program, which owns the PauseState and BlacklistEntry PDAs (its `declare_id!`; checked by
+/// scripts/verify-ids.sh).
+pub const SSS_TOKEN_PROGRAM_ID: Pubkey = pubkey!("HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ");
+
 /// Mirror of the main program's PauseState for deserialization.
 ///
 /// Field order and types MUST exactly match programs/sss-token/src/state/pause_state.rs.
@@ -72,6 +76,12 @@ pub struct Execute<'info> {
     /// The extra account meta list PDA.
     /// CHECK: Validated by the transfer hook interface.
     pub extra_account_meta_list: UncheckedAccount<'info>,
+
+    /// The sss-token program: the first extra account in the meta list (index 5), which the PDA metas below
+    /// derive from. Without this field every later account would bind one position off.
+    /// CHECK: address constraint.
+    #[account(address = SSS_TOKEN_PROGRAM_ID @ TransferHookError::InvalidSssTokenProgram)]
+    pub sss_token_program: UncheckedAccount<'info>,
 
     /// The pause state PDA (derived from the sss-token program).
     /// Contains serialized PauseState data if it exists.

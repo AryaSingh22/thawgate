@@ -2907,6 +2907,7 @@ dependencies = [
  "bytemuck_derive",
  "constant_time_eq",
  "getrandom 0.2.14",
+ "spl-discriminator",
  "spl-tlv-account-resolution",
  "spl-token-2022",
  "spl-transfer-hook-interface",

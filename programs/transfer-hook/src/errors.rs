@@ -26,4 +26,8 @@ pub enum TransferHookError {
     /// Failed to deserialize an account's data — account may be corrupt or wrong type.
     #[msg("Failed to deserialize account data — account data is invalid or corrupted")]
     InvalidAccountData,
+
+    /// The account passed as the sss-token program is not sss-token.
+    #[msg("Invalid sss-token program: the compliance PDAs must derive from the sss-token program")]
+    InvalidSssTokenProgram,
 }

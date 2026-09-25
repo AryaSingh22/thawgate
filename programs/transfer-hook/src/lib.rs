@@ -18,6 +18,7 @@
 //! the owner is extracted from the token account data (bytes 32..64).
 
 use anchor_lang::prelude::*;
+use spl_discriminator::SplDiscriminate;
 use spl_tlv_account_resolution::{
     account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
 };
@@ -26,9 +27,15 @@ use spl_transfer_hook_interface::instruction::ExecuteInstruction;
 pub mod errors;
 pub mod execute;
 
+use errors::TransferHookError;
 use execute::*;
 
 declare_id!("2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv");
+
+/// The SPL transfer-hook `Execute` discriminator, which Token-2022 sends on every transfer. A plain constant for
+/// `#[instruction(discriminator = …)]`: the Anchor macro evaluates the expression where `SplDiscriminate` is not
+/// in scope.
+pub const EXECUTE_DISCRIMINATOR: &[u8] = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE;
 
 /// Accounts for initializing the extra account meta list.
 ///
@@ -49,8 +56,10 @@ pub struct InitializeExtraAccountMetaList<'info> {
     /// CHECK: We only read the key for PDA derivation.
     pub mint: UncheckedAccount<'info>,
 
-    /// The SSS-Token program that owns the compliance PDAs.
-    /// CHECK: We read the program ID to derive PDAs on that program.
+    /// The SSS-Token program that owns the compliance PDAs. Pinned: anyone may create a mint's meta list, and
+    /// a list naming another program would point every pause and blacklist lookup at accounts that never exist.
+    /// CHECK: address constraint.
+    #[account(address = SSS_TOKEN_PROGRAM_ID @ TransferHookError::InvalidSssTokenProgram)]
     pub sss_token_program: UncheckedAccount<'info>,
 
     /// System program for account creation.
@@ -172,7 +181,23 @@ pub mod transfer_hook {
     /// Transfer hook execute handler — called by Token-2022 on every transfer.
     ///
     /// Validates pause state and blacklist compliance.
+    #[instruction(discriminator = crate::EXECUTE_DISCRIMINATOR)]
     pub fn execute(ctx: Context<Execute>, amount: u64) -> Result<()> {
         execute::handler(ctx, amount)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anchor_lang::Discriminator;
+
+    /// Token-2022 invokes the hook with the SPL discriminator; with Anchor's default one the call would hit
+    /// `InstructionFallbackNotFound`.
+    #[test]
+    fn execute_answers_the_spl_discriminator() {
+        // sha256("spl-transfer-hook-interface:execute")[..8]
+        assert_eq!(EXECUTE_DISCRIMINATOR, &[105, 37, 101, 197, 75, 251, 102, 26]);
+        assert_eq!(instruction::Execute::DISCRIMINATOR, EXECUTE_DISCRIMINATOR);
     }
 }
