@@ -425,5 +425,11 @@ Gotchas:
   - `anchor build` (story run 1) and `verify-ids.sh` OK.
   - Root `tsc --noEmit` over `tests/` is clean, and the two changed scripts typecheck.
   - `cargo test --workspace` 130 passed / 0 failed (no Rust changes).
-- **Links:** no devnet tx sent by S7a. Commits `34edb51` (story + harness), `18cecd2` (deploy script + rehearsal), `5bbcfa2` (schema guard), `4d8a1b1` (survey script).
+- **CI on `b0cff26`:** Full CI, CI, TypeScript Tests and Gate Tests are green.
+  - Gate Tests (run 36573162936): gate suite 38 passing; the story 7 passing on a validator with "genesis fixture accounts: 0", CU identical to the local table (thaw 47,578, seize 35,859).
+  - Anchor Integration Tests (run 36573163248): 70 passing / 5 failing, all known classes:
+    - `isFrozen` races: SSS-1 Step 08, SSS-2 Step 06
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
+- **Links:** no devnet tx sent by S7a. Commits `34edb51` (story + harness), `18cecd2` (deploy script + rehearsal), `5bbcfa2` (schema guard), `4d8a1b1` (survey script), `b0cff26` (log).
 - **Next:** S7b, per the handoff at the top of this file.
