@@ -2,44 +2,6 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S6b handoff (read first; remove when S6b ends)
-S6 is split (user, 2026-09-26). S6a (entry below) shipped the program changes and Rust tests. **No Token ACL path of sss-token has run on a validator yet.** S6b, in order:
-1. **Devnet config survey.** Public devnet `getProgramAccounts` timed out in S6a. Ask the user for a Helius devnet RPC URL; don't retry the public one repeatedly. Filters: dataSize 350 + discriminator `[127,25,244,213,1,192,101,6]`. Spare bytes = 350 − (8+32+32 + 4+name + 4+symbol + 4+uri + 7 + 16 + 1). Decision (user): append the byte and accept outliers, so list any config with 0 spare as unusable after S7.
-2. **Harness** (`scripts/test-gate.sh`, keeping confirmed commitment, the confirmed slot ≥ 1 wait and the `|| true` trap):
-   - load `sss_token.so` + `transfer_hook.so`, and build all programs
-   - rename `registry-fixtures.ts` → `genesis-fixtures.ts`; it keeps only the forged SAS attestation
-   - `gate-test.yml`: `anchor build` (all) and `cargo test -p thawgate-gate -p sss-token -p transfer-hook`
-3. **`tests/gate/hook.test.ts`:**
-   - a real `transfer_checked` through Token-2022 on an sss-token Hook mint (extras from spl-token `createTransferCheckedWithTransferHookInstruction`)
-   - record tx CU and hook frame CU, plus a plain Token-2022 transfer as the baseline
-   - a blacklisted-then-thawed destination → `DestinationBlacklisted`; paused → `TokensPaused`
-   - meta-list init with a fake sss program → `InvalidSssTokenProgram`
-4. **`tests/gate/issuer.test.ts`:**
-   - ACL `initialize`: the mint's extensions
-   - `enable_token_acl`: the MintConfig fields; Token-2022 freeze authority = MintConfig; the `token_acl` field; policy authority = issuer admin; the SDK finds the gate; it fails on a second call, on a Hook mint, and for a non-master signer
-   - freeze/thaw through Token ACL; blacklist → `BLACKLISTED`
-   - seize, **including while paused**: the mint is still paused afterwards and a transfer still gets `MintPaused`
-   - pause blocks `transfer_checked`; `mint_tokens` to a frozen ATA fails
-   - Both mode
-5. **gate/sas suites:**
-   - `bl-`, `toggle-`, `al-` and `pda-mint` become sss-token ACL mints
-   - their entries come from `add_to_blacklist` / `add_to_allowlist_v3` (+ remove)
-   - case 5's issuer thaw goes through sss-token `thaw_account`
-   - re-record CU and note the delta
-6. **Legacy SSS-2 e2e:**
-   - Step 03 grants a Seizer role
-   - hook metas are initialized after Step 01
-   - Step 08 creates the treasury ATA and passes `seizer`/`seizerRole`/`sourceAuthority` + the hook extras
-7. **SDK:**
-   - `complianceMode?`
-   - presets `sssAclPreset` (the new default), `sss2Preset` and `sssBothPreset`, plus `Presets.SSS_ACL`/`SSS_BOTH`
-   - IDL copy; `presets.test.ts`
-   - the pause builder passes `mint`
-8. **CU write-up:**
-   - hook cost "per transfer"; gate cost "once per account thaw"
-   - 52k–70k is IssuerForge's own hook (MARKET.md:10, `DLkwvpN7…`), not ours; fix PLAN.md S19's wording
-9. **S7 SOL budget** from the final .so sizes (method in the S6a entry).
-
 ## S0 · 2026-09-24 · Baseline, name, repo, CLAUDE.md
 - **Shipped:** pre-hackathon edits committed with their real dates (`c8f504c`, files dated 2026-03-13 → 2026-04-24) and tagged `pre-worlds-fair`. New repo holds the full history and is not a fork; the old fork is `upstream` with push disabled. Mechanical rebrand to `@thawgate/{sdk,cli,tui,console}` plus the 6 service packages (`c109982`). LICENSE adds "Copyright (c) 2026 Arya". README drops the Trident and "Anchor Integration: 10 passing" claims (neither ran; Anchor integration tests have not been run on 0.32 yet). CLAUDE.md added. Both upgrade authorities (`5BXg…`, `3YnV…`) are present, and program keypairs are backed up to `~/.keys/thawgate/` with pubkeys matching the program IDs. Fresh WSL clone: `yarn install --frozen-lockfile` + `yarn typecheck` green on 7 workspaces, after building sdk and shared (the cli and services type against their `dist/`). `anchor build` not run (toolchain migration is S1). No on-chain tx this session.
 - **Links:** repo https://github.com/AryaSingh22/thawgate · baseline https://github.com/AryaSingh22/thawgate/tree/pre-worlds-fair · commits `c8f504c` (baseline), `99a3bf1` (research + plan), `c109982` (rebrand), `c89ace7` (CLAUDE.md).
@@ -265,3 +227,89 @@ S6 is split (user, 2026-09-26). S6a (entry below) shipped the program changes an
   - SSS-1 Step 02 is the same read-after-write race, on a step S1 had seen fail only in SSS-2.
 - **Links:** no on-chain tx. Commits `07d1ce6` (hook), `6e49c41` (sss-token), `1bc2e02` (tests), `2c5398f` (log).
 - **Next:** S6b, per the handoff at the top of this file.
+
+## S6b · 2026-09-29 · sss-token Token ACL mode and the hook on a validator; legacy seize; SDK presets
+- **Scope (user, behind schedule):** survey, harness, hook suite, issuer suite, legacy Step 08, SDK, S7 budget. **Carried to S7 or the Wed 30 buffer (PLAN.md S7):** the gate/sas fixture conversion (the S4/S5 suites still read genesis-injected registry entries; `registry-fixtures.ts` is not renamed yet) and the Both-mode test.
+- **Devnet config survey: not run.** `HELIUS_DEVNET_RPC` isn't set anywhere this session could see: `~/thawgate/.env` doesn't exist (`.gitignore:33` would ignore it), and the Windows copy's `.env` has only the 4 old SSS keys. No RPC call was made; the public endpoint wasn't retried. It needs the URL in `~/thawgate/.env`.
+- **S2/S3 devnet spike runs: never done.** Read 2026-09-29 on public devnet: payer `5avMn…` has 0 SOL and no signatures, and the credential `BYSdZK…` and schema `Fovh6z…` don't exist. `5BXg…` holds 34.76 SOL, so S7 can fund `5avMn…` by transfer instead of the faucet.
+- **Shipped: harness** (`f66e771`). `scripts/test-gate.sh` builds all programs and loads `sss_token.so` + `transfer_hook.so` at their `declare_id!`s next to the gate; `GATE_TESTS=<glob>` runs one suite. `gate-test.yml` runs `anchor build` (all) and `cargo test -p thawgate-gate -p sss-token -p transfer-hook` (124 passed locally).
+- **Shipped: `tests/gate/hook.test.ts`** (4 cases). This is the first run of the S6a hook fixes through Token-2022; all pass.
+  - Real `transfer_checked` on an sss-token Hook mint, with extras from spl-token `createTransferCheckedWithTransferHookInstruction`.
+  - A destination blacklisted by `add_to_blacklist` and then thawed by the issuer is refused with `DestinationBlacklisted`.
+  - Paused → `TokensPaused`; after unpause the transfer passes.
+  - A meta list naming another program as sss-token → `InvalidSssTokenProgram`.
+- **Shipped: `tests/gate/issuer.test.ts`** (11 cases, Acl mode; sss-token writes every registry entry, with no genesis injection):
+  - `initialize`: mint and freeze authority = config PDA. Extensions: PermanentDelegate, DefaultAccountState=Frozen, PausableConfig (config PDA, unpaused), MetadataPointer → the mint, TokenMetadata (update authority = config PDA, no `token_acl` yet). Acl without frozen accounts → `InvalidComplianceMode`.
+  - `enable_token_acl`: MintConfig (mint, freeze authority = config PDA, gate = ThawGate, permissionless thaw + freeze on). The Token-2022 freeze authority is now the MintConfig PDA; `token_acl` = the gate; the policy admin is the issuer's master authority and the issuer program is sss-token. @token-acl/sdk finds the gate from the metadata and a clean holder self-thaws (`TG:ALLOW:CLEAN`).
+  - `enable_token_acl` refusals: a second call fails in Token ACL `create_config` with `InvalidAuthority` (0x0), because the config PDA is no longer the mint's freeze authority; a Hook mint → `NotTokenAclMode`; a non-master signer → `AccountNotInitialized` on `authority_role`.
+  - `freeze_account` / `thaw_account` go through Token ACL's permissioned freeze/thaw. `mint_tokens` to a frozen ATA → Token-2022 `AccountFrozen` (0x11).
+  - `add_to_blacklist` freezes through Token ACL, and the gate then denies the holder's thaw (`TG:DENY:BLACKLISTED`).
+  - Pause sets both PausableConfig and PauseState; `transfer_checked` → `MintPaused` (0x43).
+  - **Seize while paused:** balance moved, source refrozen (2 Token ACL frames), mint still paused, transfers still `MintPaused`. Unpause → transfers pass.
+- **Shipped: legacy SSS-2 Step 08** (`835e9e3`). Step 01 initializes the hook meta list, Step 03 grants a Seizer role, and Step 08 creates the treasury ATA and passes `seizer`/`seizerRole`/`sourceAuthority` plus the hook extras (resolved for a transfer by the config PDA). Before the fix, 2 runs failed at Step 01 or Step 08 on the new sends; the Step 08 failure read "Blockhash not found". Cause: `.rpc({ commitment })` alone leaves the blockhash at the connection's level. With `preflightCommitment: "confirmed"` too, Step 08 passed in 2 of 2 runs: `anchor test` 69/6 and 68/7. Every failure is a known S7 class (races in SSS-1 04/08/09 and SSS-2 04/06; "already in use" in SSS-1 16 and SSS-2 15; SSS-2 16 downstream).
+- **Shipped: SDK** (`62c2042`).
+  - `ComplianceMode` and `InitializeArgs.complianceMode`; `initialize` encodes it (default Hook) plus the SSS-3 flags it used to omit.
+  - `sssAclPreset` (the default) and `sssBothPreset`, with `Presets.SSS_ACL`/`SSS_BOTH`; `sss2Preset` is the explicit Hook mode.
+  - pause/unpause pass `mint`; `idl.json` copied from the S6a build.
+  - `presets.test.ts` checks the presets against the on-chain mode rule and decodes the built instructions.
+  - The CLI still defaults to SSS-1/SSS-2 (no `enable_token_acl` command yet; S11).
+- **Measured** (localnet, Agave 3.0.14, devnet Token-2022 fixture; deterministic keys; 3 full runs, CU identical):
+  - `yarn test:gate`: **38 passing** (23 S4/S5 + 4 hook + 11 issuer), exit 0, 3 runs.
+  - `cargo test --workspace` 130/0 (no Rust changes); `yarn typecheck` green on 7 workspaces; root `tsc --noEmit` over `tests/` clean; SDK vitest **106/106** (100 in S1).
+  - `anchor build` (all, warm, no source changes) 42 s; `verify-ids.sh` OK after each build.
+  - Hook, `transfer_checked` of 1,000 base units (tx total / Token-2022 frame / hook frame):
+
+    | Mint | tx | Token-2022 | hook |
+    |---|---|---|---|
+    | sss-token Hook mint (PermanentDelegate + TransferHook) | 27,627 | 27,627 | 8,529 |
+    | same, without the hook (PermanentDelegate only) | 2,787 | 2,787 | – |
+
+  - sss-token Acl mode (tx total / Token ACL / gate / Token-2022 frames):
+
+    | Operation | tx | Token ACL | gate | Token-2022 |
+    |---|---|---|---|---|
+    | `enable_token_acl` (4 CPIs) | 98,477 | 14,288 + 612 | 37,269 | 1,487 + 7,499 |
+    | `thaw_permissionless`, blacklist check, no entry | 31,956 | 31,956 | 3,971 | 1,665 |
+    | `freeze_account` via Token ACL `freeze` | 17,534 | 4,881 | – | 1,665 |
+    | `thaw_account` via Token ACL `thaw` | 17,538 | 4,883 | – | 1,665 |
+    | `add_to_blacklist` (entry + freeze) | 29,830 | 4,881 | – | 1,665 |
+    | `transfer_checked`, thawed holders | 3,557 | – | – | 3,557 |
+    | `seize` while paused (thaw, resume, transfer, pause, refreeze) | 43,971 | 4,883 + 4,881 | – | 1,665 + 1,740 + 3,565 + 1,740 + 1,665 |
+
+  - S4/S5 rows with sss-token now loaded: open policy and all SAS-only rows are unchanged. The rows whose extra metas include the sss-token program account are 1–2 CU lower than S5:
+    - AllowOnly 32,101 / 4,118 (was 32,103 / 4,119)
+    - inactive blacklist entry 29,364 / 4,381
+    - blacklist freeze crank 29,077 / 4,092
+    - BypassForPdas 40,426 / 5,400
+    - The difference coincides with that account now being a deployed program instead of an empty address. The cause was not investigated.
+- **CU write-up: per transfer vs once per thaw.**
+  - The hook's cost is paid on **every transfer**: our SSS hook makes `transfer_checked` 27,627 CU against 2,787 on the same mint without it (+24,840; the hook frame itself is 8,529, the rest is Token-2022 resolving and invoking it).
+  - The gate's cost is paid **once per token account, at thaw**: `thaw_permissionless` is 26,191–40,426 CU per tx (gate frame 3,385–5,400) across the S4/S5 policies, and 31,956 on the sss-token Acl mint. After that, a Token ACL mint's transfer is plain Token-2022, 3,557 CU on this mint (PermanentDelegate, DefaultAccountState, Pausable, MetadataPointer + TokenMetadata).
+  - "52,410–70,410 CU" is **IssuerForge's own hook** (MARKET.md:10, their README, devnet, `DLkwvpN7…`), not ours. PLAN.md S19 now says so and uses our numbers.
+- **S7 SOL budget** (final .so sizes; no Rust changed since S6a):
+  - Sizes: `thawgate_gate.so` 290,016 B, `sss_token.so` 658,088 B, `transfer_hook.so` 228,024 B.
+  - Devnet read 2026-09-29: rent = (bytes + 128) × 5,080 lamports (`getMinimumBalanceForRentExemption` 0 → 650,240; 36 → 833,120).
+    - sss-token ProgramData: program length 541,720, balance 3.77157528 SOL. Hook: 223,400, 1.55606808 SOL.
+    - Both were funded at the old 6,960 lamports/byte ((541,720 + 45 + 128) × 6,960 = 3,771,575,280 exactly), so they already hold more than the new rate needs.
+    - Balances: `5BXg…` 34.76230608 SOL, `3YnV…` 0.4381296 SOL. The gate isn't deployed.
+  - Loader rules, Agave v3.0.14 `programs/bpf_loader/src/lib.rs`:
+    - `ExtendProgram` charges only `rent(new_len) − balance`, if positive (:1355–1359).
+    - `Upgrade` funds ProgramData to rent and spills the rest of ProgramData + buffer to the spill account (:816–823).
+    - Deploy drains the buffer to the payer before paying for ProgramData.
+
+    | Step | Peak | Net |
+    |---|---|---|
+    | Gate deploy (290,016 B) | buffer rent(290,053) = 1.47411948 SOL | ProgramData rent(290,061) 1.47416012 + program account 0.00083312 = **1.47499324 SOL** + ~290 write txs ≈ 0.0015 |
+    | sss-token upgrade (extend 116,368 B) | buffer rent(658,125) = 3.34392524 SOL | extend **0** (rent(658,133) = 3.34396588 < 3.77157528); spill returns 0.4276094 SOL above the buffer; ~660 write txs ≈ 0.0033 |
+    | Hook upgrade (extend 4,624 B) | buffer rent(228,061) = 1.15920012 SOL | extend **0** (rent(228,069) = 1.15924076 < 1.55606808); spill returns 0.39682732 SOL above the buffer; ~230 write txs ≈ 0.0011 |
+    | Story + SAS credential/schema (S3: ~0.01) | – | ≲ 0.05 SOL (estimate) |
+
+  - **Totals:**
+    - net ≈ 1.475 + 0.006 + 0.05 − 0.824 refunded ≈ **0.71 SOL**;
+    - without the refunds and with a full-price extend (116,368 + 4,624 B × 5,080 = 0.6146 SOL) it would be ≈ **2.15 SOL**;
+    - peak, one step at a time: **3.35 SOL** (the sss-token buffer);
+    - `5BXg…` has 34.76 SOL, so this is covered.
+  - **`3YnV…` can't fund the hook's 1.159 SOL buffer.** Transfer ~1.2 SOL from `5BXg…` first, or write the buffer with `5BXg…` as fee payer and `3YnV…` as buffer authority.
+  - The write-tx counts assume ~1 KB per write tx at 5,000 lamports, with no priority fee: an estimate, TODO(verify) against the real deploy. The extends are still needed for size, but cost only the tx fee.
+- **Links:** no on-chain tx (localnet only). Commits `f66e771` (harness + suites), `835e9e3` (Step 08), `62c2042` (SDK), and this log.
+- **Next:** S7, per the handoff at the top of this file.

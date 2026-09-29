@@ -163,7 +163,10 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
   6. blacklist a third → denied
   7. seize works
 - [ ] Deploy to devnet: the gate (new ID) and upgraded sss-token/hook (or new IDs if a keypair is missing). Run the same story against devnet with the S3 credential.
-- [ ] Fix the failing e2e lifecycle tests in `tests/integration/` (`anchor test`: 7–8 of 75 fail per run). `| tee` hid them in CI until S1 added `pipefail`; details in LOG.md S1. (1) `transfer_authority` can't hand authority back to a previous holder: `new_master_role` is `init` and the old role PDA still exists, so it fails with "already in use" (SSS-1 Step 16, SSS-2 Step 15, every run). (2) Read-after-write races: `.rpc()` confirms at `processed` and the next read is at `confirmed`, so it sees stale or missing state. SSS-2 Step 02 failed in all 3 runs; SSS-1 Steps 02/08/09 and SSS-2 Steps 04/06 failed in some. (3) SSS-2 Step 16 is downstream of the others. The SSS-2 Step 08 seize failure moved to S6.
+- [ ] Fix the failing e2e lifecycle tests in `tests/integration/` (`anchor test`: 7–8 of 75 fail per run). `| tee` hid them in CI until S1 added `pipefail`; details in LOG.md S1. (1) `transfer_authority` can't hand authority back to a previous holder: `new_master_role` is `init` and the old role PDA still exists, so it fails with "already in use" (SSS-1 Step 16, SSS-2 Step 15, every run). (2) Read-after-write races: `.rpc()` confirms at `processed` and the next read is at `confirmed`, so it sees stale or missing state. SSS-2 Step 02 failed in all 3 runs; SSS-1 Steps 02/08/09 and SSS-2 Steps 04/06 failed in some. (3) SSS-2 Step 16 is downstream of the others. The SSS-2 Step 08 seize failure was fixed in S6b. For the races, `.rpc({ commitment: "confirmed", preflightCommitment: "confirmed" })` (the S6b Step 08 fix): `commitment` alone leaves the blockhash at the connection's level and the preflight can fail with "Blockhash not found".
+- [ ] **Carried from S6b (user, 2026-09-29; do in S7 or the Wed 30 buffer):**
+  - gate/sas fixture conversion: `bl-`, `toggle-`, `al-` and `pda-mint` become sss-token ACL mints (`tests/gate/issuer.ts` has the builders). Entries come from `add_to_blacklist` / `add_to_allowlist_v3` (+ remove); `add_to_allowlist_v3` requires `enable_allowlist`, which `initArgs` sets to false today. Case 5's issuer thaw goes through sss-token `thaw_account`. Then rename `registry-fixtures.ts` → `genesis-fixtures.ts` keeping only the forged SAS attestation, and re-record CU (note the delta).
+  - Both-mode test in `tests/gate/issuer.test.ts`, including the known limit: on a paused Both mint the hook's PauseState check still rejects `seize` (LOG.md S6a).
 - **Done when:** the story passes on devnet. LOG.md has every tx link, the CU per step, and `anchor build` time.
 
 ### Wed 30 · Buffer + C1
@@ -261,7 +264,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
 - **Done when:** two clean runs in a row, each under 3 minutes.
 
 ### S19 · Videos
-- [ ] Pitch (2–3 min): problem (0 custom gates, 33/33 on the basic list, hook cost 52k–70k CU) → user → solution → traction (integrators, mints, thaws) → ask.
+- [ ] Pitch (2–3 min): problem (0 custom gates, 33/33 on the basic list, a compliance hook taxes every transfer) → user → solution → traction (integrators, mints, thaws) → ask. CU wording (LOG.md S6b): our SSS hook makes a transfer 27,627 CU vs 2,787 without it (localnet), paid **per transfer**; the gate runs **once per account thaw** (26k–40k CU tx, gate frame 3.4k–5.4k) and a Token ACL mint's transfer stays at Token-2022 cost (3,557 CU). "52,410–70,410 CU" is IssuerForge's own hook (their README, devnet, MARKET.md:10), not ours; attribute it if used.
 - [ ] Demo (≤3 min): the S18 run with the console on screen. Show the "own devnet credential" label if you used one.
 - **Done when:** both are uploaded (unlisted is fine), with captions.
 
