@@ -2,6 +2,38 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
+## ▶ S7 handoff (read first; remove when S7 ends)
+S6b (entry at the bottom) ran every sss-token Token ACL path and the hook on a validator: `yarn test:gate` is 38 passing, and legacy SSS-2 Step 08 passes. Nothing is on devnet yet. S7, in order (PLAN.md S7; Wed 30 is the buffer + C1):
+1. **Config survey, if the URL is there.** S6b found no `HELIUS_DEVNET_RPC`, and `~/thawgate/.env` doesn't exist (`.gitignore:33` covers `.env`). If the user has added it, read it from the file and never print, log or commit it. Timebox 20 minutes. Filters: dataSize 350 + discriminator `[127,25,244,213,1,192,101,6]`. Spare bytes = 350 − (8+32+32 + 4+name + 4+symbol + 4+uri + 7 + 16 + 1). A config with 0 spare bytes is unusable after the upgrade (decision: append and accept outliers). Record the count and the outliers.
+2. **`tests/e2e/acl-story.ts` on localnet.**
+   - The steps are in PLAN.md S7. Build on `tests/gate/issuer.ts` (sss-token/hook builders, `createSssMint`, `enableTokenAclIx`, `seizeIx`, `transferIx`) and the SAS helpers in `tests/gate/helpers.ts`.
+   - It needs the gate validator (Token ACL, SAS, devnet Token-2022), so run it through `scripts/test-gate.sh` with `GATE_TESTS=…`.
+   - Give it a cluster switch so the same file runs on devnet.
+3. **Devnet deploy** (budget in the S6b entry: net ≈ 0.71 SOL, peak 3.35 SOL; `5BXg…` has 34.76):
+   - `anchor build`, then `verify-ids.sh`.
+   - Transfer ~1.2 SOL `5BXg…` → `3YnV…`: the hook's buffer is 1.159 SOL and `3YnV…` has 0.438.
+   - Extend sss-token by 116,368 B and the hook by 4,624 B. Each costs only the tx fee: the old ProgramData balances already cover rent at 5,080 lamports/byte.
+   - Upgrade sss-token (authority `5BXg…`) and the hook (`3YnV…`). Each upgrade refunds ~0.40–0.43 SOL of excess to the spill account.
+   - Deploy the gate at `THAW2da…`, with its keypair `~/.keys/thawgate/thawgate_gate-keypair.json`. **Decide its upgrade authority first:** CLAUDE.md lists none; `5BXg…` is the obvious choice.
+   - Don't use `scripts/deploy-devnet.sh`. Despite the name it's a localnet script: it `killall`s the validator, `anchor deploy`s to localnet and doesn't know the gate. Use `solana program extend` / `write-buffer` / `upgrade` / `deploy -u d` directly, or write a real devnet script.
+   - Record every tx link, and replace the write-tx estimates with the real counts.
+4. **Devnet story.**
+   - Fund the spike payer `5avMn…` (0 SOL, no history) by transfer from `5BXg…`, not the faucet.
+   - Create the demo credential `BYSdZK…` and schema `Fovh6z…` (`CLUSTER=devnet npx ts-node --transpile-only scripts/spikes/sas-credential.ts`); both are still absent.
+   - Run the story on devnet, labelling the credential as self-issued. The S2 devnet spike steps (Token ACL + ABL, then Orca) are optional here.
+5. **Legacy e2e** (`anchor test`, 6–7 failing per run, all known):
+   - Read-after-write races: use `.rpc({ commitment: "confirmed", preflightCommitment: "confirmed" })`, the Step 08 pattern. `commitment` alone gets "Blockhash not found".
+   - `transfer_authority` back to a previous holder fails "already in use" (SSS-1 Step 16, SSS-2 Step 15). That's a program fix: `new_master_role` is `init`.
+6. **Carried from S6b, S7 or buffer:** the gate/sas fixture conversion and the Both-mode test (details in PLAN.md S7).
+   - `add_to_allowlist_v3` needs `enable_allowlist`: `initArgs` in `tests/gate/issuer.ts` sets it false.
+   - Expected Both-mode limit: the hook rejects `seize` while paused.
+
+Gotchas:
+- In WSL, `gh` resolves to the upstream fork. Use `gh run list -R AryaSingh22/thawgate --commit <full sha>`.
+- Token-2022 errors as logged: `MintPaused` = 0x43, `AccountFrozen` = 0x11. A second Token ACL `create_config` gives `InvalidAuthority` (0x0).
+- The CLI still initializes SSS-1/SSS-2 only; its SSS-ACL default and an `enable_token_acl` command are S11.
+- `transfer_authority` doesn't move the gate policy admin (S6a, for the S16 docs).
+
 ## S0 · 2026-09-24 · Baseline, name, repo, CLAUDE.md
 - **Shipped:** pre-hackathon edits committed with their real dates (`c8f504c`, files dated 2026-03-13 → 2026-04-24) and tagged `pre-worlds-fair`. New repo holds the full history and is not a fork; the old fork is `upstream` with push disabled. Mechanical rebrand to `@thawgate/{sdk,cli,tui,console}` plus the 6 service packages (`c109982`). LICENSE adds "Copyright (c) 2026 Arya". README drops the Trident and "Anchor Integration: 10 passing" claims (neither ran; Anchor integration tests have not been run on 0.32 yet). CLAUDE.md added. Both upgrade authorities (`5BXg…`, `3YnV…`) are present, and program keypairs are backed up to `~/.keys/thawgate/` with pubkeys matching the program IDs. Fresh WSL clone: `yarn install --frozen-lockfile` + `yarn typecheck` green on 7 workspaces, after building sdk and shared (the cli and services type against their `dist/`). `anchor build` not run (toolchain migration is S1). No on-chain tx this session.
 - **Links:** repo https://github.com/AryaSingh22/thawgate · baseline https://github.com/AryaSingh22/thawgate/tree/pre-worlds-fair · commits `c8f504c` (baseline), `99a3bf1` (research + plan), `c109982` (rebrand), `c89ace7` (CLAUDE.md).
@@ -311,5 +343,11 @@ One entry per session: shipped / links / next. This is the "built during the hac
     - `5BXg…` has 34.76 SOL, so this is covered.
   - **`3YnV…` can't fund the hook's 1.159 SOL buffer.** Transfer ~1.2 SOL from `5BXg…` first, or write the buffer with `5BXg…` as fee payer and `3YnV…` as buffer authority.
   - The write-tx counts assume ~1 KB per write tx at 5,000 lamports, with no priority fee: an estimate, TODO(verify) against the real deploy. The extends are still needed for size, but cost only the tx fee.
-- **Links:** no on-chain tx (localnet only). Commits `f66e771` (harness + suites), `835e9e3` (Step 08), `62c2042` (SDK), and this log.
+- **CI on `e48b8bd`:** Full CI, CI, TypeScript Tests and Gate Tests are green.
+  - Gate Tests (run 36567418188): builds all programs; Rust 124 passed (gate + sss-token + hook); localnet **38 passing**, CU identical to the local tables.
+  - Anchor Integration Tests (run 36567418184): **68 passing / 7 failing**. SSS-2 Steps 01 and 08 pass. All 7 failures are known S7 classes:
+    - races: SSS-1 Steps 02/04 (`TokenAccountNotFoundError`), SSS-1 Step 09 and SSS-2 Step 06 (`isFrozen`)
+    - "already in use" (custom 0x0): SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
+- **Links:** no on-chain tx (localnet only). Commits `f66e771` (harness + suites), `835e9e3` (Step 08), `62c2042` (SDK), `02fa07f` (test pin), `e48b8bd` (log).
 - **Next:** S7, per the handoff at the top of this file.
