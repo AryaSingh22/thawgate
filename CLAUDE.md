@@ -34,7 +34,7 @@ Don't change program IDs or `declare_id!` unless the session plan says so.
 ## Keypairs (WSL paths; never print, cat or commit their contents)
 - `5BXg…` upgrades **sss_token + oracle_module**: `~/.config/solana/sss-authority.json`. It's a copy of Windows `C:\Users\ARYA\.config\solana\id.json`.
 - `3YnV…` upgrades **transfer_hook**: `~/.config/solana/id.json` (default CLI wallet).
-- Program keypairs, backed up: `~/.keys/thawgate/{sss_token,transfer_hook,oracle_module}-keypair.json`. The originals are in `~/.cargo/targets/solana-stablecoin-standard/deploy/`, the Cargo target dir that `scripts/deploy-devnet.sh` copies from.
+- Program keypairs, backed up: `~/.keys/thawgate/{sss_token,transfer_hook,oracle_module}-keypair.json`. The originals are in `~/.cargo/targets/solana-stablecoin-standard/deploy/`, the Cargo target dir that `scripts/deploy-localnet.sh` copies from. The devnet deploy is `scripts/deploy-devnet-acl.sh` (`DRY_RUN=1` first).
 - `test-keypair.json` in the repo root is the localnet test wallet (gitignored).
 
 ## Conventions
