@@ -1,8 +1,8 @@
 name: Gate Tests
 
-# The ThawGate gate (programs/thawgate-gate) on its own: Rust unit tests plus the localnet suite in tests/gate,
-# run by scripts/test-gate.sh against the real Token ACL program and devnet Token-2022 (tests/fixtures).
-# Separate from "Anchor Integration Tests", which carries the legacy SSS failures until S7.
+# The ThawGate gate (programs/thawgate-gate) with sss-token and the transfer hook: Rust unit tests plus the localnet
+# suite in tests/gate, run by scripts/test-gate.sh against the real Token ACL program and devnet Token-2022
+# (tests/fixtures). Separate from "Anchor Integration Tests", which carries the legacy SSS failures until S7.
 
 on:
   push:
@@ -66,14 +66,14 @@ jobs:
           solana-keygen new --no-bip39-passphrase --outfile ~/.config/solana/id.json
           solana-keygen new --no-bip39-passphrase --outfile ./test-keypair.json
 
-      - name: Build the gate
-        run: anchor build -p thawgate_gate
+      - name: Build all programs
+        run: anchor build  # the localnet suite loads the gate, sss-token and the transfer hook
 
       - name: Verify program IDs
         run: scripts/verify-ids.sh
 
       - name: Rust unit tests
-        run: cargo test -p thawgate-gate
+        run: cargo test -p thawgate-gate -p sss-token -p transfer-hook
 
       - name: Localnet gate suite
         run: SKIP_BUILD=1 yarn test:gate

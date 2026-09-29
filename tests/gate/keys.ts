@@ -8,8 +8,13 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 
 export const GATE_ID = new PublicKey("THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ");
 export const TOKEN_ACL_ID = new PublicKey("TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP");
-/** The issuer program whose registry the gate reads (sss-token). Not deployed in these tests: only its accounts. */
+/**
+ * The issuer program whose registry the gate reads (sss-token). Loaded since S6b (hook.test.ts, issuer.test.ts);
+ * the S4/S5 suites still read the registry entries injected at genesis (REGISTRY below).
+ */
 export const SSS_TOKEN_ID = new PublicKey("HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ");
+/** The SSS transfer hook, loaded since S6b. */
+export const HOOK_ID = new PublicKey("2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv");
 /** Solana Attestation Service, loaded from tests/fixtures/sas.so. */
 export const SAS_ID = new PublicKey("22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG");
 

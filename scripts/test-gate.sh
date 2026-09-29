@@ -1,22 +1,26 @@
 #!/bin/bash
 # Runs the gate suite (tests/gate) on a throwaway local validator (Agave 3.0.14) that has:
-#   - the ThawGate gate (target/deploy/thawgate_gate.so) at its declare_id! address
+#   - the ThawGate gate, sss-token and the transfer hook (target/deploy/*.so) at their declare_id! addresses
 #   - Token ACL from tests/fixtures
 #   - devnet Token-2022 from tests/fixtures (the bundled one fails TokenMetadata initialize on 3.x)
 #   - the Solana Attestation Service (SAS) from tests/fixtures
-#   - sss-token registry entries injected at genesis (tests/gate/registry-fixtures.ts), since sss-token can
-#     only write them for Token ACL mints from S6 on, plus one malformed SAS attestation (tests/gate/keys.ts)
-# Usage: [SKIP_BUILD=1] scripts/test-gate.sh
+#   - sss-token registry entries injected at genesis (tests/gate/registry-fixtures.ts) for the S4/S5 gate suites,
+#     plus one malformed SAS attestation (tests/gate/keys.ts). hook.test.ts and issuer.test.ts write theirs
+#     through sss-token.
+# Usage: [SKIP_BUILD=1] [GATE_TESTS=tests/gate/hook.test.ts] scripts/test-gate.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PAYER=test-keypair.json
 LEDGER="${HOME}/.cache/thawgate-gate-test-ledger"
 LOG=tests/gate/.validator.log
 FIXTURES="$(mktemp -d)"
-# The deploy keypair is random in CI (anchor build makes one), so take the ID from the source.
-GATE_ID=$(grep 'declare_id!' programs/thawgate-gate/src/lib.rs | grep -oP '"[^"]+"' | tr -d '"')
+# The deploy keypairs are random in CI (anchor build makes them), so take the IDs from the source.
+program_id() { grep 'declare_id!' "programs/$1/src/lib.rs" | grep -oP '"[^"]+"' | tr -d '"'; }
+GATE_ID=$(program_id thawgate-gate)
+SSS_ID=$(program_id sss-token)
+HOOK_ID=$(program_id transfer-hook)
 
-[ -n "${SKIP_BUILD:-}" ] || anchor build -p thawgate_gate
+[ -n "${SKIP_BUILD:-}" ] || anchor build
 scripts/verify-ids.sh
 
 npx ts-node --transpile-only tests/gate/registry-fixtures.ts "$FIXTURES" > "$FIXTURES/accounts.txt"
@@ -26,6 +30,8 @@ while read -r address file; do ACCOUNTS+=(--account "$address" "$file"); done < 
 solana-test-validator --reset --ledger "$LEDGER" --quiet \
   --mint "$(solana-keygen pubkey "$PAYER")" \
   --bpf-program "$GATE_ID" target/deploy/thawgate_gate.so \
+  --bpf-program "$SSS_ID" target/deploy/sss_token.so \
+  --bpf-program "$HOOK_ID" target/deploy/transfer_hook.so \
   --bpf-program TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP tests/fixtures/token_acl.so \
   --bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tests/fixtures/token_2022.so \
   --bpf-program 22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG tests/fixtures/sas.so \
@@ -48,4 +54,4 @@ ready || { echo "validator not ready after 120 s, see $LOG"; exit 1; }
 echo "local validator $(solana cluster-version -u l)"
 
 ANCHOR_PROVIDER_URL=http://127.0.0.1:8899 ANCHOR_WALLET="$PAYER" \
-  npx ts-mocha -p ./tsconfig.json -t 1000000 'tests/gate/**/*.test.ts'
+  npx ts-mocha -p ./tsconfig.json -t 1000000 "${GATE_TESTS:-tests/gate/**/*.test.ts}"

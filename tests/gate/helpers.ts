@@ -196,7 +196,7 @@ export function cuTable() {
 // Gate (Anchor TS)
 // ---------------------------------------------------------------------------------------------
 const idl = JSON.parse(fs.readFileSync("target/idl/thawgate_gate.json", "utf8"));
-const provider = new anchor.AnchorProvider(
+export const provider = new anchor.AnchorProvider(
   new anchor.web3.Connection(RPC_URL, "confirmed"),
   new anchor.Wallet(payerKeypair),
   { commitment: "confirmed", preflightCommitment: "confirmed" },
