@@ -6,8 +6,8 @@
 #   - the Solana Attestation Service (SAS) from tests/fixtures
 #   - sss-token registry entries injected at genesis (tests/gate/registry-fixtures.ts) for the S4/S5 gate suites,
 #     plus one malformed SAS attestation (tests/gate/keys.ts). hook.test.ts and issuer.test.ts write theirs
-#     through sss-token.
-# Usage: [SKIP_BUILD=1] [GATE_TESTS=tests/gate/hook.test.ts] scripts/test-gate.sh
+#     through sss-token. GENESIS_FIXTURES=0 starts the validator without them (tests/e2e/acl-story.ts: `yarn test:story`).
+# Usage: [SKIP_BUILD=1] [GENESIS_FIXTURES=0] [GATE_TESTS=tests/gate/hook.test.ts] scripts/test-gate.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PAYER=test-keypair.json
@@ -23,9 +23,12 @@ HOOK_ID=$(program_id transfer-hook)
 [ -n "${SKIP_BUILD:-}" ] || anchor build
 scripts/verify-ids.sh
 
-npx ts-node --transpile-only tests/gate/registry-fixtures.ts "$FIXTURES" > "$FIXTURES/accounts.txt"
 ACCOUNTS=()
-while read -r address file; do ACCOUNTS+=(--account "$address" "$file"); done < "$FIXTURES/accounts.txt"
+if [ "${GENESIS_FIXTURES:-1}" != 0 ]; then
+  npx ts-node --transpile-only tests/gate/registry-fixtures.ts "$FIXTURES" > "$FIXTURES/accounts.txt"
+  while read -r address file; do ACCOUNTS+=(--account "$address" "$file"); done < "$FIXTURES/accounts.txt"
+fi
+echo "genesis fixture accounts: $(( ${#ACCOUNTS[@]} / 3 ))"
 
 solana-test-validator --reset --ledger "$LEDGER" --quiet \
   --mint "$(solana-keygen pubkey "$PAYER")" \

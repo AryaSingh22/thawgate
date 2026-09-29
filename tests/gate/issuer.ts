@@ -106,9 +106,11 @@ export async function initializeIx(mint: PublicKey, args: ReturnType<typeof init
     .instruction();
 }
 
-/** An sss-token mint (key derived from `name`) with the payer's operational roles granted. Returns the mint. */
-export async function createSssMint(name: string, mode: Mode, o: MintOptions = {}): Promise<PublicKey> {
-  const mintKp = keypair(name);
+/**
+ * An sss-token mint with the payer's operational roles granted. Returns the mint. The mint key is derived from
+ * `name` unless `mintKp` is given.
+ */
+export async function createSssMint(name: string, mode: Mode, o: MintOptions = {}, mintKp = keypair(name)): Promise<PublicKey> {
   const mint = mintKp.publicKey;
   await sendWeb3([await initializeIx(mint, initArgs(name, mode, o))], [mintKp]);
   await sendWeb3(await grantRolesIxs(mint));
@@ -116,7 +118,7 @@ export async function createSssMint(name: string, mode: Mode, o: MintOptions = {
 }
 
 /** Minter (limit 0 = unlimited, lifetime), Blacklister, Pauser and Seizer, all for the payer. */
-async function grantRolesIxs(mint: PublicKey) {
+export async function grantRolesIxs(mint: PublicKey) {
   const base = { authority: payer, config: configPda(mint), authorityRole: rolePda(mint, payer, Role.master), systemProgram: SystemProgram.programId };
   const ixs = [
     await sss.methods

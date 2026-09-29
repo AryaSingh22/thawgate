@@ -1,8 +1,9 @@
 name: Gate Tests
 
 # The ThawGate gate (programs/thawgate-gate) with sss-token and the transfer hook: Rust unit tests plus the localnet
-# suite in tests/gate, run by scripts/test-gate.sh against the real Token ACL program and devnet Token-2022
-# (tests/fixtures). Separate from "Anchor Integration Tests", which carries the legacy SSS failures until S7.
+# suite in tests/gate and the end-to-end story in tests/e2e, run by scripts/test-gate.sh against the real Token ACL,
+# SAS and devnet Token-2022 programs (tests/fixtures). Separate from "Anchor Integration Tests", which carries the
+# legacy SSS failures until S7.
 
 on:
   push:
@@ -77,6 +78,9 @@ jobs:
 
       - name: Localnet gate suite
         run: SKIP_BUILD=1 yarn test:gate
+
+      - name: Localnet ACL story (tests/e2e/acl-story.ts, no genesis fixtures)
+        run: SKIP_BUILD=1 yarn test:story
 
       - name: Upload validator log
         if: failure()

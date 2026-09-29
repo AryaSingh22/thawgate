@@ -122,9 +122,13 @@ export async function send(ixs: Instruction[], feePayer?: TransactionSigner): Pr
     const logs: string[] = e?.context?.logs ?? e?.cause?.context?.logs ?? [];
     throw new TxFailed(e?.cause?.message ?? e?.message ?? String(e), logs);
   }
-  const t: any = await rpc
-    .getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0, encoding: "json" })
-    .send();
+  // A remote RPC (devnet, tests/e2e) can confirm a transaction a moment before getTransaction serves it.
+  let t: any = null;
+  for (let attempt = 0; !t && attempt < 20; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 500));
+    t = await rpc.getTransaction(sig, { commitment: "confirmed", maxSupportedTransactionVersion: 0, encoding: "json" }).send();
+  }
+  if (!t) throw new Error(`${sig} confirmed, but getTransaction returned nothing`);
   return { sig, cu: Number(t.meta.computeUnitsConsumed), logs: t.meta.logMessages ?? [] };
 }
 

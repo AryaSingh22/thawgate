@@ -26,6 +26,7 @@
     "test:unit": "npx cross-env ANCHOR_PROVIDER_URL=http://127.0.0.1:8899 npx ts-mocha tests/unit/*.test.ts",
     "test:cargo": "cargo test --workspace",
     "test:gate": "scripts/test-gate.sh",
+    "test:story": "GENESIS_FIXTURES=0 GATE_TESTS=tests/e2e/acl-story.ts scripts/test-gate.sh",
     "lint": "yarn workspaces run lint",
     "typecheck": "yarn workspace @thawgate/sdk build && yarn workspace @thawgate/shared build && yarn workspaces run typecheck"
   },
