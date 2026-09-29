@@ -45,6 +45,22 @@ export enum SSSPreset {
     SSS2 = "SSS-2",
     /** Private stablecoin — confidential transfers + allowlist */
     SSS3 = "SSS-3",
+    /** Token ACL mint gated by ThawGate (no transfer hook); the default for new mints */
+    SSS_ACL = "SSS-ACL",
+    /** Token ACL plus the SSS transfer hook */
+    SSS_BOTH = "SSS-Both",
+}
+
+/**
+ * How a mint enforces compliance (`StablecoinConfig.compliance_mode`, immutable).
+ */
+export enum ComplianceMode {
+    /** Transfer hook on every transfer (legacy SSS-2). */
+    Hook = 0,
+    /** Token ACL: frozen-by-default accounts thawed through the ThawGate gate; no hook. */
+    Acl = 1,
+    /** Token ACL and the transfer hook. */
+    Both = 2,
 }
 
 // ============================================================================
@@ -81,6 +97,8 @@ export interface StablecoinConfig {
     totalBurned: BN;
     /** PDA bump seed. */
     bump: number;
+    /** A `ComplianceMode` value (immutable; decodes as 0 = Hook on configs created before S6). */
+    complianceMode: number;
 }
 
 /**
@@ -183,6 +201,11 @@ export interface InitializeArgs {
     enableConfidentialTransfers?: boolean;
     /** Enable allowlist-based access control (SSS-3). */
     enableAllowlist?: boolean;
+    /**
+     * How the mint enforces compliance (default `ComplianceMode.Hook`, the pre-S6 behavior). `Acl` and `Both` need
+     * `defaultAccountFrozen`; `Acl` takes no hook and `Both` requires it. Call `enable_token_acl` after initialize.
+     */
+    complianceMode?: ComplianceMode;
 }
 
 /**

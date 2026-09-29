@@ -106,8 +106,8 @@ describe("Enum Completeness", () => {
         expect(Object.keys(QuotaPeriod).filter((k) => isNaN(Number(k))).length).toBe(4);
     });
 
-    it("SSSPreset has all 3 presets", () => {
-        expect(Object.keys(SSSPreset).length).toBe(3);
+    it("SSSPreset has all 5 presets", () => {
+        expect(Object.keys(SSSPreset).length).toBe(5);
     });
 
     it("RoleType values are sequential from 0", () => {

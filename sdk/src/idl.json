@@ -118,9 +118,9 @@
     {
       "name": "add_to_blacklist",
       "docs": [
-        "Adds an address to the blacklist (SSS-2 only).",
+        "Adds an address to the blacklist (SSS-2 and Token ACL modes).",
         "",
-        "Feature-gated: requires enable_transfer_hook.",
+        "Feature-gated: requires compliance (enable_transfer_hook, or compliance_mode Acl/Both).",
         "Creates a BlacklistEntry and freezes the target's token account."
       ],
       "discriminator": [
@@ -250,6 +250,47 @@
             "System program for account creation."
           ],
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "token_acl_program",
+          "docs": [
+            "Token ACL program (freezes once Token ACL holds the mint's freeze authority)."
+          ],
+          "address": "TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP"
+        },
+        {
+          "name": "mint_config",
+          "docs": [
+            "The mint's Token ACL MintConfig PDA; may not exist (Hook-mode mints)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  77,
+                  73,
+                  78,
+                  84,
+                  95,
+                  67,
+                  79,
+                  78,
+                  70,
+                  73,
+                  71
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "token_acl_program"
+            }
+          }
         }
       ],
       "args": [
@@ -600,6 +641,261 @@
       "args": []
     },
     {
+      "name": "enable_token_acl",
+      "docs": [
+        "Puts a Token ACL mode mint under Token ACL with the ThawGate gate and creates its gate policy.",
+        "",
+        "Requires compliance_mode Acl or Both and the MasterAuthority. The config PDA signs every CPI."
+      ],
+      "discriminator": [
+        223,
+        179,
+        117,
+        163,
+        201,
+        185,
+        222,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "The master authority; pays for the MintConfig, the policy and its extra-metas lists."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  99,
+                  111,
+                  105,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority_role"
+        },
+        {
+          "name": "mint",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_acl_program",
+          "address": "TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP"
+        },
+        {
+          "name": "mint_config",
+          "docs": [
+            "Token ACL MintConfig PDA, created by `create_config`."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  77,
+                  73,
+                  78,
+                  84,
+                  95,
+                  67,
+                  79,
+                  78,
+                  70,
+                  73,
+                  71
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "token_acl_program"
+            }
+          }
+        },
+        {
+          "name": "gate_program",
+          "address": "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ"
+        },
+        {
+          "name": "gate_policy",
+          "docs": [
+            "The gate's `GatePolicy`, created by `init_policy`."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  108,
+                  105,
+                  99,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "gate_program"
+            }
+          }
+        },
+        {
+          "name": "thaw_extra_metas",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  104,
+                  97,
+                  119,
+                  95,
+                  101,
+                  120,
+                  116,
+                  114,
+                  97,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116,
+                  95,
+                  109,
+                  101,
+                  116,
+                  97,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "gate_program"
+            }
+          }
+        },
+        {
+          "name": "freeze_extra_metas",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  114,
+                  101,
+                  101,
+                  122,
+                  101,
+                  95,
+                  101,
+                  120,
+                  116,
+                  114,
+                  97,
+                  95,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116,
+                  95,
+                  109,
+                  101,
+                  116,
+                  97,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "gate_program"
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "policy",
+          "type": {
+            "defined": {
+              "name": "GatePolicyConfig"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "freeze_account",
       "docs": [
         "Freezes a target token account.",
@@ -687,6 +983,47 @@
           "docs": [
             "Token-2022 program."
           ]
+        },
+        {
+          "name": "token_acl_program",
+          "docs": [
+            "Token ACL program (used once Token ACL holds the mint's freeze authority)."
+          ],
+          "address": "TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP"
+        },
+        {
+          "name": "mint_config",
+          "docs": [
+            "The mint's Token ACL MintConfig PDA; may not exist (Hook-mode mints)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  77,
+                  73,
+                  78,
+                  84,
+                  95,
+                  67,
+                  79,
+                  78,
+                  70,
+                  73,
+                  71
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "token_acl_program"
+            }
+          }
         }
       ],
       "args": []
@@ -1125,6 +1462,23 @@
             "The operator's role record PDA.",
             "Must be either Pauser or MasterAuthority with active status."
           ]
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "The config's mint: Token ACL mode pauses it through Token-2022 Pausable."
+          ],
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token-2022 program (Pausable CPI)."
+          ],
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
       ],
       "args": []
@@ -1230,9 +1584,9 @@
     {
       "name": "remove_from_blacklist",
       "docs": [
-        "Removes an address from the blacklist (SSS-2 only).",
+        "Removes an address from the blacklist (SSS-2 and Token ACL modes).",
         "",
-        "Feature-gated: requires enable_transfer_hook.",
+        "Feature-gated: requires compliance (enable_transfer_hook, or compliance_mode Acl/Both).",
         "Deactivates the BlacklistEntry. Does NOT auto-thaw."
       ],
       "discriminator": [
@@ -1343,9 +1697,9 @@
     {
       "name": "seize",
       "docs": [
-        "Seizes all tokens from a frozen, blacklisted account (SSS-2 only).",
+        "Seizes all tokens from a frozen, blacklisted account (SSS-2 and Token ACL modes).",
         "",
-        "Feature-gated: requires both enable_transfer_hook and enable_permanent_delegate.",
+        "Feature-gated: requires compliance (the hook or Token ACL) and enable_permanent_delegate.",
         "Uses permanent delegate authority to transfer without owner consent."
       ],
       "discriminator": [
@@ -1476,6 +1830,47 @@
           "docs": [
             "Token-2022 program."
           ]
+        },
+        {
+          "name": "token_acl_program",
+          "docs": [
+            "Token ACL program (thaws and refreezes once Token ACL holds the mint's freeze authority)."
+          ],
+          "address": "TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP"
+        },
+        {
+          "name": "mint_config",
+          "docs": [
+            "The mint's Token ACL MintConfig PDA; may not exist (Hook-mode mints)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  77,
+                  73,
+                  78,
+                  84,
+                  95,
+                  67,
+                  79,
+                  78,
+                  70,
+                  73,
+                  71
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "token_acl_program"
+            }
+          }
         }
       ],
       "args": []
@@ -1568,6 +1963,47 @@
           "docs": [
             "Token-2022 program."
           ]
+        },
+        {
+          "name": "token_acl_program",
+          "docs": [
+            "Token ACL program (used once Token ACL holds the mint's freeze authority)."
+          ],
+          "address": "TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP"
+        },
+        {
+          "name": "mint_config",
+          "docs": [
+            "The mint's Token ACL MintConfig PDA; may not exist (Hook-mode mints)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  77,
+                  73,
+                  78,
+                  84,
+                  95,
+                  67,
+                  79,
+                  78,
+                  70,
+                  73,
+                  71
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "token_acl_program"
+            }
+          }
         }
       ],
       "args": []
@@ -1767,6 +2203,23 @@
             "The operator's role record PDA.",
             "Must be either Pauser or MasterAuthority with active status."
           ]
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "The config's mint: Token ACL mode pauses it through Token-2022 Pausable."
+          ],
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "token_program",
+          "docs": [
+            "Token-2022 program (Pausable CPI)."
+          ],
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
       ],
       "args": []
@@ -2227,6 +2680,19 @@
       ]
     },
     {
+      "name": "TokenAclEnabled",
+      "discriminator": [
+        119,
+        214,
+        150,
+        203,
+        155,
+        200,
+        248,
+        199
+      ]
+    },
+    {
       "name": "TokensBurned",
       "discriminator": [
         230,
@@ -2452,6 +2918,21 @@
       "code": 6031,
       "name": "AllowlistEntryNotActive",
       "msg": "Allowlist entry not active: the allowlist entry for this wallet has been deactivated"
+    },
+    {
+      "code": 6032,
+      "name": "InvalidComplianceMode",
+      "msg": "Invalid compliance mode: use 0 (Hook), 1 (Acl: default_account_frozen, no hook) or 2 (Both: default_account_frozen and the hook)"
+    },
+    {
+      "code": 6033,
+      "name": "NotTokenAclMode",
+      "msg": "Not a Token ACL mint: this instruction needs compliance_mode Acl or Both"
+    },
+    {
+      "code": 6034,
+      "name": "UnknownFreezeAuthority",
+      "msg": "Unknown freeze authority: the mint's freeze authority is neither the config PDA nor the Token ACL MintConfig"
     }
   ],
   "types": [
@@ -2804,6 +3285,78 @@
       }
     },
     {
+      "name": "GateAllowlistMode",
+      "docs": [
+        "Mirror of the gate's `AllowlistMode` (Borsh: the variant index as one byte)."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Off"
+          },
+          {
+            "name": "AllowOnly"
+          },
+          {
+            "name": "BypassForPdas"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GatePolicyConfig",
+      "docs": [
+        "The policy the issuer picks. The admin (`config.authority`) and the registry program (sss-token) are set by",
+        "sss-token."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "check_blacklist",
+            "docs": [
+              "Deny holders with an active sss-token `BlacklistEntry`."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "allowlist_mode",
+            "docs": [
+              "How the sss-token allowlist (`add_to_allowlist_v3`) is used."
+            ],
+            "type": {
+              "defined": {
+                "name": "GateAllowlistMode"
+              }
+            }
+          },
+          {
+            "name": "require_sas",
+            "docs": [
+              "Require a live SAS attestation (nonce = holder wallet) under this credential and schema."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "sas_credential",
+            "type": "pubkey"
+          },
+          {
+            "name": "sas_schema",
+            "type": "pubkey"
+          },
+          {
+            "name": "min_kyc_level",
+            "docs": [
+              "0 = any level; otherwise the attestation data's first byte must be at least this."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "InitializeArgs",
       "docs": [
         "Arguments for the initialize instruction."
@@ -2882,6 +3435,14 @@
               "Whether to enable allowlist-based access control (SSS-3)."
             ],
             "type": "bool"
+          },
+          {
+            "name": "compliance_mode",
+            "docs": [
+              "`COMPLIANCE_MODE_HOOK` (0), `_ACL` (1) or `_BOTH` (2). Last field, so clients built before S6 that omit it",
+              "encode 0 (Hook, the old behavior)."
+            ],
+            "type": "u8"
           }
         ]
       }
@@ -3300,6 +3861,14 @@
               "PDA bump seed for this account."
             ],
             "type": "u8"
+          },
+          {
+            "name": "compliance_mode",
+            "docs": [
+              "How compliance is enforced (immutable after init): `COMPLIANCE_MODE_HOOK`, `_ACL` or `_BOTH`.",
+              "Appended in S6; must stay the last field (see `STABLECOIN_CONFIG_SIZE`)."
+            ],
+            "type": "u8"
           }
         ]
       }
@@ -3373,6 +3942,46 @@
             "docs": [
               "Unix timestamp of initialization."
             ],
+            "type": "i64"
+          },
+          {
+            "name": "compliance_mode",
+            "docs": [
+              "`COMPLIANCE_MODE_HOOK`, `_ACL` or `_BOTH` (appended in S6)."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenAclEnabled",
+      "docs": [
+        "Event emitted when a mint is put under Token ACL."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "gating_program",
+            "docs": [
+              "The gating program (ThawGate)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "policy_authority",
+            "docs": [
+              "The gate policy's admin (the master authority at this time)."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
             "type": "i64"
           }
         ]

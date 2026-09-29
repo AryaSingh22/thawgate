@@ -25,7 +25,7 @@ import {
     findRolePda,
     findQuotaPda,
 } from "../pda";
-import { RoleType } from "../types";
+import { ComplianceMode, RoleType } from "../types";
 import type { InitializeArgs, TransactionResult } from "../types";
 import { parseError } from "../errors";
 
@@ -71,6 +71,9 @@ export async function initialize(
                 enableTransferHook: args.enableTransferHook,
                 defaultAccountFrozen: args.defaultAccountFrozen,
                 hookProgramId: args.hookProgramId ?? null,
+                enableConfidentialTransfers: args.enableConfidentialTransfers ?? false,
+                enableAllowlist: args.enableAllowlist ?? false,
+                complianceMode: args.complianceMode ?? ComplianceMode.Hook,
             })
             .accounts({
                 authority,
@@ -301,6 +304,9 @@ export async function pause(
                 config: configPda,
                 pauseState: pausePda,
                 operatorRole: rolePda,
+                // Token ACL modes pause the mint itself (Token-2022 Pausable)
+                mint,
+                tokenProgram: TOKEN_2022_PROGRAM_ID,
             })
             .instruction();
 
@@ -338,6 +344,8 @@ export async function unpause(
                 config: configPda,
                 pauseState: pausePda,
                 operatorRole: rolePda,
+                mint,
+                tokenProgram: TOKEN_2022_PROGRAM_ID,
             })
             .instruction();
 
