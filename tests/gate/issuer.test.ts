@@ -146,9 +146,9 @@ describe("sss-token issuer (Token ACL mode)", function () {
     });
 
     it("fails on a second call, on a Hook-mode mint, and for a signer without MasterAuthority", async () => {
+      // Token ACL `InvalidAuthority` (0): the config PDA is no longer the mint's freeze authority, the MintConfig is
       const again = await sendWeb3Fails([await enableTokenAclIx(mint)]);
-      assert.ok(invoked(again.logs, TOKEN_ACL_ID), again.logs.join("\n"));
-      console.log(`      second call: ${again.logs.find((l) => l.includes("already in use") || l.includes("failed:")) ?? again.message}`);
+      assertFailedWith(again, `Program ${TOKEN_ACL_ID.toBase58()} failed: custom program error: 0x0`);
 
       const hookMint = await createSssMint("acl-hook-mode", Mode.Hook, { hook: false });
       assertFailedWith(await sendWeb3Fails([await enableTokenAclIx(hookMint)]), "Error Code: NotTokenAclMode");
