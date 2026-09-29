@@ -24,6 +24,9 @@ import {
     ASSOCIATED_TOKEN_PROGRAM_ID,
     getAccount,
     getMint,
+    createAssociatedTokenAccountIdempotentInstruction,
+    createTransferCheckedInstruction,
+    addExtraAccountMetasForExecute,
 } from "@solana/spl-token";
 import { expect } from "chai";
 
@@ -43,16 +46,23 @@ const ROLE_SEIZER = 5;
 // Transfer hook program ID (from CRIT-003)
 const HOOK_PROGRAM_ID = new PublicKey("2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv");
 
+// Send options for the S6b seize steps: the blockhash, the preflight and the confirmation all at "confirmed", so a
+// later "confirmed" read sees the write. With only `commitment` set, Anchor fetches the blockhash at the
+// connection's level and the preflight can reject it ("Blockhash not found").
+const CONFIRMED = { commitment: "confirmed", preflightCommitment: "confirmed" } as const;
+
 describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
 
     const program = anchor.workspace.SssToken as Program;
+    const hookProgram = anchor.workspace.TransferHook as Program;
     const authority = provider.wallet;
     const mint = Keypair.generate();
     const minter = Keypair.generate();
     const blacklister = Keypair.generate();
     const pauser = Keypair.generate();
+    const seizer = Keypair.generate();
     const badActor = Keypair.generate();
     const recipient = Keypair.generate();
     const treasury = Keypair.generate();
@@ -73,9 +83,12 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
     function findBlacklistPda(targetKey: PublicKey) {
         return PublicKey.findProgramAddressSync([SEED_BLACKLIST, mint.publicKey.toBuffer(), targetKey.toBuffer()], program.programId);
     }
+    function findHookMetasPda() {
+        return PublicKey.findProgramAddressSync([Buffer.from("extra-account-metas"), mint.publicKey.toBuffer()], HOOK_PROGRAM_ID)[0];
+    }
 
     before(async () => {
-        for (const kp of [minter, blacklister, pauser, badActor, recipient, treasury, newAuthority]) {
+        for (const kp of [minter, blacklister, pauser, seizer, badActor, recipient, treasury, newAuthority]) {
             const sig = await provider.connection.requestAirdrop(kp.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
             await provider.connection.confirmTransaction(sig);
         }
@@ -105,6 +118,12 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
         const config = await (program.account as any).stablecoinConfig.fetch(configPda);
         expect(config.enablePermanentDelegate).to.be.true;
         expect(config.enableTransferHook).to.be.true;
+
+        // The hook's extra-account meta list: without it Token-2022 can't pass the hook its accounts (Step 08)
+        await hookProgram.methods
+            .initializeExtraAccountMetaList()
+            .accounts({ payer: authority.publicKey, extraAccountMetaList: findHookMetasPda(), mint: mint.publicKey })
+            .rpc(CONFIRMED);
         console.log(`✅ Step 01: SSS-2 initialized — Mint: ${mint.publicKey.toBase58()}`);
     });
 
@@ -118,18 +137,20 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
     });
 
     // --- Step 3: Grant Roles ---
-    it("Step 03: Grant minter, blacklister, pauser roles", async () => {
+    it("Step 03: Grant minter, blacklister, pauser, seizer roles", async () => {
         const [configPda] = findConfigPda();
         const [masterRolePda] = findRolePda(authority.publicKey, ROLE_MASTER);
         const [minterRolePda] = findRolePda(minter.publicKey, ROLE_MINTER);
         const [quotaPda] = findQuotaPda(minter.publicKey);
         const [blacklisterRolePda] = findRolePda(blacklister.publicKey, ROLE_BLACKLISTER);
         const [pauserRolePda] = findRolePda(pauser.publicKey, ROLE_PAUSER);
+        const [seizerRolePda] = findRolePda(seizer.publicKey, ROLE_SEIZER);
 
         await program.methods.updateRoles(minter.publicKey, { minter: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: minterRolePda, systemProgram: SystemProgram.programId }).rpc();
         await program.methods.updateMinter(minter.publicKey, new BN(100_000_000_000), { lifetime: {} }).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, minterRole: minterRolePda, minterQuota: quotaPda, systemProgram: SystemProgram.programId }).rpc();
         await program.methods.updateRoles(blacklister.publicKey, { blacklister: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: blacklisterRolePda, systemProgram: SystemProgram.programId }).rpc();
         await program.methods.updateRoles(pauser.publicKey, { pauser: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: pauserRolePda, systemProgram: SystemProgram.programId }).rpc();
+        await program.methods.updateRoles(seizer.publicKey, { seizer: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: seizerRolePda, systemProgram: SystemProgram.programId }).rpc(CONFIRMED);
 
         console.log("✅ Step 03: All roles granted");
     });
@@ -190,18 +211,39 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
     // --- Step 8: Seize Tokens ---
     it("Step 08: Seize tokens from bad actor to treasury (SSS-2 permanent delegate)", async () => {
         const [configPda] = findConfigPda();
-        const [masterRolePda] = findRolePda(authority.publicKey, ROLE_MASTER);
+        const [seizerRolePda] = findRolePda(seizer.publicKey, ROLE_SEIZER);
         const [blacklistPda] = findBlacklistPda(badActor.publicKey);
         const badActorAta = getAssociatedTokenAddressSync(mint.publicKey, badActor.publicKey, false, TOKEN_2022_PROGRAM_ID);
         const treasuryAta = getAssociatedTokenAddressSync(mint.publicKey, treasury.publicKey, false, TOKEN_2022_PROGRAM_ID);
 
+        // seize takes an existing treasury account
+        await provider.sendAndConfirm(
+            new anchor.web3.Transaction().add(
+                createAssociatedTokenAccountIdempotentInstruction(authority.publicKey, treasuryAta, treasury.publicKey, mint.publicKey, TOKEN_2022_PROGRAM_ID),
+            ),
+            [],
+            CONFIRMED,
+        );
+
+        // Token-2022 calls the hook on the seize transfer, so its extra accounts go in as remaining accounts. The
+        // transfer's authority is the config PDA (the permanent delegate).
+        const amount = (await getAccount(provider.connection, badActorAta, "confirmed", TOKEN_2022_PROGRAM_ID)).amount;
+        const transfer = createTransferCheckedInstruction(badActorAta, mint.publicKey, treasuryAta, configPda, amount, 6, [], TOKEN_2022_PROGRAM_ID);
+        await addExtraAccountMetasForExecute(provider.connection, transfer, HOOK_PROGRAM_ID, badActorAta, mint.publicKey, treasuryAta, configPda, amount, "confirmed");
+        const hookAccounts = transfer.keys.slice(4);
+
         await program.methods
             .seize()
-            .accounts({ operator: authority.publicKey, config: configPda, operatorRole: masterRolePda, blacklistEntry: blacklistPda, mint: mint.publicKey, sourceTokenAccount: badActorAta, treasuryTokenAccount: treasuryAta, treasury: treasury.publicKey, tokenProgram: TOKEN_2022_PROGRAM_ID, associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId })
-            .rpc();
+            .accounts({ seizer: seizer.publicKey, config: configPda, seizerRole: seizerRolePda, blacklistEntry: blacklistPda, mint: mint.publicKey, sourceTokenAccount: badActorAta, sourceAuthority: badActor.publicKey, treasuryTokenAccount: treasuryAta, tokenProgram: TOKEN_2022_PROGRAM_ID })
+            .remainingAccounts(hookAccounts)
+            .signers([seizer])
+            .rpc(CONFIRMED);
 
         const badActorAccount = await getAccount(provider.connection, badActorAta, "confirmed", TOKEN_2022_PROGRAM_ID);
         expect(Number(badActorAccount.amount)).to.equal(0);
+        expect(badActorAccount.isFrozen).to.be.true;
+        const treasuryAccount = await getAccount(provider.connection, treasuryAta, "confirmed", TOKEN_2022_PROGRAM_ID);
+        expect(treasuryAccount.amount).to.equal(amount);
         console.log("✅ Step 08: Tokens seized from bad actor");
     });
 
