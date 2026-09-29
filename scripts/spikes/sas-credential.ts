@@ -9,7 +9,8 @@
  *   resolve-civic  read-only: rebuild real Civic attestation addresses from a holder's token account with the
  *               extra-meta recipe (the spl-token resolver Token-2022 clients use), Civic nonce mode
  *   credential  "ThawGate Demo KYC" credential, authority + signer = payer (skipped if it exists)
- *   schema      "thawgate-demo-kyc" v1: kyc_level:u8, country:String; expiry is the attestation header's (skipped if it exists)
+ *   schema      "thawgate-demo-kyc" v1: kyc_level:u8, country:String; expiry is the attestation header's. An existing
+ *               schema is reused only with exactly this layout and these field names, unpaused; otherwise the step fails
  *   holder      fresh holder wallet + plain Token-2022 mint + the holder's ATA (index 1 of the gate call)
  *   attest      attestation with nonce = holder wallet, 1-year expiry; raw account bytes recorded
  *   verify      attestation PDA by hand, via sas-lib, and via the extra-meta resolver (wallet mode, two
@@ -97,6 +98,15 @@ const SCHEMA_DESCRIPTION = "DEMO ONLY, not a real KYC check. ThawGate test crede
 // attestation header's own `expiry` is the only one, so the two can't disagree.
 const SCHEMA_LAYOUT = new Uint8Array([0, 12]);
 const SCHEMA_FIELDS = ["kyc_level", "country"];
+/** `Schema.fieldNames` as SAS stores it: each name as a u32 LE length + UTF-8 bytes, back to back (sas-lib splitJoinedVecs). */
+const joinedFieldNames = (names: string[]) =>
+  Buffer.concat(
+    names.map((n) => {
+      const len = Buffer.alloc(4);
+      len.writeUInt32LE(Buffer.byteLength(n));
+      return Buffer.concat([len, Buffer.from(n, "utf8")]);
+    }),
+  );
 const YEAR = 365 * 24 * 60 * 60;
 const TOKEN_ACL = "TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP";
 
@@ -315,8 +325,19 @@ async function stepCredential(payer: any) {
 async function stepSchema(payer: any) {
   const credential = address(state.credential);
   const [schema] = await deriveSchemaPda({ credential, name: SCHEMA_NAME, version: 1 });
-  if ((await fetchMaybeSchema(rpc, schema)).exists) {
-    console.log(`  schema ${schema} exists, reusing it`);
+  const existing = await fetchMaybeSchema(rpc, schema);
+  if (existing.exists) {
+    // Reuse only the final schema. The address comes from (credential, name, version), not the layout, so a schema
+    // written with another layout (S3's first one had `expires: i64`) would otherwise be picked up silently.
+    const layout = [...existing.data.layout];
+    const fieldsMatch = Buffer.from(existing.data.fieldNames).equals(joinedFieldNames(SCHEMA_FIELDS));
+    if (Buffer.compare(Buffer.from(layout), Buffer.from(SCHEMA_LAYOUT)) !== 0 || !fieldsMatch || existing.data.isPaused) {
+      throw new Error(
+        `schema ${schema} exists with layout [${layout}]${fieldsMatch ? "" : " and other field names"}${existing.data.isPaused ? ", paused" : ""}; ` +
+          `expected [${[...SCHEMA_LAYOUT]}] (${SCHEMA_FIELDS.join(", ")}), not paused. Use a new schema version instead of reusing it.`,
+      );
+    }
+    console.log(`  schema ${schema} exists with the final layout (${SCHEMA_FIELDS.join(", ")}), reusing it`);
   } else {
     const ix = getCreateSchemaInstruction({
       payer,
