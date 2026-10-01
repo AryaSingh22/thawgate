@@ -65,7 +65,7 @@ for entry in "${VENDORED[@]}"; do
 done
 
 # Deployed programs must match DEPLOYMENT.md.
-for name in sss-token transfer-hook; do
+for name in sss-token transfer-hook thawgate-gate; do
   src_id=$(grep 'declare_id!' "programs/$name/src/lib.rs" | grep -oP '"[^"]+"' | tr -d '"')
   grep -q "$src_id" DEPLOYMENT.md || { echo "  ERROR: $name ID $src_id not in DEPLOYMENT.md"; fail=1; }
 done

@@ -1,11 +1,37 @@
 # Deployment Record
 
+## Devnet, 2026-10-01: Token ACL release
+
+**Anchor:** 0.32.2 · **Solana CLI:** 3.0.14 · **Cluster:** devnet, Agave 4.3.0 · **Script:** `scripts/deploy-devnet-acl.sh` at `4c6f71f`
+
+The gate is a first deploy. sss-token and the transfer hook are upgrades of the 2026-03-11 programs below, each extended first. oracle-module was not redeployed.
+
+| Program | Address | Upgrade authority | Program bytes (sha256 of the `.so`) | Slot |
+|---------|---------|-------------------|-------------------------------------|------|
+| `thawgate-gate` | `THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` | 290,016 (`09b46b844774a171…`) | 506247236 |
+| `sss-token` | `HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` | 658,088 (`7ab997602f81c013…`) | 506247370 |
+| `transfer-hook` | `2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv` | `3YnVTN8gWWnvgn4AFmtZu4vFDpMAn4vu27uF5ppKS1EM` | 228,024 (`edad2ef595a44f3f…`) in 233,640 B of program data | 506249291 |
+
+| Step | Signature |
+|------|-----------|
+| `thawgate-gate` deploy | [`54kMBaGM…`](https://explorer.solana.com/tx/54kMBaGM1LYZAomTrwGTutAFZKdYBS8ETy3bqif53V5qecvnHLnJGfEG8WacoGbRLqJZomwyWnCddch7WMTrMJMe?cluster=devnet) |
+| `sss-token` extend, +116,368 B | [`LQ4mBfre…`](https://explorer.solana.com/tx/LQ4mBfredv1V9BoN15tLCt5wLeRuWMoGt59s4ZAcBkPd97PfY3SMaZ5BMVqw3gaK8fFi343TogeEJESuyzuaTQg?cluster=devnet) |
+| `sss-token` upgrade | [`5475i54L…`](https://explorer.solana.com/tx/5475i54LXcQkaYcqwvv957uhhZ5tjrqy4rQ6JPvuLM8NtTr2oruE2fEVt3cMXJkWc814KE9PMJjUwpdV5BA6spYj?cluster=devnet) |
+| `transfer-hook` extend, +10,240 B (4,624 needed; Agave 4.x minimum) | [`tbpaeL5K…`](https://explorer.solana.com/tx/tbpaeL5K4CvqxFQJxCqPYVFycR5oQyu9cFYxQsQaeaS7zSkD4XaFExRDZb4ajifmc1roCunTcL7u8UurcpoPasY?cluster=devnet) |
+| `transfer-hook` upgrade | [`3Y9AjRxK…`](https://explorer.solana.com/tx/3Y9AjRxK82VkiQWbVVnnPLnqbmSDBnFwfzLnfcXiM2eSS97phRop3yoJUReRNZFtAQuPrTpkgBUcXPvE9dgb7D56?cluster=devnet) |
+
+1,261 transactions: 1,260 paid by `5BXg…` and the hook's extend paid by `3YnV…`; none failed. Fees were 7,813,742 lamports.
+
+**Check:** `solana program dump <address> out.so --url devnet`. The first N bytes of `out.so` (N = the size of `target/deploy/<name>.so`) hash to the same sha256, and every byte after them is zero.
+
+## Devnet, 2026-03-11: original SSS deploy (pre-hackathon)
+
 **Network:** Devnet  
 **Anchor Version:** 0.30.1  
 **Solana CLI Version:** 3.0.15  
 **Deployed:** 2026-03-11  
 
-## Program IDs
+### Program IDs
 
 | Program | Address | Role |
 |---------|---------|------|
@@ -13,7 +39,7 @@
 | `transfer-hook` | `2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv` | Hook extension |
 | `oracle-module` | `HEuTBAakSu9sojbzjbcgBzsFkRYeRaZJdixqcao5Gvo6` | Oracle gating |
 
-## Transaction Signatures (Devnet)
+### Transaction Signatures (Devnet)
 
 | Program | Deploy Signature |
 |---------|------------------|
@@ -34,6 +60,8 @@ anchor build
 ```
 
 ### Step 2: Deploy to Devnet
+
+The 2026-10-01 release used `scripts/deploy-devnet-acl.sh`. It prints every step, signer and SOL cost, and sends nothing with `DRY_RUN=1`; run that first. Reruns resume a half-written buffer and skip programs whose bytes already match. The steps below are the 2026-03-11 procedure.
 
 Use the provided deployment script:
 
@@ -71,6 +99,7 @@ bash scripts/verify-ids.sh
 Verify the programs are deployed on devnet using standard `solana program show` commands. All these programs are confirmed executable and deployed successfully as proved in the Phase 1 test execution evidence.
 
 ```bash
+solana program show THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ --url devnet
 solana program show HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ --url devnet
 solana program show 2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv --url devnet
 solana program show HEuTBAakSu9sojbzjbcgBzsFkRYeRaZJdixqcao5Gvo6 --url devnet
