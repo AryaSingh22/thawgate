@@ -1,0 +1,24 @@
+{
+    "name": "@thawgate/keeper",
+    "version": "0.1.0",
+    "private": true,
+    "description": "ThawGate keeper: a permissionless freeze crank for Token ACL mints gated by ThawGate",
+    "main": "dist/main.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/main.js",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p test/tsconfig.json",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@solana-program/token-2022": "0.6.1",
+        "@solana/kit": "5.5.1",
+        "@token-acl/sdk": "0.2.7",
+        "fastify": "4.29.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "^5.4.0",
+        "vitest": "^4.0.18"
+    }
+}
