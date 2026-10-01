@@ -2,36 +2,53 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S8 handoff (read first; remove when S8 ends)
-S7 is done (S7b entry at the bottom). The Token ACL release is on devnet, the S7 story passes there (7/7), and C1 is tagged `c1-core`.
+## ▶ S9 handoff (read first; remove when S9 ends)
+S8 is done (S8 entry at the bottom). `services/keeper` freezes on revoke, blacklist, expiry and policy tightening, on devnet, with no manual step. Revoke→freeze p50 is 2,863 ms over 10 devnet runs.
 
 State on devnet (2026-10-01):
-- **Programs** (= `target/deploy` at `c1-core`; DEPLOYMENT.md has signatures and hashes):
-  - gate `THAW2da…`, upgrade authority `5BXg…`
-  - sss-token `HLvh…`, upgrade authority `5BXg…`
-  - hook `2wcw…`, upgrade authority `3YnV…`
-- **Demo SAS credential** `BYSdZK…` and schema `Fovh6z…` (`thawgate-demo-kyc` v1). The authority is the spike payer `5avMn…`. It's self-issued demo KYC; label it so.
-- **RPC:** `~/thawgate/.env` holds `HELIUS_DEVNET_RPC` (mode 600), and every script reads it directly.
-- **Balances:** `5BXg…` 31.5086, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
+- **Programs:** unchanged since `c1-core` (DEPLOYMENT.md). S8 changed no Rust.
+- **Keeper key** `4auu6ttRQPrkewa3Umwer25W8ck7ERm73H1CmyYoDWH2`: `~/.keys/thawgate/keeper.json`, mode 600, no role on any mint, 0.04993 SOL.
+  - The keeper is **not running**. To start it: `yarn workspace @thawgate/keeper build`, then `KEEPER_KEYPAIR=~/.keys/thawgate/keeper.json KEEPER_SKIP_MINTS=5632jFw8mU2hAjP2p8jNcCG9CW2MdeikDkbpd4Knr2G6 node services/keeper/dist/main.js` (RPC from `.env`, HTTP on :3005).
+  - Stop it with SIGTERM.
+- **Mints:**
+  - The S7b story mint `5632jF…` is skipped by the keeper (user, S8). Its issuer-thawed treasury would be frozen; see the S8 finding.
+  - The S8 keeper mint `4234DQ…`: every test holder is frozen except `quinn` (`kyc_level` 3).
+- **Demo SAS credential** `BYSdZK…` / schema `Fovh6z…`, authority `5avMn…`. Self-issued demo KYC; label it so.
+- **Balances:** `5BXg…` 31.3770, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
 
-S8, in order (PLAN.md S8, the keeper):
-1. **CI on the S7b push:** `gh run list -R AryaSingh22/thawgate --commit <full sha of c1-core>`. Record the result in the S7b entry.
-2. **Keeper:** the story's step 5 is its manual version: SAS `close_attestation` → keeper `freeze_permissionless` → `TG:ALLOW:NO_CREDENTIAL`. The CloseAttestationEvent has no holder in it (seen again on devnet in S7b), so the keeper derives the attestation PDA for each holder it tracks. A devnet freeze costs 35,143 CU (gate 4,824).
-3. **Done when:** a revoke on devnet freezes the account with no manual step, and the revoke→freeze latency (p50 over 10 runs) is in LOG.md.
+S9, in order (PLAN.md S9, reserve-backed mint; plan mode first, as PLAN.md asks for S9):
+1. **CI:** the S8 code pushes `25dc202` and `f1a0a91` are recorded in the S8 entry. Check the S8 docs commit after them with `gh run list -R AryaSingh22/thawgate --commit <full sha>`.
+2. **Program work:** `ReserveAttestation` and the `mint_tokens` reserve and staleness checks; retire `oracle_gated_mint` and the oracle-service stubs.
+3. **Devnet:** sss-token changes mean a devnet upgrade with `scripts/deploy-devnet-acl.sh`: `DRY_RUN=1` first, and extends of at least 10,240 B on Agave 4.x.
+4. **Done when:** tests show minting above reserves is refused, a stale attestation is refused, and a valid one passes. The demo "mint blocked" tx is on devnet.
 
-Carried, not done in S7:
-- **Legacy e2e** (`anchor test`, 5–7 failing per run, all known classes):
+Open from S8 (for S15/S16):
+- **Issuer-thawed accounts without a credential are permissionlessly freezable.** The keeper froze the test treasury on both clusters, and an issuer re-thaw would be frozen again. Options: attest the issuer's own wallets, or a gate exemption (a design decision).
+- **`add_to_blacklist` doesn't tie `target_token_account` to `target`**: only `token::mint` is checked (`compliance.rs`). A Blacklister can freeze one holder's account under another wallet's entry.
+- **S10's sanctions flow** ends at `add_to_blacklist`. The keeper's blacklist trigger already does its "keeper freezes" step.
+
+Carried, unchanged since S7:
+- **Legacy e2e** (`anchor test`, 5–8 failing per run, all known classes):
   - read-after-write races: `.rpc({ commitment: "confirmed", preflightCommitment: "confirmed" })`;
   - `transfer_authority` "already in use": a program fix, `new_master_role` is `init`.
 - **Fixtures and tests:** the gate/sas fixture conversion and the Both-mode test (PLAN.md S7 carry list).
 - **Build-in-public thread** with the devnet links (user, C1).
 
 Gotchas:
+- **Keeper tests:**
+  - `yarn test:keeper` runs on localnet with an in-process keeper.
+  - On devnet, start the keeper as its own process, then run `CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts`.
+  - Case 6 (the no-ops) needs the in-process keeper, so it is skipped on devnet.
+- **@solana/kit 5.5.1 in this node_modules fails native Node ESM.** Its nested `offchain-messages` imports an error code that the `@solana/errors` beside it lacks. CommonJS (ts-node, the keeper's build) loads it fine. vitest inlines `@solana/*` (`services/keeper/vitest.config.mts`).
+- **docker compose:**
+  - Every compose command needs `POSTGRES_PASSWORD` set (the existing file).
+  - The keeper is behind the `keeper` profile, and its image installs with `--legacy-peer-deps` (npm 10's arborist crashes without it).
+  - Full CI's `docker-health` job runs `docker compose up --build` over the whole file, so a new service's Dockerfile gets built in CI even if you never build it locally.
 - **Agave 4.x:** `ExtendProgram` needs ≥ 10,240 bytes, or an extension to the maximum size. The 3.0.14 rehearsal validator can't catch this; `deploy-devnet-acl.sh` handles it (`MIN_EXTEND`).
 - **Devnet CU ≠ localnet CU** for the same story (Agave 4.3.0 vs 3.0.14, fresh keys), but the gate frames are identical. Quote devnet numbers as devnet.
-- **Devnet story command:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`. `yarn test:story` is localnet only: `test-gate.sh` sets `ANCHOR_WALLET=test-keypair.json`, which `cluster.ts` keeps.
-- **Secrets:** never print `.env`. `solana` CLI errors contain the full RPC URL; mask them. The Windows-side old repo's `.env` (`solana-stablecoin-standard\.env`) holds the same key; `~/thawgate/.env` is the one the repo reads.
-- **SIGINT:** a background job in a non-interactive shell starts with SIGINT ignored. To interrupt a scripted run, send SIGTERM.
+- **Devnet story command:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`. `yarn test:story` is localnet only.
+- **Secrets:** never print `.env`. `solana` CLI errors contain the full RPC URL; mask them.
+- **SIGINT:** a background job in a non-interactive shell starts with SIGINT ignored. Send SIGTERM.
 - **gh:** in WSL, `gh` resolves to the upstream fork. Use `-R AryaSingh22/thawgate` and the full 40-character SHA.
 - **Token-2022 errors** as logged: `MintPaused` = 0x43, `AccountFrozen` = 0x11.
 - `transfer_authority` doesn't move the gate policy admin (S6a, for the S16 docs).
@@ -490,5 +507,128 @@ Gotchas:
   - Devnet story 7 passing; spike `verify` all true.
   - Not run in S7b: `cargo test`, `yarn test:gate`, the localnet story. S7b changed only `scripts/deploy-devnet-acl.sh`, `scripts/verify-ids.sh` and docs; programs and tests are as in S7a.
 - **Not done in S7 (carried to S8's handoff):** the legacy e2e fixes, the gate/sas fixture conversion and the Both-mode test. C1 was due Wed 30; `c1-core` is tagged on 2026-10-01.
+- **CI on `a21fbb4` (`c1-core`, read in S8):** Full CI, CI, TypeScript Tests and Gate Tests are green.
+  - Gate Tests (run 36853409483): Rust 124 passed; gate suite 38 passing; the localnet story 7 passing.
+  - Anchor Integration Tests (run 36853409464): **67 passing / 8 failing**, all known S7 classes and no new ones:
+    - races: SSS-1 Steps 02/04 and SSS-2 Step 04 (`TokenAccountNotFoundError`), SSS-1 Steps 08/09 (`isFrozen`)
+    - "already in use" (custom 0x0): SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
 - **Links:** the deploy, credential and story txs above. Commits `4c6f71f` (MIN_EXTEND), `d5e63ed` (log), `61d5739` (authority + TODO), `d273ed2` (deploy record), and this log + handoff. Tag `c1-core`.
 - **Next:** S8, the keeper, per the handoff at the top of this file.
+
+## S8 · 2026-10-01 · Keeper (freeze crank): `services/keeper`
+- **First:** the CI result for `c1-core` is recorded in the S7b entry (handoff item 1).
+- **Decisions (user):**
+  - The devnet keeper skips the S7b mint (`KEEPER_SKIP_MINTS=5632jF…`). Under the gate's rule its issuer-thawed treasury is freezable, and freezing it would have changed the S7b record.
+  - Docker: `docker compose config` only, no image build. The daemon wasn't running, and the vhdx lives on C:.
+- **Shipped: `@thawgate/keeper`** (`b861418`), a new yarn workspace. It freezes, through Token ACL `freeze_permissionless_idempotent` (disc 10), every thawed token account the gate would now let anyone freeze. Its key pays fees and holds no role.
+  - **Triggers** (kit websockets at `confirmed`):
+
+    | Trigger | Source | What the keeper does |
+    |---|---|---|
+    | (a) SAS | `logsSubscribe` mentioning SAS | SAS logs carry no instruction name. Devnet revoke `4pBhzUoE…` read in planning: data `[7]`, attestation at account 3, event as a self-CPI, no wallet. So the keeper reads the transaction and matches every account key (lookup tables included) against a reverse map: attestation PDA → (mint, owner). |
+    | (b) issuer events | `logsSubscribe` for each policy's issuer program | `AddedToBlacklist` / `AllowlistRemoved`, decoded only inside that program's own frame. |
+    | (c) expiry sweep | every `KEEPER_SWEEP_MS` (15 s) | Reads the Clock sysvar and every tracked owner's attestation, registry PDAs and thawed token accounts (`getMultipleAccounts`, 100 per call), then applies the gate's rule `expiry != 0 && expiry < now`. It is also the polling fallback. |
+    | (d) policy | `programSubscribe` on the gate, filtered to `GatePolicy` | `update_policy` has no event. On any change the keeper re-derives the PDAs and re-checks the whole mint. |
+    | – | `programSubscribe` on Token-2022, per mint | New and newly thawed accounts are checked. |
+
+    - **Resync** (`getProgramAccounts`) runs every 5 min and after any websocket reconnect.
+    - Reads after a notification use `minContextSlot`, and so does the freeze's preflight.
+  - **The gate decides.** `src/policy.ts` mirrors `decision.rs` only to pick candidates. Each freeze is preflighted against the real gate:
+
+    | Result | Outcome | Retried |
+    |---|---|---|
+    | `TG:ALLOW:*` | frozen | – |
+    | Success with no gate frame | `already_frozen` (Token ACL source: the idempotent variant returns Ok before calling the gate when the account isn't `Initialized`) | – |
+    | `TG:DENY:COMPLIANT` | a counted no-op, not an error | No |
+    | Other failure | denied | No |
+    | RPC, blockhash or confirmation errors | – | Yes, up to 5 attempts with backoff |
+
+    One attempt per token account at a time.
+  - **HTTP:** `/health` (200 while the last sweep is < 3 intervals old), `/metrics` (Prometheus text: freezes by trigger and reason, skips, denials, failures, retries, a latency histogram, sweep time and cluster time, index sizes, websocket states, fee payer balance) and `/mints/:mint` (the index).
+  - **RPC:** `HELIUS_DEVNET_RPC` from `.env`, with the ws URL derived from it. Every log line is masked. In the devnet run, the key was in neither the keeper log nor the test log (checked by comparing against `.env`, not by printing it).
+  - **Packaging:**
+    - docker-compose `keeper` service: no database, keypair as a compose secret, node-fetch healthcheck, opt-in `keeper` profile (`docker compose --profile keeper up keeper`). `docker compose config` validates with and without the profile. The image was never built locally.
+    - **Full CI built it anyway, and that failed.** I had missed that its `docker-health` job runs `docker compose up --build` over the whole file. In the image, `npm install` crashed inside npm 10's arborist (`#loadPeerSet`: "Cannot read properties of null (reading 'edgesOut')") on the `@solana/*` peer sets. Reproduced outside Docker with the same `package.json`.
+      - Adding the missing peer `@solana/sysvars` explicitly didn't help. `--legacy-peer-deps` did: install, `tsc` build and `npm prune --omit=dev` succeed (39 MB of `node_modules`).
+      - That tree's keeper starts, subscribes, answers `/health` and stops on SIGTERM (a smoke run against public devnet, scoped to no mints).
+      - Fix `f1a0a91`: the Dockerfile uses the flag, and the service sits behind the `keeper` profile, because Full CI's `up` has no keypair or RPC for it. Full CI now builds the image explicitly and doesn't start it.
+    - Dependencies are exact pins of versions already installed, so `yarn install` downloaded nothing. `yarn.lock` gains only alias keys, and yarn re-sorted the existing fastify 5.7.4 block.
+  - **Tooling found:** the hoisted `@solana/kit` 5.5.1 tree fails Node's native ESM linking. Its nested `@solana/offchain-messages` imports `SOLANA_ERROR__OFFCHAIN_MESSAGE__CONTENT_DOES_NOT_MATCH_EXPECTED`, which the `@solana/errors` 5.5.1 next to it doesn't export; reproduced with plain `node --input-type=module`. CommonJS doesn't check named imports, so ts-node and the keeper's `tsc` build load it. vitest inlines `@solana/*`.
+- **Shipped: `tests/e2e/keeper.ts`** (`25dc202`, `yarn test:keeper`; Gate Tests CI runs it plus the vitest suite).
+  - **Setup:** an Acl-mode sss-token mint with a SAS (min level 1) + blacklist policy. The keeper never gets told about the mint; it finds it from the policy account's creation. The test then asserts the keeper key holds none of the 6 sss-token roles, isn't the policy authority, and isn't the MintConfig freeze authority. Every freeze is checked for the keeper as fee payer and the expected `TG:ALLOW` code.
+  - **Cases:**
+    1. revoke × `RUNS`
+    2. blacklist: `add_to_blacklist` freezes the ATA, and the keeper must freeze the wallet's second account (ImmutableOwner, not an ATA, holding 40 tokens)
+    3. expiry
+    4. issuer-thawed treasury
+    5. `update_policy` min level 1 → 3: the level-2 holder is frozen, the level-3 holder is still thawed after a sweep
+    6. no-ops, in-process only
+    7. `/health` + `/metrics`
+- **Measured, localnet** (Agave 3.0.14, in-process keeper, sweep 4 s):
+  - vitest 32/32: the `decision.rs` table, the S3 attestation bytes, discriminators against Anchor's rule and the SDK IDL, the classifier, masking, metrics.
+  - `yarn test:keeper` 7 passing in 3 runs. Revoke→freeze p50 713 / 715 / 814 ms over 3 runs each, 1–2 slots.
+  - The NO_CREDENTIAL freeze is 43,006 CU. The expiry freeze's block time was 1, 1 and 5 s after the attestation's expiry in the 3 runs (sweep 4 s).
+  - Case 6: a compliant holder is refused in preflight with `TG:DENY:COMPLIANT`, and nothing is sent. The idempotent freeze of a frozen account lands with no gate frame (5,891 CU).
+  - Regression after the change: `yarn test:gate` 38 passing (the S6b `thaw_permissionless`, blacklist row is unchanged at 31,956 / 3,971); `yarn test:story` 7 passing.
+  - `anchor build` (inside `test-gate.sh`) and `verify-ids.sh` OK; `yarn workspace @thawgate/keeper typecheck` and the root `tsc --noEmit` over `tests/` are clean. No Rust changed.
+- **Devnet** (2026-10-01 13:19–13:26 UTC, Helius):
+  - **Keeper key:** `4auu6ttRQPrkewa3Umwer25W8ck7ERm73H1CmyYoDWH2` (new, `~/.keys/thawgate/keeper.json`), funded with 0.05 SOL from `5BXg…` ([3m9J7M2Z…](https://explorer.solana.com/tx/3m9J7M2ZojhQYEJxkxwiKNuvvzCFWkL2c5AnGpDmJ2Z5jr8ecpxApkF2xUa9pKCUSgc13PvPhoX1pnnQeut84MXa?cluster=devnet)).
+  - **Keeper process:** run on its own with `node services/keeper/dist/main.js`, sweep 15 s, S7b mint skipped.
+  - **Test:** `CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts`: **6 passing, 1 pending** (case 6 needs the in-process keeper).
+  - **Accounts:** mint `4234DQDaaQ8TksVgZLCesswprmeZFFak3nahyhw5XGhg`, issuer `5BXg…`, SAS issuer `5avMn…` (demo credential `BYSdZK…`).
+  - **Revoke → frozen, no manual step, 10 runs** (one holder: attest, self-thaw, wait until the keeper's index shows the account thawed, then revoke):
+
+    | Run | ms | slots | revoke | keeper freeze |
+    |---|---|---|---|---|
+    | 1 | 2,450 | 10 | [6mskUesT…](https://explorer.solana.com/tx/6mskUesTPJsfdDBfjSq7oGydRPuUpAwcFnn6q8PQ7sqwK3irDgDGo7iJ21Gjg6aV6aeUq3brG19Ym55k7rmNx3s?cluster=devnet) | [21kP4Aq3…](https://explorer.solana.com/tx/21kP4Aq37bGj9Unci6vM36vRTS6nTTy26Hyd4L69osSBvidJeDSpECRaCdZ2i8jE4YALRap911P9d6mnSor2uw88?cluster=devnet) |
+    | 2 | 1,561 | 9 | [kcb721P1…](https://explorer.solana.com/tx/kcb721P1Ggr5ETJe7bFYPRpTaevQBnJDiWAp4zf9qGr3nRdvFaTtR6vkZK7f5cx5cwFD6C4yeWMJXBSkfnAALFS?cluster=devnet) | [5gEzZRRF…](https://explorer.solana.com/tx/5gEzZRRFkofjTeMzYm4KZSUxctGuLB9QmVHxstP5a1iKwzA2A9S8ghF2s3QSZ5RJATKEouSy6Rz2aXDTbA3CGLX5?cluster=devnet) |
+    | 3 | 3,384 | 13 | [3qjQUwUq…](https://explorer.solana.com/tx/3qjQUwUqK75Prmvg7pzXRe5ivmJuTjqz6XJo2ZvXFmocVxzssqwDHhWyoiNkHkCRm7LwHBfNP3bUyzNbg9TAbrC4?cluster=devnet) | [2yr1Mr8A…](https://explorer.solana.com/tx/2yr1Mr8AwF3XQfwnBfGjx8BN2W69dLA6AqwFE7yqaE8jJCCUTC7U8uHZ8XwxS33nyVzrWQT918xCFjh7ySq2yZsX?cluster=devnet) |
+    | 4 | 2,381 | 9 | [64vTzinV…](https://explorer.solana.com/tx/64vTzinVt152DgYXXimRq1FVU2AAxqvN84jBs7TFHoTDhcHX3PiuYf9TY65mbrzu3hAEoVzHe7na7Ax7TZNKcW6S?cluster=devnet) | [4QL6dhF9…](https://explorer.solana.com/tx/4QL6dhF9tQqBCwgh2EFFdim39eNwBbb9JMsUtQuYmNeKB3PMWf9kPzNyBg8m72UmV6hdMqr6J6jPigLuG6nUXx5Y?cluster=devnet) |
+    | 5 | 3,265 | 13 | [2THwQAAq…](https://explorer.solana.com/tx/2THwQAAqk8zVedB4ELHPyocyRHfqej6iX7Nfh2XGQ6GJpaK3SxGxootWTVZoM1fHAuXk5tRV5PoWJzDCNYinKJKF?cluster=devnet) | [iHGYwaue…](https://explorer.solana.com/tx/iHGYwaueZM1ks2duv4pEiq6mDmSoP7PnYXhTmBM6oByFAE7kg8YYE5BAfvfXtqmnesT3s1T3JZUcsDjcwGrX4Vg?cluster=devnet) |
+    | 6 | 2,855 | 12 | [4PwtZKoK…](https://explorer.solana.com/tx/4PwtZKoKCwqvZYyhiWiSVvZkTHQAmx98WNhEpT6utPrFo89qdA2oZihQpRaQax286zz4wvQS1NbBUy4KwZ9XN56g?cluster=devnet) | [5ojqPZje…](https://explorer.solana.com/tx/5ojqPZjeaxSnXZzBYKEauWuoEB1gAsNfNL8mMGt1uH4HcsnsjZat9CvD9hFVeznTjS5kvVbzQwhfH8fpDnwgzWtE?cluster=devnet) |
+    | 7 | 3,290 | 11 | [CFk9KmsQ…](https://explorer.solana.com/tx/CFk9KmsQRdamx2WHe9akhfxsXXSV5Ef8Qqsf4amGnfCxExfuRVb1JByEZhNavrorbk8vDsan6YSeViXmEKzqNRR?cluster=devnet) | [26fGttEP…](https://explorer.solana.com/tx/26fGttEPQHMx4PsKUN3QEzTCMbyna2Ug9fhmBkdpj81TGjnwBiVy6N8g83FEhZHPMCdEfMCH6DURGz3KEoLoywXc?cluster=devnet) |
+    | 8 | 2,915 | 12 | [5gXAej6k…](https://explorer.solana.com/tx/5gXAej6kmcvXXahx4b2L4avNU4gBA9H7VagaJZLLaAQzQVNBMEqKvioH59L4YyybjwqPkKuxy8yBtRWBTjVDMkKE?cluster=devnet) | [yUCckkaz…](https://explorer.solana.com/tx/yUCckkaz243iY2tgMdCseFqbsMnsb5ySYdC69vMqhPhERQ3K9XBxqN86ZHbLzL2K2Np2uK2SwUXCGtDSqny2iTM?cluster=devnet) |
+    | 9 | 2,448 | 10 | [4HuhGFEb…](https://explorer.solana.com/tx/4HuhGFEbJdvfCjiYq8fnvYwJgoJreQpMLX4suBHvmzVjTdWHimqdUW4oN8Q7aT6GJyCu4VSXx7vqYm3kRpzghZxA?cluster=devnet) | [2DEnMQZL…](https://explorer.solana.com/tx/2DEnMQZLf94w2pt76NnyBUvrihSJZwWeN1YobBBGWngDigBPRRyfitrcRXiU79ySaNcEC9zkPXkuj3Jy2Du2pDDu?cluster=devnet) |
+    | 10 | 2,871 | 9 | [53aKNNtR…](https://explorer.solana.com/tx/53aKNNtR1Vw8bu7J1JicYkbppa8YUsBMvMHVCCMcPSADvG8PiVAneKfvarzHa7c5gN5KnhYfwi7wbHCzz2XmhBAT?cluster=devnet) | [3YfeUpcq…](https://explorer.solana.com/tx/3YfeUpcqbJELY9CmzAqHcY5z7sXwUqyDzBoG4R5jEHQqCu4kaQGiAGxER1FtAAAPYjFWxrbXvS9t34PkPKYovVA3?cluster=devnet) |
+
+    - **Revoke→freeze p50 = 2,863 ms** (the mean of the 5th and 6th of 10 sorted values: 2,855 and 2,871). Min 1,561, max 3,384. Slots p50 10.5, range 9–13.
+    - **Method:**
+      - ms runs on the test client's wall clock, from the moment it sees the revoke `confirmed` (`getSignatureStatuses` polled every 100 ms) to the moment it first reads the account as frozen at `confirmed` (also polled every 100 ms). Each end includes up to 100 ms of polling.
+      - Slots = the freeze tx's slot − the revoke tx's slot.
+      - The keeper's own histogram runs from receiving the log notification to its own confirmation poll seeing the freeze (that poll runs every 400 ms and makes 2 RPC calls). Over the same 10 runs it averaged 3.60 s (1 run ≤ 3 s, 9 runs in 3–5 s). It lags the client figure because of that poll.
+    - Every freeze: fee payer `4auu6t…`, `TG:ALLOW:NO_CREDENTIAL`, 39,795 CU (Token ACL frame 39,645 + 150 for the compute-budget ix). The gate frame is 4,824, the same as S7b's manual crank.
+  - **Blacklist → frozen:** dave's second account was frozen 2,300 ms (9 slots) after `add_to_blacklist` confirmed ([53KmVupf…](https://explorer.solana.com/tx/53KmVupftGDZhryVvrWAKkUWKU2gNVbdbiiAuhQscgHGb31D239XhXoSYdogmvsx9wU8sTbusnJsyXBn8xBYXx1t?cluster=devnet) → [49rtQYzc…](https://explorer.solana.com/tx/49rtQYzcfQdpqX8Twkj6VVz2JcNVJ8ncWns7v5h3tDcCbkAEZ21EwogXAB1KDrw2iaSBSr9RuUh9oYCPZ2KPoAHR?cluster=devnet)). `TG:ALLOW:BLACKLISTED`, 47,998 CU, gate 5,527. Its 40 tokens are frozen in place.
+  - **Expiry → frozen within one sweep:** the attestation's expiry was set 45 s ahead. The keeper's freeze ([23i1Fq6c…](https://explorer.solana.com/tx/23i1Fq6czfjzFDTTnxf3ASTtNkFYPRbBfexW8z1YcfDdijt1DF6rmSG7rLaq418w2dKnccwwEMiPQfPaa6Y8DDki?cluster=devnet)) has a block time **5 s after the expiry**, with a sweep of 15 s. `TG:ALLOW:CREDENTIAL_EXPIRED`, 38,569 CU, gate 5,098.
+  - **Policy tightening:** `update_policy` set min `kyc_level` 1 → 3 ([2RxvDi3A…](https://explorer.solana.com/tx/2RxvDi3ASw1QkWhm3UihChaf2LxT1yA1fV4TTq5XavTyojC45TM4yCWSA539PqxGvNECrVmVCCkiFNoS7WN1cGET?cluster=devnet)). pat (level 2) was frozen 3,517 ms / 14 slots later ([2JJkaFEM…](https://explorer.solana.com/tx/2JJkaFEM8ZFQz182HcmgX5MPjm4ZmmzTYYRzQoMAbXowLS6Nojy2MCwXXewb2udh533YiBCes5WyBb1NDop3VkRg?cluster=devnet), `KYC_LEVEL_TOO_LOW`, 49,074 CU, gate 5,103). quinn (level 3) was still thawed after the next sweep.
+  - **Finding, issuer-thawed treasury:** sss-token `thaw_account` on the issuer's own ATA (owner `5BXg…`, no credential). The keeper froze it 8 slots later ([4JiUApdJ…](https://explorer.solana.com/tx/4JiUApdJqPTTNWMW6Wdw6o9TRbDTkamhppRFyFnPbk9ykYGLDekfS2JBWXwFwc7A8Fq5UT9XCWkrhFgLUBZ1dFQz?cluster=devnet), `TG:ALLOW:NO_CREDENTIAL`). This is the gate's rule working as written: anyone could send that freeze, and an issuer re-thaw would be frozen again. **For S15/S16:** attest the issuer's own wallets, or decide on a gate exemption. This is why the S7b mint was skipped.
+  - **Keeper at the end:**
+    - 14 freezes (10 sas, 1 blacklist, 1 expiry, 1 token_account, 1 policy); 0 failures, 0 denials, 0 retries; 22 sweeps (the last took 0.969 s).
+    - Fee payer 0.05 → 0.04993 SOL (14 × 5,000 lamports, priority fee 0).
+    - Log: 84 lines, none at warn or error.
+  - **Cost:**
+    - `5BXg…` 31.508641618 → 31.377003178 SOL (−0.131638440). Of that, 0.05 funded the keeper; the rest is rent for the mint and accounts, 5 × 0.01 SOL wallet funding, and fees. The attestation rent comes back on close, except for the attestations still open.
+    - `5avMn…` is unchanged, because it only signs.
+- **Bug found after the devnet run, fixed before commit:**
+  - **Symptom:** SIGTERM logged "stopping", but the process stayed up. `stop()` awaited the sweep and resync loops, whose `sleep` ignored the abort, so shutdown could wait up to the 300 s resync interval. The devnet keeper logged "keeper stopped" 3 min 58 s after SIGTERM (13:29:58 UTC), at the end of its resync sleep.
+  - **Fix:** the sleeps can now be aborted. A scoped restart (`KEEPER_MINTS=111…`, no mints, no transactions) exits 104 ms after SIGTERM.
+  - The same wait had held the localnet suite's `after` hook. Its run took 2 min before the fix and 55 s after (7 passing).
+  - **The devnet numbers above come from the binary before this fix.** The change touches only shutdown.
+- **Also for S15:** sss-token `add_to_blacklist` checks `target_token_account` only with `token::mint`, not against `target`. A Blacklister can freeze one holder's account under another wallet's entry. The role is privileged, but the constraint is cheap.
+- **CI on `25dc202`:**
+  - CI, TypeScript Tests and Gate Tests are green. Gate Tests (run 36869138565): gate suite 38, story 7, keeper vitest 3/3 files. Keeper e2e 7 passing: revoke→freeze p50 819 ms over 3, 1–2 slots.
+    - Its expiry freeze landed 5 s after expiry with a 4 s sweep, as in local run 3. The localnet assertion allows the sweep plus 5 s, because block time is whole seconds and the sweep's freeze still has to confirm.
+  - **Full CI failed** (run 36869138669) building the keeper image (above).
+  - Anchor Integration (run 36869138468): 68 passing / 7 failing, all known classes:
+    - races: SSS-1 Steps 04/08, SSS-2 Steps 04/06
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
+- **CI on `f1a0a91`:**
+  - Full CI is green (run 36869832371). `docker-health` now builds `thawgate-keeper` (`npm install --legacy-peer-deps`: 141 packages) and the health checks pass.
+  - CI, TypeScript Tests and Gate Tests are green. Gate Tests (run 36869832453): 38 / 7 / keeper 7 passing, revoke→freeze p50 818 ms.
+  - Anchor Integration (run 36869832271): 68 / 7, known classes:
+    - races: SSS-1 Steps 04/08/09, SSS-2 Step 04
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
+- **Links:** the devnet txs above. Commits `b861418` (keeper), `25dc202` (e2e + CI), `f1a0a91` (Docker fix), and this log + handoff.
+- **Next:** S9, reserve-backed mint, per the handoff at the top of this file.
