@@ -13,6 +13,7 @@ import { fetchMintConfig } from "@token-acl/sdk";
 import { GATE_ID, key, keypair, SSS_TOKEN_ID, TOKEN_ACL_ID } from "./keys";
 import {
   assertDenied,
+  chainNow,
   createAta,
   gate,
   invoked,
@@ -43,6 +44,7 @@ import {
   mintToIx,
   Mode,
   pausePda,
+  reservesForTestsIxs,
   seizeIx,
   sendWeb3,
   sendWeb3Fails,
@@ -83,6 +85,8 @@ describe("sss-token issuer (Token ACL mode)", function () {
   before(async () => {
     mint = await createSssMint("acl-mint", Mode.Acl);
     config = configPda(mint);
+    // S9: an Acl mint mints only against attested reserves (tests/gate/reserves.test.ts covers the check).
+    await sendWeb3(await reservesForTestsIxs(mint, await chainNow()));
   });
 
   after(() => cu.print("CU, sss-token Token ACL mode"));
@@ -197,6 +201,20 @@ describe("sss-token issuer (Token ACL mode)", function () {
 
       assertDenied(await sendFails([await thawIx(mint, mallory, ata)]), "BLACKLISTED");
       assert.equal(await tokenAccountState(ata), "frozen");
+    });
+
+    it("add_to_blacklist refuses a token account the blacklisted wallet doesn't own (TargetAccountOwnerMismatch)", async () => {
+      const victim = key("acl-victim");
+      const target = key("acl-bl-target");
+      const victimAta = await createAta(mint, victim);
+      await send([await thawIx(mint, victim, victimAta)]);
+      assert.equal(await tokenAccountState(victimAta), "initialized");
+
+      const failure = await sendWeb3Fails([await addToBlacklistIx(mint, target, victimAta)]);
+      assertFailedWith(failure, "Error Code: TargetAccountOwnerMismatch");
+      assert.equal(await tokenAccountState(victimAta), "initialized");
+      const entry = await rpc.getAccountInfo(kit(blacklistPda(mint, target)), { commitment: "confirmed" }).send();
+      assert.equal(entry.value, null, "no blacklist entry was written");
     });
 
     it("a transfer between thawed holders passes; pause blocks transfer_checked (Token-2022 MintPaused)", async () => {

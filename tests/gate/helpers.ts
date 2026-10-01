@@ -16,6 +16,7 @@ import {
   createSolanaRpcSubscriptions,
   createTransactionMessage,
   fetchEncodedAccount,
+  getBase64EncodedWireTransaction,
   getSignatureFromTransaction,
   Instruction,
   KeyPairSigner,
@@ -130,6 +131,46 @@ export async function send(ixs: Instruction[], feePayer?: TransactionSigner): Pr
   }
   if (!t) throw new Error(`${sig} confirmed, but getTransaction returned nothing`);
   return { sig, cu: Number(t.meta.computeUnitsConsumed), logs: t.meta.logMessages ?? [] };
+}
+
+/** A confirmed transaction's CU, logs and error (null if it succeeded), read at "confirmed". */
+export async function readSent(sig: string): Promise<Sent & { err: unknown }> {
+  let t: any = null;
+  for (let attempt = 0; !t && attempt < 20; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 500));
+    t = await rpc.getTransaction(sig as any, { commitment: "confirmed", maxSupportedTransactionVersion: 0, encoding: "json" }).send();
+  }
+  if (!t) throw new Error(`${sig}: getTransaction returned nothing`);
+  return { sig, cu: Number(t.meta.computeUnitsConsumed), logs: t.meta.logMessages ?? [], err: t.meta.err };
+}
+
+/**
+ * Sends without preflight, so a transaction that fails still lands on chain (fee paid, error and logs recorded):
+ * how a refused instruction gets a permanent explorer link. Resolves at "confirmed", whether it failed or not.
+ */
+export async function sendLanded(ixs: Instruction[], feePayer?: TransactionSigner): Promise<Sent & { err: unknown }> {
+  const payer = feePayer ?? (await payerSigner());
+  const { value: blockhash } = await rpc.getLatestBlockhash({ commitment: "confirmed" }).send();
+  const tx = await signTransactionMessageWithSigners(
+    pipe(
+      createTransactionMessage({ version: 0 }),
+      (m) => setTransactionMessageFeePayerSigner(payer, m),
+      (m) => setTransactionMessageLifetimeUsingBlockhash(blockhash, m),
+      (m) => appendTransactionMessageInstructions(ixs, m),
+    ),
+  );
+  const sig = getSignatureFromTransaction(tx);
+  await rpc.sendTransaction(getBase64EncodedWireTransaction(tx), { encoding: "base64", skipPreflight: true }).send();
+  for (;;) {
+    const { value } = await rpc.getSignatureStatuses([sig]).send();
+    const s = value[0];
+    if (s && (s.confirmationStatus === "confirmed" || s.confirmationStatus === "finalized")) break;
+    if ((await rpc.getBlockHeight({ commitment: "confirmed" }).send()) > blockhash.lastValidBlockHeight) {
+      throw new Error(`${sig}: blockhash expired before confirmation`);
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return readSent(sig);
 }
 
 /** Sends a transaction that must fail; returns the failure with its logs. */

@@ -53,6 +53,7 @@ export const rolePda = (mint: PublicKey, holder: PublicKey, role: number) =>
 export const quotaPda = (mint: PublicKey, minter: PublicKey) => pda([Buffer.from("minter_quota"), mint.toBuffer(), minter.toBuffer()]);
 export const blacklistPda = (mint: PublicKey, wallet: PublicKey) => registryPda("blacklist", mint, wallet)[0];
 export const hookMetasPda = (mint: PublicKey) => pda([Buffer.from("extra-account-metas"), mint.toBuffer()], HOOK_ID);
+export const reservePda = (mint: PublicKey) => pda([Buffer.from("reserve_attestation"), mint.toBuffer()]);
 export const ataOf = (mint: PublicKey, owner: PublicKey) => getAssociatedTokenAddressSync(mint, owner, true, TOKEN_2022_PROGRAM_ID);
 
 /** Sends web3.js instructions signed by the payer plus `extra` keypairs. */
@@ -153,6 +154,71 @@ export async function mintToIx(mint: PublicKey, recipient: PublicKey, amount: nu
       tokenProgram: TOKEN_2022_PROGRAM_ID,
       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
+      reserveAttestation: reservePda(mint),
+    })
+    .instruction();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reserves (S9)
+// ---------------------------------------------------------------------------------------------
+/** sss-token `set_reserve_attestor` (MasterAuthority): the attestor and the staleness window in seconds. */
+export async function setReserveAttestorIx(mint: PublicKey, attestor: PublicKey, maxStaleness: number, authority = payer) {
+  return sss.methods
+    .setReserveAttestor(attestor, new anchor.BN(maxStaleness))
+    .accountsStrict({
+      authority,
+      config: configPda(mint),
+      authorityRole: rolePda(mint, authority, Role.master),
+      mint,
+      reserveAttestation: reservePda(mint),
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+/** sss-token `attest_reserves`, signed by `attestor`: reserves in base units, measured at `asOf` (unix seconds). */
+export async function attestReservesIx(mint: PublicKey, attestor: PublicKey, reserves: bigint | number, asOf: bigint | number, reportUri = "") {
+  return sss.methods
+    .attestReserves(new anchor.BN(reserves.toString()), new anchor.BN(asOf.toString()), reportUri)
+    .accountsStrict({ attestor, reserveAttestation: reservePda(mint) })
+    .instruction();
+}
+
+/**
+ * For suites that only need to mint on an Acl/Both mint: the payer attests `reserves` base units as of `asOf` (the
+ * cluster time), valid for a year.
+ */
+export async function reservesForTestsIxs(mint: PublicKey, asOf: bigint, reserves = 10n ** 15n) {
+  return [await setReserveAttestorIx(mint, payer, 31_536_000), await attestReservesIx(mint, payer, reserves, asOf, "test reserves (S9)")];
+}
+
+/** Grants the payer the Burner role on `mint`. */
+export async function grantBurnerIx(mint: PublicKey) {
+  return sss.methods
+    .updateRoles(payer, { burner: {} }, true)
+    .accountsStrict({
+      authority: payer,
+      config: configPda(mint),
+      authorityRole: rolePda(mint, payer, Role.master),
+      targetRole: rolePda(mint, payer, Role.burner),
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+/** sss-token `burn_tokens` from the payer's ATA (Burner role). */
+export async function burnIx(mint: PublicKey, amount: number) {
+  return sss.methods
+    .burnTokens(new anchor.BN(amount))
+    .accountsStrict({
+      burner: payer,
+      config: configPda(mint),
+      pauseState: pausePda(mint),
+      burnerRole: rolePda(mint, payer, Role.burner),
+      mint,
+      burnerTokenAccount: ataOf(mint, payer),
+      tokenProgram: TOKEN_2022_PROGRAM_ID,
     })
     .instruction();
 }

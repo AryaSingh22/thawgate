@@ -4,8 +4,10 @@
  *   1. revoke    SAS close_attestation -> the holder's account is frozen. RUNS times, revoke->freeze latency measured.
  *   2. blacklist sss-token add_to_blacklist freezes the account it is given; the keeper freezes the wallet's other one.
  *   3. expiry    an attestation passes its SAS expiry -> frozen by the next sweep (no event exists for expiry).
- *   4. finding   the issuer thaws its own treasury; its owner has no credential, so the keeper freezes it.
+ *   4a. issuer   the issuer thaws an account whose owner has no credential, so the keeper freezes it.
+ *   4b. issuer   the issuer's own wallet holds a credential (S9), so its issuer-thawed treasury stays thawed.
  *   5. policy    update_policy raises min_kyc_level 1 -> 3: the kyc_level-2 holder is frozen, a level-3 one is not.
+ *                (The issuer's level-2 treasury becomes freezable too, by the same rule.)
  *   6. no-ops    (in-process only) a compliant holder: TG:DENY:COMPLIANT, nothing sent; an already-frozen account:
  *                Token ACL's idempotent freeze lands without calling the gate.
  *   7. /health and /metrics agree with the above.
@@ -13,7 +15,7 @@
  * Keeper:
  *   KEEPER=inprocess (default)  the test starts services/keeper in this process (localnet; `yarn test:keeper`).
  *   KEEPER=external             a keeper already running as its own process, at KEEPER_URL (default :3005). Devnet:
- *     node services/keeper/dist/main.js            (KEEPER_KEYPAIR=..., KEEPER_SKIP_MINTS=...)
+ *     node services/keeper/dist/main.js            (KEEPER_KEYPAIR=...)
  *     CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts
  */
 import { CLUSTER, SAS_ISSUER_KEYPAIR, txLink } from "./cluster"; // first: sets the RPC and payer before the helpers load
@@ -51,6 +53,7 @@ import {
   deriveAttestationPda,
   deriveCredentialPda,
   deriveSchemaPda,
+  fetchMaybeAttestation,
   fetchMaybeCredential,
   fetchMaybeSchema,
   fetchSchema,
@@ -89,6 +92,7 @@ import {
   issuerFreezeIx,
   mintToIx,
   Mode,
+  reservesForTestsIxs,
   rolePda,
   sendWeb3,
 } from "../gate/issuer";
@@ -314,6 +318,7 @@ describe(`S8 keeper: revoke, blacklist, expiry and policy freezes with no manual
     // The mint: Acl mode, SAS (demo credential, min kyc_level 1) + blacklist policy.
     await sendWeb3([await initializeIx(mint, initArgs("S8 keeper", Mode.Acl))], [mintKp]);
     await sendWeb3(await grantRolesIxs(mint));
+    await sendWeb3(await reservesForTestsIxs(mint, await chainNow())); // S9: Acl mints mint against attested reserves
     const policy = { checkBlacklist: true, allowlistMode: { off: {} }, requireSas: true, sasCredential: new PublicKey(sas.credential), sasSchema: new PublicKey(sas.schema), minKycLevel: 1 };
     await sendWeb3([await enableTokenAclIx(mint, policy)]);
     await sendWeb3(wallets.map((w) => SystemProgram.transfer({ fromPubkey: issuer, toPubkey: kp(w).publicKey, lamports: WALLET_LAMPORTS })));
@@ -414,12 +419,31 @@ describe(`S8 keeper: revoke, blacklist, expiry and policy freezes with no manual
     rows.push(`  expiry: freeze block time ${late} s after the attestation's expiry (sweep ${sweepMs} ms), ${freeze.cu} CU; ${txLink(freeze.sig) || freeze.sig}`);
   });
 
-  it("4. finding: the issuer thaws its own treasury, which has no credential -> the keeper freezes it", async () => {
+  it("4a. the issuer thaws an account whose owner has no credential -> the keeper freezes it", async () => {
+    // A fresh wallet, not the issuer's: issuer wallets hold credentials since S9 (case 4b).
+    const owner = kp("ops").publicKey;
+    const account = await createAta(mint, owner);
+    const thawed = await sendFast([fromWeb3(await issuerFreezeIx("thaw", mint, account), [await payerSigner()])], await payerSigner());
+    await waitFor("ops account frozen", async () => (await tokenAccountState(account)) === "frozen", 120_000, 100);
+    const freeze = await frozenBy(account, "NO_CREDENTIAL");
+    rows.push(`  issuer-thawed account (owner ${owner.toBase58()}, no credential) frozen by the keeper ${freeze.slot - thawed.slot} slots after the thaw; ${txLink(freeze.sig) || freeze.sig}`);
+  });
+
+  it("4b. the issuer's own wallet holds a credential -> its issuer-thawed treasury stays thawed", async () => {
+    // One attestation per wallet per credential: on devnet the story's run may already have issued it.
+    const existing = await fetchMaybeAttestation(rpc, await attestationOf(issuer), { commitment: "confirmed" });
+    const expiry = existing.exists ? BigInt(existing.data.expiry) : 0n;
+    const expired = existing.exists && expiry !== 0n && expiry < (await chainNow());
+    if (expired) await send([await revokeIx(issuer)]);
+    if (!existing.exists || expired) await attest(issuer);
+    const live = { exists: existing.exists && !expired };
     const treasury = await createAta(mint, issuer);
-    const thawed = await sendFast([fromWeb3(await issuerFreezeIx("thaw", mint, treasury), [await payerSigner()])], await payerSigner());
-    await waitFor("treasury frozen", async () => (await tokenAccountState(treasury)) === "frozen", 120_000, 100);
-    const freeze = await frozenBy(treasury, "NO_CREDENTIAL");
-    rows.push(`  finding: issuer-thawed treasury (owner ${issuer.toBase58()}, no credential) frozen by the keeper ${freeze.slot - thawed.slot} slots after the thaw; ${txLink(freeze.sig) || freeze.sig}`);
+    await sendWeb3([await issuerFreezeIx("thaw", mint, treasury)]);
+    await keeperSees(treasury, "initialized");
+    const sweepsBefore = counter(await metricsText(), "thawgate_keeper_sweeps_total");
+    await waitFor("one more sweep", async () => counter(await metricsText(), "thawgate_keeper_sweeps_total") > sweepsBefore, 3 * sweepMs + 30_000, 500);
+    assert.equal(await tokenAccountState(treasury), "initialized");
+    rows.push(`  issuer treasury (owner ${issuer.toBase58()}, credential ${live.exists ? "reused" : "issued"}): still thawed after a sweep`);
   });
 
   it("5. policy tightening (min_kyc_level 1 -> 3): the level-2 holder is frozen, the level-3 one is not", async () => {

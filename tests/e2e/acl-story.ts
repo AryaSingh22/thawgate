@@ -5,11 +5,13 @@
  *
  *   1. the issuer creates an Acl-mode mint and enables Token ACL with a SAS (min kyc_level 1) + blacklist policy
  *   2. a KYC'd wallet (Alice) creates her own ATA, which starts frozen, and thaws it herself
- *   3. the issuer mints to Alice
+ *   3. the attestor service posts 1,000 tokens of reserves (S9); the issuer mints 1,000 to Alice; a mint of one more
+ *      base unit is sent without preflight, so it lands on chain refused (ReserveInsufficient): the "mint blocked" tx
  *   4. a second KYC'd wallet (Bob) thaws his own ATA; Alice pays Bob
  *   5. the SAS issuer revokes Alice; a keeper's permissionless freeze crank freezes her; her transfer fails
  *   6. Bob pays a third KYC'd wallet (Carol); the issuer blacklists Carol; her thaw is denied despite valid KYC
- *   7. the issuer seizes Carol's balance into its treasury
+ *   7. the issuer seizes Carol's balance into its treasury. The issuer's own wallet holds a credential (S9), so the
+ *      crank can't freeze the treasury it thawed
  *
  * Cluster switch (CLUSTER, default localnet; see ./cluster.ts):
  *   localnet  keys derive from names, so CU repeats run to run. The story creates the demo SAS credential and schema
@@ -18,9 +20,11 @@
  *             authority = the spike payer). The credential is self-issued demo KYC, not a real KYC provider.
  *             CLUSTER=devnet npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts
  */
-import { CLUSTER, SAS_ISSUER_KEYPAIR, txLink } from "./cluster"; // first: sets the RPC and payer before the helpers load
+import { ATTESTOR_KEYPAIR, CLUSTER, SAS_ISSUER_KEYPAIR, txLink } from "./cluster"; // first: sets the RPC and payer before the helpers load
 import assert from "node:assert/strict";
 import fs from "fs";
+import os from "os";
+import path from "path";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { Address, address, fetchEncodedAccount, KeyPairSigner } from "@solana/kit";
@@ -39,6 +43,7 @@ import {
   deriveAttestationPda,
   deriveCredentialPda,
   deriveSchemaPda,
+  fetchMaybeAttestation,
   fetchMaybeCredential,
   fetchMaybeSchema,
   fetchSchema,
@@ -65,6 +70,7 @@ import {
   assertDenied,
   chainNow,
   createAta,
+  fromWeb3,
   gate,
   logged,
   mintConfigPda,
@@ -72,9 +78,11 @@ import {
   payerSigner,
   policyPda,
   programCu,
+  readSent,
   rpc,
   send,
   sendFails,
+  sendLanded,
   Sent,
   signerOf,
   tokenAccountState,
@@ -93,10 +101,15 @@ import {
   issuerFreezeIx,
   mintToIx,
   Mode,
+  reservePda,
   seizeIx,
   sendWeb3,
+  setReserveAttestorIx,
+  sss,
   transferIx,
 } from "../gate/issuer";
+import { tick } from "../../services/attestor/src/attestor";
+import { readReport } from "../../services/attestor/src/source";
 
 const kit = (k: PublicKey): Address => address(k.toBase58());
 const TOKENS = (n: number) => n * 10 ** DECIMALS;
@@ -116,6 +129,17 @@ const sasIssuer = () =>
   CLUSTER === "localnet"
     ? kp("sas-issuer")
     : Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(SAS_ISSUER_KEYPAIR, "utf8"))));
+/** The reserve attestor: name-derived on localnet; on devnet a kept key, created on first use (mode 600, never printed). */
+function reserveAttestor(): Keypair {
+  if (CLUSTER === "localnet") return kp("reserve-attestor");
+  if (!fs.existsSync(ATTESTOR_KEYPAIR)) {
+    fs.mkdirSync(path.dirname(ATTESTOR_KEYPAIR), { recursive: true });
+    fs.writeFileSync(ATTESTOR_KEYPAIR, JSON.stringify([...Keypair.generate().secretKey]), { mode: 0o600, flag: "wx" });
+  }
+  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(ATTESTOR_KEYPAIR, "utf8"))));
+}
+/** Where the story's reserve report points: demo values, not audited reserves. */
+const REPORT_URI = "https://github.com/AryaSingh22/thawgate/blob/main/services/attestor/examples/reserves.example.json";
 
 // ---------------------------------------------------------------------------------------------
 // The step log printed at the end: tx total CU and each program's frames, plus explorer links on devnet
@@ -138,6 +162,9 @@ function record(label: string, sent: Sent) {
 function recordRejected(label: string, failure: TxFailed, code: string) {
   assert.ok(logged(failure.logs, code), `no "${code}":\n${failure.logs.join("\n")}`);
   rows.push(`  ${label}: rejected in simulation (${code}), not sent`);
+}
+function recordLandedFailure(label: string, sent: Sent, code: string) {
+  rows.push(`  ${label}: landed and FAILED (${code}), ${sent.cu} CU ${txLink(sent.sig)}`.trimEnd());
 }
 
 describe(`S7 story: sss-token + Token ACL + ThawGate (SAS KYC + blacklist), ${CLUSTER}`, function () {
@@ -168,6 +195,27 @@ describe(`S7 story: sss-token + Token ACL + ThawGate (SAS KYC + blacklist), ${CL
         expiry: (await chainNow()) + YEAR,
       }),
     ]);
+  }
+
+  /**
+   * The issuer's own wallet holds thawed accounts (its treasury), so under a SAS policy it needs a credential too, or
+   * anyone may freeze them (LOG.md S8). Reuses a live attestation: there is one per wallet per credential, and on
+   * devnet it persists across runs and mints.
+   */
+  async function ensureAttested(wallet: PublicKey, label: string) {
+    const existing = await fetchMaybeAttestation(rpc, await attestationOf(wallet), { commitment: "confirmed" });
+    if (existing.exists) {
+      const expiry = BigInt(existing.data.expiry);
+      if (expiry === 0n || expiry >= (await chainNow())) {
+        rows.push(`  SAS attestation for ${label}: reused (expiry ${expiry})`);
+        return;
+      }
+      record(
+        `SAS close_attestation (${label}, expired)`,
+        await send([getCloseAttestationInstruction({ payer: await payerSigner(), authority: sas.issuer, credential: sas.credential, attestation: await attestationOf(wallet) })]),
+      );
+    }
+    record(`SAS create_attestation (${label}, kyc_level 2)`, await attest(wallet));
   }
 
   /** The wallet creates its own ATA (Token-2022 creates it frozen) and pays for it. */
@@ -243,6 +291,8 @@ describe(`S7 story: sss-token + Token ACL + ThawGate (SAS KYC + blacklist), ${CL
     for (const [name, wallet] of [["alice", alice], ["bob", bob], ["carol", carol]] as const) {
       record(`SAS create_attestation (${name}, kyc_level 2)`, await attest(wallet.publicKey));
     }
+    // S9: the issuer's own wallet (its treasury's owner). Self-issued demo KYC, like the others.
+    await ensureAttested(issuer, "issuer wallet");
   });
 
   after(() => {
@@ -280,8 +330,34 @@ describe(`S7 story: sss-token + Token ACL + ThawGate (SAS KYC + blacklist), ${CL
     record("alice thaw_permissionless (TG:ALLOW:KYC)", sent);
   });
 
-  it("3. the issuer mints to her", async () => {
+  it("3. reserves of 1,000 are attested; the issuer mints 1,000 to her; one base unit more is refused on chain", async () => {
+    // MasterAuthority picks the attestor and a one-day staleness window.
+    const attestorKp = reserveAttestor();
+    record("sss-token set_reserve_attestor (1-day window)", await sendWeb3([await setReserveAttestorIx(mint, attestorKp.publicKey, 86_400)]));
+
+    // The attestor service (services/attestor) posts from its JSON source: 1,000 tokens, in base units.
+    const source = path.join(os.tmpdir(), `thawgate-story-reserves-${process.pid}.json`);
+    fs.writeFileSync(source, JSON.stringify({ mint: mint.toBase58(), reserves: String(TOKENS(1_000)), asOf: Number(await chainNow()), reportUri: REPORT_URI }));
+    try {
+      const posted = await tick(await readReport(source), { rpc, attestor: await signerOf(attestorKp), feePayer: await payerSigner() });
+      assert.deepEqual(posted.decision, { post: true, reason: "first_post" });
+      record("attestor service: sss-token attest_reserves 1,000 tokens", await readSent(posted.signature!));
+    } finally {
+      fs.rmSync(source, { force: true });
+    }
+    const att: any = await (sss.account as any).reserveAttestation.fetch(reservePda(mint));
+    assert.equal(att.reserves.toString(), String(TOKENS(1_000)));
+    assert.equal(att.attestor.toBase58(), attestorKp.publicKey.toBase58());
+
     record("sss-token mint_tokens 1,000 to alice", await sendWeb3([await mintToIx(mint, alice.publicKey, TOKENS(1_000))]));
+    assert.equal(await balanceOf(ata.alice), BigInt(TOKENS(1_000)));
+
+    // Supply now equals the reserves. Sent without preflight so the refusal lands on chain: the "mint blocked" tx.
+    const blocked = await sendLanded([fromWeb3(await mintToIx(mint, alice.publicKey, 1), [await payerSigner()])]);
+    assert.notEqual(blocked.err, null, "the mint above reserves succeeded");
+    assert.ok(logged(blocked.logs, "Error Code: ReserveInsufficient"), blocked.logs.join("\n"));
+    assert.ok(logged(blocked.logs, `SSS:DENY:RESERVE_INSUFFICIENT supply=${TOKENS(1_000)} amount=1 reserves=${TOKENS(1_000)}`), blocked.logs.join("\n"));
+    recordLandedFailure("sss-token mint_tokens 1 base unit above reserves", blocked, "ReserveInsufficient");
     assert.equal(await balanceOf(ata.alice), BigInt(TOKENS(1_000)));
   });
 
@@ -335,6 +411,10 @@ describe(`S7 story: sss-token + Token ACL + ThawGate (SAS KYC + blacklist), ${CL
   it("7. seize: the issuer moves her balance into its treasury", async () => {
     const treasury = await createAta(mint, issuer);
     record("sss-token thaw_account (issuer treasury, via Token ACL thaw)", await sendWeb3([await issuerFreezeIx("thaw", mint, treasury)]));
+    // The issuer's wallet is attested (setup), so the crank can't freeze the treasury it just thawed.
+    const crank = await sendFails([await crankIx(issuer, treasury)], signer.keeper);
+    assertDenied(crank, "COMPLIANT");
+    recordRejected("keeper freeze_permissionless on the issuer treasury", crank, "TG:DENY:COMPLIANT");
 
     const sent = await sendWeb3([await seizeIx(mint, carol.publicKey, treasury)]);
     record("sss-token seize carol → treasury", sent);
