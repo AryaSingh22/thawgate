@@ -15,7 +15,6 @@ cd "$ROOT_DIR"
 PROGRAMS=(
   "sss-token:sss_token"
   "transfer-hook:transfer_hook"
-  "oracle-module:oracle_module"
   "thawgate-gate:thawgate_gate"
 )
 

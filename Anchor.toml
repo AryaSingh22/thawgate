@@ -8,13 +8,11 @@ skip-lint = false
 [programs.localnet]
 sss_token = { address = "HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ", idl = "target/idl/sss_token.json" }
 transfer_hook = { address = "2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv", idl = "target/idl/transfer_hook.json" }
-oracle_module = { address = "HEuTBAakSu9sojbzjbcgBzsFkRYeRaZJdixqcao5Gvo6", idl = "target/idl/oracle_module.json" }
 thawgate_gate = { address = "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ", idl = "target/idl/thawgate_gate.json" }
 
 [programs.devnet]
 sss_token = { address = "HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ", idl = "target/idl/sss_token.json" }
 transfer_hook = { address = "2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv", idl = "target/idl/transfer_hook.json" }
-oracle_module = { address = "HEuTBAakSu9sojbzjbcgBzsFkRYeRaZJdixqcao5Gvo6", idl = "target/idl/oracle_module.json" }
 thawgate_gate = { address = "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ", idl = "target/idl/thawgate_gate.json" }
 
 [registry]
