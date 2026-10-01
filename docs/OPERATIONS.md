@@ -145,7 +145,7 @@ Instead of using the CLI directly, operators can run the backend services to exp
 ### Start the Infrastructure
 
 ```bash
-# Starts Postgres, Redis, Mint, Indexer, Compliance, Webhook, and Oracle services
+# Starts Postgres, Redis, Mint, Indexer, Compliance and Webhook services (the keeper is opt-in: --profile keeper)
 docker compose up -d
 ```
 
@@ -160,10 +160,9 @@ curl http://localhost:3002/health
 
 # Compliance Service (Port 3003)
 curl http://localhost:3003/health
-
-# Oracle Service (Port 3004)
-curl http://localhost:3004/health
 ```
+
+The oracle service (port 3004) was retired in S9. The reserve attestor (`services/attestor`) runs on its own, outside compose, and has no HTTP API ([RESERVES.md](RESERVES.md)).
 
 ### Stopping Services Gracefully
 

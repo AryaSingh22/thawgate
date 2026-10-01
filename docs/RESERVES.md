@@ -1,108 +1,108 @@
-# Oracle Integration Module
+# Reserve-backed mint
 
-## Overview
+sss-token refuses to mint above the attested reserves, and refuses any mint while the attestation is stale. The check has lived in `mint_tokens` itself since S9 (2026-10). It replaces the retired `oracle-module` program and `oracle-service`: their "oracle-gated mint" only emitted an event, and their endpoints returned fixed values.
 
-The Oracle module provides price-aware minting for SSS stablecoins. It enables operators to configure oracle price feeds and gate minting operations based on real-time price data.
+## Units
 
-## Architecture
+**`reserves` is in the mint's base units**, the same unit as Token-2022 `supply` and the `amount` of `mint_tokens`. For a 6-decimal coin, 1.00 is `1_000_000`, so 1,000 tokens of reserves is `1_000_000_000`. Convert before posting; the program never scales.
 
-```
-┌─────────────────────┐     ┌──────────────────────┐
-│   Oracle Service    │────▶│  Oracle Module (SBF)  │
-│   (Fastify HTTP)    │     │   programs/oracle-    │
-│   port: 3003        │     │   module/             │
-└─────────────────────┘     └──────────────────────┘
-                                      │
-                                      ▼
-                            ┌──────────────────────┐
-                            │  Oracle Feed Account  │
-                            │  (Switchboard V2 /    │
-                            │   Pyth)               │
-                            └──────────────────────┘
-```
+## The account
 
-## On-Chain Program
+`ReserveAttestation` is a PDA of sss-token at `["reserve_attestation", mint]`, 373 bytes:
 
-**Program ID:** `OrcL1111111111111111111111111111111111111111`
+| Field | Type | Set by | Meaning |
+|---|---|---|---|
+| `mint` | Pubkey | MasterAuthority | The mint these reserves back |
+| `attestor` | Pubkey | MasterAuthority | The only key that may post |
+| `reserves` | u64 | attestor | Reserves in base units |
+| `as_of` | i64 | attestor | Unix time the reserves were measured (0 until the first post) |
+| `max_staleness` | i64 | MasterAuthority | Seconds after `as_of` during which minting may rely on it |
+| `report_uri` | String (≤ 200 B) | attestor | Where the report lives |
+| `posted_at` | i64 | program | Cluster time of the last post |
+| `bump` | u8 | program | |
+| `reserved` | [u8; 64] | – | Zero. Room for an oracle-fed source without a layout change |
 
-### Instructions
+`StablecoinConfig` is unchanged. Devnet already holds configs in that layout, so the attestation has its own account.
 
-#### `update_oracle_config`
+## Instructions
 
-Configures the oracle feed for a stablecoin mint.
+### `set_reserve_attestor(attestor: Pubkey, max_staleness: i64)`
+- **Signer:** the MasterAuthority (its `RoleRecord`, as for `enable_token_acl`). It pays for the account the first time (`init_if_needed`).
+- **Arguments:** `max_staleness` must be greater than 0, and `attestor` can't be the default pubkey.
+- **Reset on a new account or a different attestor:** `reserves`, `as_of`, `report_uri` and `posted_at` go back to zero, so minting stops until the new attestor posts. Numbers signed by the previous attestor are not carried over. Keeping the same attestor changes only `max_staleness`.
+- **Event:** `ReserveAttestorSet { mint, attestor, max_staleness, reset, timestamp }`.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `feed_address` | `Pubkey` | Oracle feed account address |
-| `max_price` | `u64` | Maximum price for minting (scaled) |
-| `min_price` | `u64` | Minimum price for minting (scaled) |
-| `max_staleness_seconds` | `i64` | Max feed age in seconds |
+### `attest_reserves(reserves: u64, as_of: i64, report_uri: String)`
+- **Signer:** the stored `attestor` (otherwise `NotReserveAttestor`). Anyone can pay the fee.
+- **Rules:** `as_of` must be `<= now` (no future dates) and `>=` the stored `as_of` (no going back; an equal `as_of` corrects the same report). `report_uri` is at most 200 bytes.
+- **Pause:** it works while the mint is paused.
+- **Event:** `ReservesAttested { mint, attestor, reserves, as_of, report_uri, timestamp }`.
 
-#### `oracle_gated_mint`
+There is **no close instruction**. Once a mint has an attestation, it stays checked.
 
-Mints tokens only when oracle price is within bounds.
+## The check in `mint_tokens`
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `amount` | `u64` | Amount to mint |
+`mint_tokens` takes `reserve_attestation` as its last account. The account is **required** and has a seeds constraint, so a caller can't skip the check by leaving it out. The check runs after the role, pause and quota checks, and before the Token-2022 `mint_to`:
 
-### State: OracleConfig PDA
+| Situation | Result | Log line |
+|---|---|---|
+| No account, Acl or Both mode | `ReserveAttestationMissing` (6037) | `SSS:DENY:RESERVE_MISSING` |
+| No account, Hook mode (SSS-1/SSS-2) | mints, as before S9 | – |
+| `now - as_of > max_staleness` | `ReserveStale` (6036) | `SSS:DENY:RESERVE_STALE as_of=… now=… age=… max_staleness=…` |
+| `mint.supply + amount > reserves` (or overflow) | `ReserveInsufficient` (6035) | `SSS:DENY:RESERVE_INSUFFICIENT supply=… amount=… reserves=… as_of=…` |
+| otherwise | mints | – |
 
-Seeds: `["oracle_config", mint]`
+- **Order:** staleness is checked first, so stale numbers are never compared.
+- **Supply:** `supply` is Token-2022's `mint.supply`, not `total_minted - total_burned`. `seize` adds the seized amount to `total_burned` even though the tokens still sit in the treasury, so the config counters would under-count supply (case 6 in `tests/gate/reserves.test.ts`).
+- **Burn and seize:** burning lowers `supply`, so it makes room to mint again. Seizing doesn't.
+- **Never posted:** an attestation with `as_of = 0` is stale.
+- **Time:** `now` is the cluster's `Clock::unix_timestamp`.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `authority` | `Pubkey` | Config authority |
-| `mint` | `Pubkey` | Associated stablecoin mint |
-| `feed_address` | `Pubkey` | Oracle feed account |
-| `max_price` | `u64` | Upper price bound |
-| `min_price` | `u64` | Lower price bound |
-| `active` | `bool` | Whether config is active |
-| `max_staleness_seconds` | `i64` | Max feed staleness |
-| `bump` | `u8` | PDA bump |
+**Which mints are checked (decided in S9):**
+- **Acl and Both mode mints** must have an attestation to mint at all.
+- **Hook mode mints** (legacy SSS-1/SSS-2) mint as before until their MasterAuthority calls `set_reserve_attestor`. From then on they are checked like the others.
 
-## HTTP Service
+**CU** (localnet, Agave 3.0.14):
+- `mint_tokens` of 1,000 tokens to an existing account in the S7 story: 23,181 CU, against 20,702 before S9. The extra 2,479 derive and read the attestation.
+- `attest_reserves`: 4,625–4,740 CU.
+- `set_reserve_attestor` when it creates the account: 13,991 CU.
 
-**Base URL:** `http://localhost:3003`
+## Errors
 
-### Endpoints
+| Code | Name | When |
+|---|---|---|
+| 6035 | `ReserveInsufficient` | `mint.supply + amount > reserves` |
+| 6036 | `ReserveStale` | `now - as_of > max_staleness` |
+| 6037 | `ReserveAttestationMissing` | Acl/Both mint with no attestation |
+| 6038 | `NotReserveAttestor` | `attest_reserves` not signed by the attestor |
+| 6039 | `InvalidReserveAttestation` | future or regressing `as_of`, `max_staleness <= 0`, default attestor, `report_uri` over 200 B |
 
-#### `POST /oracle/configure`
+Every earlier sss-token code keeps its number. The new ones are appended, and `programs/sss-token/tests/test_reserves.rs` pins them.
+
+## Trust model
+
+- **The attestor key is trusted.** The program checks who signed and when, not whether the reserves exist. The guarantee is "no mint above what the attestor last signed, and nothing older than `max_staleness`".
+- **The issuer can attest itself.** MasterAuthority chooses the attestor. The account shows who the attestor is, and a reader decides how much that attestor is worth.
+- **The demo is self-attested.** On devnet, ThawGate's own key (`~/.keys/thawgate/attestor.json`) posts demo values. `services/attestor/examples/reserves.example.json` shows the format. These are not audited reserves.
+- **TODO:** a Switchboard On-Demand or Chainlink Proof of Reserve adapter that posts through the same account. Whether a PoR feed exists on Solana is unverified (RESEARCH.md §5).
+
+## Attestor service (`services/attestor`)
+
+A small process that reads a JSON source and posts `attest_reserves` when the source is newer than what's on chain. See [services/attestor/README.md](../services/attestor/README.md).
 
 ```json
-{
-    "mint": "TokenMint111...",
-    "feedAddress": "FeedAddr111...",
-    "maxPrice": 1050000,
-    "minPrice": 950000,
-    "maxStalenessSeconds": 300
-}
+{ "mint": "<address>", "reserves": "1000000000", "asOf": "2026-10-01T00:00:00Z", "reportUri": "https://…" }
 ```
 
-#### `GET /oracle/price?mint=TokenMint111...`
+`reserves` is a decimal string in base units. `asOf` is unix seconds or ISO 8601.
 
-Returns current price data from the configured oracle feed.
+## SDK
 
-#### `POST /oracle/mint`
-
-```json
-{
-    "mint": "TokenMint111...",
-    "recipient": "Wallet111...",
-    "amount": "1000000"
-}
+```ts
+const reserves = client.reserves(mint);
+await reserves.setReserveAttestor(master, attestor, 86_400);                 // MasterAuthority
+await reserves.attestReserves(attestor, new BN("1000000000"), asOf, uri);    // attestor
+const att = await reserves.fetch();                                          // null if never set
 ```
 
-#### `GET /health`
-
-Returns service health status.
-
-## Error Codes
-
-| Code | Name | Description |
-|------|------|-------------|
-| 6100 | `OracleNotActive` | Oracle configuration is not active |
-| 6101 | `StaleFeed` | Oracle feed is stale |
-| 6102 | `PriceOutOfBounds` | Price outside configured bounds |
-| 6103 | `InvalidAmount` | Amount must be > 0 |
-| 6104 | `NotAuthorized` | Not authorized to update config |
+`client.mintTokens` passes the attestation account automatically (`findReserveAttestationPda`).

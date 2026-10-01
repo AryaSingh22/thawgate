@@ -14,11 +14,11 @@ The gate is a first deploy. sss-token and the transfer hook are upgrades of the 
 
 | Step | Signature |
 |------|-----------|
-| `thawgate-gate` deploy | [`54kMBaGM…`](https://explorer.solana.com/tx/54kMBaGM1LYZAomTrwGTutAFZKdYBS8ETy3bqif53V5qecvnHLnJGfEG8WacoGbRLqJZomwyWnCddch7WMTrMJMe?cluster=devnet) |
-| `sss-token` extend, +116,368 B | [`LQ4mBfre…`](https://explorer.solana.com/tx/LQ4mBfredv1V9BoN15tLCt5wLeRuWMoGt59s4ZAcBkPd97PfY3SMaZ5BMVqw3gaK8fFi343TogeEJESuyzuaTQg?cluster=devnet) |
-| `sss-token` upgrade | [`5475i54L…`](https://explorer.solana.com/tx/5475i54LXcQkaYcqwvv957uhhZ5tjrqy4rQ6JPvuLM8NtTr2oruE2fEVt3cMXJkWc814KE9PMJjUwpdV5BA6spYj?cluster=devnet) |
-| `transfer-hook` extend, +10,240 B (4,624 needed; Agave 4.x minimum) | [`tbpaeL5K…`](https://explorer.solana.com/tx/tbpaeL5K4CvqxFQJxCqPYVFycR5oQyu9cFYxQsQaeaS7zSkD4XaFExRDZb4ajifmc1roCunTcL7u8UurcpoPasY?cluster=devnet) |
-| `transfer-hook` upgrade | [`3Y9AjRxK…`](https://explorer.solana.com/tx/3Y9AjRxK82VkiQWbVVnnPLnqbmSDBnFwfzLnfcXiM2eSS97phRop3yoJUReRNZFtAQuPrTpkgBUcXPvE9dgb7D56?cluster=devnet) |
+| `thawgate-gate` deploy | [`54kMBaGM1LYZAomTrwGTutAFZKdYBS8ETy3bqif53V5qecvnHLnJGfEG8WacoGbRLqJZomwyWnCddch7WMTrMJMe`](https://explorer.solana.com/tx/54kMBaGM1LYZAomTrwGTutAFZKdYBS8ETy3bqif53V5qecvnHLnJGfEG8WacoGbRLqJZomwyWnCddch7WMTrMJMe?cluster=devnet) |
+| `sss-token` extend, +116,368 B | [`LQ4mBfredv1V9BoN15tLCt5wLeRuWMoGt59s4ZAcBkPd97PfY3SMaZ5BMVqw3gaK8fFi343TogeEJESuyzuaTQg`](https://explorer.solana.com/tx/LQ4mBfredv1V9BoN15tLCt5wLeRuWMoGt59s4ZAcBkPd97PfY3SMaZ5BMVqw3gaK8fFi343TogeEJESuyzuaTQg?cluster=devnet) |
+| `sss-token` upgrade | [`5475i54LXcQkaYcqwvv957uhhZ5tjrqy4rQ6JPvuLM8NtTr2oruE2fEVt3cMXJkWc814KE9PMJjUwpdV5BA6spYj`](https://explorer.solana.com/tx/5475i54LXcQkaYcqwvv957uhhZ5tjrqy4rQ6JPvuLM8NtTr2oruE2fEVt3cMXJkWc814KE9PMJjUwpdV5BA6spYj?cluster=devnet) |
+| `transfer-hook` extend, +10,240 B (4,624 needed; Agave 4.x minimum) | [`tbpaeL5K4CvqxFQJxCqPYVFycR5oQyu9cFYxQsQaeaS7zSkD4XaFExRDZb4ajifmc1roCunTcL7u8UurcpoPasY`](https://explorer.solana.com/tx/tbpaeL5K4CvqxFQJxCqPYVFycR5oQyu9cFYxQsQaeaS7zSkD4XaFExRDZb4ajifmc1roCunTcL7u8UurcpoPasY?cluster=devnet) |
+| `transfer-hook` upgrade | [`3Y9AjRxK82VkiQWbVVnnPLnqbmSDBnFwfzLnfcXiM2eSS97phRop3yoJUReRNZFtAQuPrTpkgBUcXPvE9dgb7D56`](https://explorer.solana.com/tx/3Y9AjRxK82VkiQWbVVnnPLnqbmSDBnFwfzLnfcXiM2eSS97phRop3yoJUReRNZFtAQuPrTpkgBUcXPvE9dgb7D56?cluster=devnet) |
 
 1,261 transactions: 1,260 paid by `5BXg…` and the hook's extend paid by `3YnV…`; none failed. Fees were 7,813,742 lamports.
 
@@ -41,13 +41,15 @@ The gate is a first deploy. sss-token and the transfer hook are upgrades of the 
 
 ### Transaction Signatures (Devnet)
 
-| Program | Deploy Signature |
-|---------|------------------|
-| `sss-token` | `4pA2fQxH...` |
-| `transfer-hook` | `3xY9kL...` |
-| `oracle-module` | `2PKmMRCcQYjA3PoQj3cY5KyD49Uf7j3H1y3Eoe7c2CNZGTpPEhVrG4bn9LJfPU4SXXQATKvuiN5b3Eo1eNecEzkg` |
+| Program | Deploy signature | Block time (UTC) |
+|---------|------------------|------------------|
+| `sss-token` | [`3w85S6K9qrKnJXTVoiasD8S2vtJuA8GbhL52GcoQ7x7n7ShTNTuMmP7MKiAWfCsWtAE2XWpYykoGCR596bXCJ2kA`](https://explorer.solana.com/tx/3w85S6K9qrKnJXTVoiasD8S2vtJuA8GbhL52GcoQ7x7n7ShTNTuMmP7MKiAWfCsWtAE2XWpYykoGCR596bXCJ2kA?cluster=devnet) | 2026-03-11 10:19:20 |
+| `transfer-hook` | [`4UpEcwAMqGxPUYiqSqAGhFVp1H1xCU2n4GsZ7Bapg7PJyH8iHkoZNfjFxDPpfej8JXybqEukTBckwETNwgEQ5eNY`](https://explorer.solana.com/tx/4UpEcwAMqGxPUYiqSqAGhFVp1H1xCU2n4GsZ7Bapg7PJyH8iHkoZNfjFxDPpfej8JXybqEukTBckwETNwgEQ5eNY?cluster=devnet) | 2026-03-10 10:21:35 |
+| `oracle-module` | [`2PKmMRCcQYjA3PoQj3cY5KyD49Uf7j3H1y3Eoe7c2CNZGTpPEhVrG4bn9LJfPU4SXXQATKvuiN5b3Eo1eNecEzkg`](https://explorer.solana.com/tx/2PKmMRCcQYjA3PoQj3cY5KyD49Uf7j3H1y3Eoe7c2CNZGTpPEhVrG4bn9LJfPU4SXXQATKvuiN5b3Eo1eNecEzkg?cluster=devnet) | 2026-03-11 10:19:30 |
 
-Explore these program IDs directly on Solscan in Devnet.
+**Correction (S9, 2026-10-01):** this table used to list `4pA2fQxH...` for sss-token and `3xY9kL...` for the hook. Neither appears in the on-chain history. The signatures above are the only March 2026 entries in each program's ProgramData history (`getSignaturesForAddress`, read 2026-10-01). They match RESEARCH.md §9.
+
+**oracle-module was retired in S9.** It's out of the workspace, and the reserve check lives in sss-token ([docs/RESERVES.md](docs/RESERVES.md)). The program stays deployed on devnet, unused. Closing it would be irreversible, so it was left in place.
 
 ## How to Deploy and Verify
 
@@ -83,7 +85,6 @@ solana airdrop 2
 
 anchor deploy --program-name sss-token --provider.cluster devnet
 anchor deploy --program-name transfer-hook --provider.cluster devnet
-anchor deploy --program-name oracle-module --provider.cluster devnet
 ```
 
 ### Step 3: Verify Deployment

@@ -239,6 +239,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
     - Tightening a policy (raising `min_kyc_level`, switching to `AllowOnly`) makes holders who no longer comply permissionlessly freezable, by design (LOG.md S5).
     - `BypassForPdas` still requires ImmutableOwner on the vault. Orca Whirlpool adds it to vaults created since #974 (2025-06-23); older Token-2022 Orca vaults, and venues that don't add it, are denied `NO_IMMUTABLE_OWNER`.
     - SAS expiry: an attestation is live while `expiry == 0 || expiry >= now` (the SAS program's rule; SAS's kit example checks `now < expiry`).
+    - (S9) Treasury held by a PDA + BypassForPdas for mainnet; issuer wallets need credentials under SAS policies.
   - SSS docs move under `docs/examples/sss/`
   - SUBMISSION.md → replace with the new submission text
 - [ ] Finalize `DISCLOSURE.md` (fill the placeholders; link `git diff pre-worlds-fair..HEAD` stats).

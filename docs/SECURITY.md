@@ -61,18 +61,22 @@ RBAC is strictly enforced at the program level.
 - **Zero-Value Protection:** Zero-amount mints and burns are rejected at the instruction level to prevent spam.
 - **Bounded Impact:** Quota enforcement ensures that even if a Minter key is compromised, the attacker can only mint up to the strictly defined limit for that time period.
 
-## Oracle Safety
+## Reserve check (S9)
 
-The optional `oracle-module` provides an integration point for price-gated mints.
-- **Staleness Checks:** Oracle feeds are validated for staleness (`max_staleness_seconds`) before use.
-- **Peg Protection:** Price bounds (`min_price` / `max_price`) are strictly enforced on-chain. If the stablecoin depegs on the reference feed, minting automatically reverts.
+`mint_tokens` reads the mint's `ReserveAttestation` ([RESERVES.md](RESERVES.md)).
+- **Supply cap:** `mint.supply + amount <= reserves`, with Token-2022's `supply` (not the config counters, which `seize` skews).
+- **Staleness:** `now - as_of <= max_staleness`, checked first.
+- **Who posts:** only the attestor MasterAuthority set. A new attestor clears the posted reserves. The account can't be closed, and a caller can't omit it from `mint_tokens`.
+- **Trust:** the attestor key is trusted for the number itself. The demo attestor is ThawGate's own key.
+
+The `oracle-module` program it replaced was retired in S9. Its `oracle_gated_mint` never read a feed, and anyone could create a mint's oracle config first.
 
 ## Known Limitations & Experimental Features
 
 1. **Confidential Transfers (SSS-3):** SSS-3 confidential transfer instructions validate feature flags but rely on the raw SPL Confidential Transfer CPI. Production deployment requires careful adherence to Solana's exact compute budget limits for ZK proofs.
-2. **Oracle Feed Implementations:** The current `oracle-module` validates internal configuration bounds. Native deserialization of Pyth or Switchboard V2 accounts requires implementing the specific cross-program invocations (CPIs) aligned with the chosen oracle provider's SDK.
+2. **Reserve sources:** reserves come from a signed attestation only. A Switchboard or Chainlink Proof of Reserve source is a TODO ([RESERVES.md](RESERVES.md)).
 3. **Extra Account Meta Lists:** The transfer hook program enforces blacklist/pause checks securely, but requires the `ExtraAccountMetaList` PDA to be explicitly initialized by the admin immediately after mint creation to function.
 
 ## TODO
 
-- **Mainnet: upgrade authorities → multisig.** On devnet each program is upgradeable by a single key: `5BXg…` for sss-token, oracle-module and the ThawGate gate, `3YnV…` for the transfer hook. Before any mainnet deploy, move each upgrade authority to a multisig. (The gate is unaudited; there are no mainnet deploys.)
+- **Mainnet: upgrade authorities → multisig.** On devnet each program is upgradeable by a single key: `5BXg…` for sss-token and the ThawGate gate (and the retired oracle-module), `3YnV…` for the transfer hook. Before any mainnet deploy, move each upgrade authority to a multisig. (The gate is unaudited; there are no mainnet deploys.)

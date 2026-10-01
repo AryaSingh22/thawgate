@@ -148,36 +148,6 @@ Query the immutable history of all compliance actions.
 
 ---
 
-## 4. Oracle Service (Port 3004)
+## 4. Reserve attestor (no HTTP API)
 
-Manages external price feed integrations for SSS-gated mints.
-
-### `GET /oracle/status/:mint`
-Check if a mint is currently pegged and eligible for minting operations.
-
-**Response Schema (200 OK):**
-```json
-{
-  "mint": "string (base58)",
-  "feedAddress": "string (base58 Switchboard/Pyth account)",
-  "currentPrice": "1.0003",
-  "minPrice": "0.9950",
-  "maxPrice": "1.0050",
-  "isPegMaintained": true,
-  "stalenessSeconds": 12,
-  "maxStaleness": 60
-}
-```
-
-### `POST /oracle/update`
-Internal endpoint: trigger an on-chain config update for the oracle feed boundaries.
-
-**Request Schema:**
-```json
-{
-  "mint": "string",
-  "minPrice": "string (u64 scaled)",
-  "maxPrice": "string (u64 scaled)",
-  "maxStaleness": 60
-}
-```
+The oracle service on port 3004 was retired in S9 (2026-10). Its endpoints returned fixed values and never called a program. Its replacement, `services/attestor`, has no HTTP API. It reads a JSON source and posts sss-token `attest_reserves`, which `mint_tokens` checks. See [RESERVES.md](RESERVES.md) and [services/attestor/README.md](../services/attestor/README.md).

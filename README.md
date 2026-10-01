@@ -67,7 +67,7 @@ Layer 3 (Standards)   ┌──────────┐  ┌─────�
                       └────┬─────┘  └────┬─────┘  └────┬─────┘
                            │              │             │
 Layer 2 (Modules)    ┌─────┴──────────────┴─────────────┴─────┐
-                     │ Role Mgmt │ Compliance │ Oracle Gating │
+                     │ Role Mgmt │ Compliance │ Reserve Check │
                      │ Quota     │ Blacklist  │ ZK Transfers  │
                      │ Pause     │ Seizure    │ Allowlist     │
                      └────────────┬───────────┴───────────────┘
@@ -86,7 +86,7 @@ Layer 1 (Base SDK)   ┌────────────┴─────�
 | `mint-service` | 3001 | Mint/burn API with quota management |
 | `webhook-service` | 3002 | Webhook registration & delivery |
 | `compliance-service` | 3003 | Blacklisting and regulatory monitoring |
-| `oracle-service` | 3004 | Price feed gating and management |
+| `attestor` | – | Posts a mint's reserves to `attest_reserves` from a JSON source ([docs/RESERVES.md](docs/RESERVES.md)) |
 
 ## Repository Structure
 
@@ -95,14 +95,14 @@ thawgate/
 ├── programs/
 │   ├── sss-token/           # Main Anchor program (16 instructions)
 │   ├── transfer-hook/       # Compliance enforcement hook
-│   └── oracle-module/       # Oracle price feed gating
+│   └── thawgate-gate/       # Token ACL gate (ThawGate)
 ├── sdk/                     # TypeScript SDK (@thawgate/sdk)
 ├── cli/                     # CLI tool (sss-token)
 ├── services/
 │   ├── mint-service/        # Mint/burn API (Fastify)
 │   ├── webhook-service/     # Webhook delivery service
 │   ├── compliance-service/  # AML/KYC enforcement service
-│   └── oracle-service/      # Price feed service
+│   └── attestor/            # Reserve attestor (attest_reserves)
 ├── tests/                   # Anchor integration + unit tests
 ├── evidence/                # Raw test outputs and screenshots
 ├── scripts/                 # Deploy, verify, and setup scripts
@@ -124,7 +124,7 @@ All test runs, logs, and screenshots are captured in the `evidence/` directory.
 
 1. **Terminal UI (TUI)**: A fully functional TUI application for operators tracking mints, roles, and blacklists.
 2. **React Dashboard**: A sleek, dark-themed dashboard frontend mapping all tokens and metrics in real-time.
-3. **Oracle Price Gating**: `oracle-module` to ensure stablecoins are never minted if the reference asset drops below peg.
+3. **Reserve-backed mint**: `mint_tokens` refuses to mint above the attested reserves or on a stale attestation ([docs/RESERVES.md](docs/RESERVES.md)). It replaced the oracle-module stub in S9.
 
 ## Documentation Reference
 
