@@ -1,5 +1,25 @@
 # Deployment Record
 
+## Devnet, 2026-10-01 15:35 UTC: sss-token upgrade (S9, reserve-backed mint)
+
+**Anchor:** 0.32.2 · **Solana CLI:** 3.0.14 · **Cluster:** devnet, Agave 4.3.0 · **Script:** `scripts/deploy-devnet-acl.sh` at `1ef417f` (dry run first)
+
+What changed: sss-token gains `ReserveAttestation`, `set_reserve_attestor`, `attest_reserves`, the reserve check in `mint_tokens`, and the `add_to_blacklist` owner check. The gate and the transfer hook already matched the build, so they were skipped. The clippy fix committed after the deploy (`mint.rs`, a needless borrow) builds to the same bytes, which was checked by sha256.
+
+| Program | Address | Upgrade authority | Program bytes (sha256 of the `.so`) | Slot |
+|---------|---------|-------------------|-------------------------------------|------|
+| `sss-token` | `HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` | 704,952 (`b7ad86d3c178e46a…`) | 506320264 |
+
+| Step | Signature |
+|------|-----------|
+| `sss-token` extend, +46,864 B (rent 0.238069120 SOL) | [`5msnVe8XpWp7LswDmvELUQYZYFJC1fgDjQp9oY3KDcjMxbUyVAfHxKkCyAHqi6WomYdnmJ3X4q6Dfru38bhW4Cvk`](https://explorer.solana.com/tx/5msnVe8XpWp7LswDmvELUQYZYFJC1fgDjQp9oY3KDcjMxbUyVAfHxKkCyAHqi6WomYdnmJ3X4q6Dfru38bhW4Cvk?cluster=devnet) |
+| `sss-token` upgrade | [`2qMFNobEbqUZpAvnFGLxjTRSzoJ3mQuLnrApE7EtMRePHHhjMQzKXAq4p49rDFr5zwdLFtok75Yia4Mf9CQdcFvy`](https://explorer.solana.com/tx/2qMFNobEbqUZpAvnFGLxjTRSzoJ3mQuLnrApE7EtMRePHHhjMQzKXAq4p49rDFr5zwdLFtok75Yia4Mf9CQdcFvy?cluster=devnet) |
+
+**Cost:**
+- 738 transactions, all paid by `5BXg…`, none failed, sent in 29 s (the dry run predicted ~738).
+- `5BXg…` went from 31.377003178 to 31.135140293 SOL (−0.241862885): the extend's rent plus 0.003793765 SOL in fees. The buffer's rent came back through the upgrade's spill.
+- ProgramData now holds 3.582035 SOL for 704,997 bytes.
+
 ## Devnet, 2026-10-01: Token ACL release
 
 **Anchor:** 0.32.2 · **Solana CLI:** 3.0.14 · **Cluster:** devnet, Agave 4.3.0 · **Script:** `scripts/deploy-devnet-acl.sh` at `4c6f71f`

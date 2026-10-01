@@ -2,30 +2,44 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S9 handoff (read first; remove when S9 ends)
-S8 is done (S8 entry at the bottom). `services/keeper` freezes on revoke, blacklist, expiry and policy tightening, on devnet, with no manual step. Revoke→freeze p50 is 2,863 ms over 10 devnet runs.
+## ▶ S10 handoff (read first; remove when S10 ends)
+S9 is done (S9 entry at the bottom):
+- sss-token `mint_tokens` checks attested reserves.
+- The "mint blocked" tx is on devnet.
+- Issuer wallets hold credentials, so the keeper runs on every ThawGate mint with no skip.
 
 State on devnet (2026-10-01):
-- **Programs:** unchanged since `c1-core` (DEPLOYMENT.md). S8 changed no Rust.
-- **Keeper key** `4auu6ttRQPrkewa3Umwer25W8ck7ERm73H1CmyYoDWH2`: `~/.keys/thawgate/keeper.json`, mode 600, no role on any mint, 0.04993 SOL.
-  - The keeper is **not running**. To start it: `yarn workspace @thawgate/keeper build`, then `KEEPER_KEYPAIR=~/.keys/thawgate/keeper.json KEEPER_SKIP_MINTS=5632jFw8mU2hAjP2p8jNcCG9CW2MdeikDkbpd4Knr2G6 node services/keeper/dist/main.js` (RPC from `.env`, HTTP on :3005).
-  - Stop it with SIGTERM.
+- **Programs:** sss-token was upgraded in S9 (slot 506,320,264, 704,952 B, `b7ad86d3…`). The gate and the hook are unchanged since `c1-core`. DEPLOYMENT.md has both records. `oracle-module` is retired: out of the workspace, still deployed, unused.
+- **Keys:**
+  - **Keeper** `4auu6ttRQPrkewa3Umwer25W8ck7ERm73H1CmyYoDWH2` (`~/.keys/thawgate/keeper.json`): 0.04993 SOL, no role.
+    - It is **not running**.
+    - To start it: `yarn workspace @thawgate/keeper build`, then `KEEPER_KEYPAIR=~/.keys/thawgate/keeper.json node services/keeper/dist/main.js`. No `KEEPER_SKIP_MINTS`. HTTP on :3005; stop it with SIGTERM.
+  - **Reserve attestor** `2da6PGUxkJGKXwNP95FnxtCGKsqoV2q1kxRxX21CqtTW` (`~/.keys/thawgate/attestor.json`, mode 600): 0 SOL, because the story's payer pays its fees. `services/attestor` run on its own pays its own fees, so fund the key first.
+- **Issuer `5BXg…` holds a demo attestation** under `BYSdZK…` / `Fovh6z…`: `kyc_level` 2, expiry 1,822,405,001 (≈ 2027-10-01). It's self-issued demo KYC. It covers the issuer's accounts on every mint whose policy uses this credential.
 - **Mints:**
-  - The S7b story mint `5632jF…` is skipped by the keeper (user, S8). Its issuer-thawed treasury would be frozen; see the S8 finding.
-  - The S8 keeper mint `4234DQ…`: every test holder is frozen except `quinn` (`kyc_level` 3).
-- **Demo SAS credential** `BYSdZK…` / schema `Fovh6z…`, authority `5avMn…`. Self-issued demo KYC; label it so.
-- **Balances:** `5BXg…` 31.3770, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
+  - **S7b `5632jF…`:** bob and the treasury `9GezLRfY…` are thawed, both `compliant:KYC` in the keeper; alice and carol are frozen. It has no ReserveAttestation, so it can't mint (Acl rule).
+  - **S8 `4234DQ…`:** everything is frozen except quinn (level 3, min 3). No ReserveAttestation.
+  - **S9 story `D6Q5PA7xzxbrZaRoiXGfMcbGsLCH35cneRweEMysXEoq`:** reserves of 1,000 tokens, posted by `2da6PG…` as of 15:37:10 UTC, with a 1-day window (86,400 s). From 2026-10-02 15:37:10 UTC it is stale, and minting needs a new post.
+- **Balances:** `5BXg…` 31.0642, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
 
-S9, in order (PLAN.md S9, reserve-backed mint; plan mode first, as PLAN.md asks for S9):
-1. **CI:** the S8 code pushes `25dc202` and `f1a0a91` are recorded in the S8 entry. Check the S8 docs commit after them with `gh run list -R AryaSingh22/thawgate --commit <full sha>`.
-2. **Program work:** `ReserveAttestation` and the `mint_tokens` reserve and staleness checks; retire `oracle_gated_mint` and the oracle-service stubs.
-3. **Devnet:** sss-token changes mean a devnet upgrade with `scripts/deploy-devnet-acl.sh`: `DRY_RUN=1` first, and extends of at least 10,240 B on Agave 4.x.
-4. **Done when:** tests show minting above reserves is refused, a stale attestation is refused, and a valid one passes. The demo "mint blocked" tx is on devnet.
+S10, in order (PLAN.md S10, sanctions policy):
+1. **CI:** check S9's last push (log, keeper verdict, clippy fix) with `gh run list -R AryaSingh22/thawgate --commit <full sha>`, and record it in the S9 entry.
+2. **compliance-service:**
+   - Build a `RiskProvider` with a Range adapter (API key?) and a clearly labelled `StaticListProvider`.
+   - Score ≥ threshold → `add_to_blacklist(reason = "range:<score>")`.
+   - Since S9, `add_to_blacklist` needs a token account **owned by the target**, otherwise `TargetAccountOwnerMismatch`. Pass the wallet's ATA. The keeper's blacklist trigger freezes the wallet's other thawed accounts.
+   - A flagged wallet with no token account on the mint can't be passed to `add_to_blacklist` (it needs one). Decide: create the ATA first, or wait until the wallet holds one.
+3. **Done when:** a flagged wallet goes from API result to blacklisted to frozen on devnet, with no manual on-chain step.
 
-Open from S8 (for S15/S16):
-- **Issuer-thawed accounts without a credential are permissionlessly freezable.** The keeper froze the test treasury on both clusters, and an issuer re-thaw would be frozen again. Options: attest the issuer's own wallets, or a gate exemption (a design decision).
-- **`add_to_blacklist` doesn't tie `target_token_account` to `target`**: only `token::mint` is checked (`compliance.rs`). A Blacklister can freeze one holder's account under another wallet's entry.
-- **S10's sanctions flow** ends at `add_to_blacklist`. The keeper's blacklist trigger already does its "keeper freezes" step.
+Open (for S15/S16):
+- **`mint_tokens` CU depends on the reserve PDA's bump.** `seeds + bump` on an `UncheckedAccount` makes Anchor search for the bump on every mint.
+  - On the S9 devnet mint (bump 248), `mint_tokens` cost 12,979 CU more than S7b's. That equals the localnet +2,479 (bump 255) plus 7 × 1,500.
+  - Fix: when the account exists, check its address with `create_program_address` and the stored `bump`.
+- **mint-service** (`services/mint-service/src/index.ts:162`) builds `mint_tokens` from a hand-written IDL. It was already wrong before S9 (no `pause_state`, wrong account names) and now also lacks `reserve_attestation`. No test uses it. Switch it to the SDK in S11, or drop it.
+- **Treasury held by a PDA + `BypassForPdas` for mainnet** (PLAN.md S16 TODO).
+- **Attestor service:** no HTTP health or metrics, and no compose entry. The Switchboard/Chainlink adapter is a TODO.
+- **History:** commit `e2cc307` also carries the oracle deletions and the ORACLE.md → RESERVES.md rename (they were already staged), and `f860a2c` says so. CLAUDE.md rules out rewriting history, so it stays.
+- **`cargo fmt --all -- --check` fails across the whole workspace.** It's older than S9 and CI doesn't run it. Keep any reformat out of feature commits.
 
 Carried, unchanged since S7:
 - **Legacy e2e** (`anchor test`, 5–8 failing per run, all known classes):
@@ -35,18 +49,25 @@ Carried, unchanged since S7:
 - **Build-in-public thread** with the devnet links (user, C1).
 
 Gotchas:
+- **New in S9:**
+  - **clippy:** the "CI" workflow runs `cargo clippy --workspace --all-targets -- -D warnings`. Run it before pushing Rust. S9's first push failed on `needless_borrow`.
+  - **Acl mints need reserves to mint.** Suites call `reservesForTestsIxs(mint, await chainNow())` (tests/gate/issuer.ts): the payer is the attestor, with a 1-year window.
+  - **A refused tx on chain:** `sendLanded` (tests/gate/helpers.ts) sends without preflight, so the failure lands with an explorer link.
+  - **Staged changes ride along.** `git rm` and `git mv` stage at once; check `git status` before splitting commits.
+  - **`pkill -f <pattern>` inside `bash -lc '…'` matches its own shell** and ends the call (exit 15). Use the pid file.
+  - **Keeper `/mints/:mint`:** a skipped mint returns 404. Each owner has a `verdict`: `compliant:<CODE>`, `freezable:<REASON>` or `unknown`.
 - **Keeper tests:**
   - `yarn test:keeper` runs on localnet with an in-process keeper.
   - On devnet, start the keeper as its own process, then run `CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts`.
   - Case 6 (the no-ops) needs the in-process keeper, so it is skipped on devnet.
-- **@solana/kit 5.5.1 in this node_modules fails native Node ESM.** Its nested `offchain-messages` imports an error code that the `@solana/errors` beside it lacks. CommonJS (ts-node, the keeper's build) loads it fine. vitest inlines `@solana/*` (`services/keeper/vitest.config.mts`).
+- **@solana/kit 5.5.1 in this node_modules fails native Node ESM.** Its nested `offchain-messages` imports an error code that the `@solana/errors` beside it lacks. CommonJS (ts-node, the keeper's build) loads it fine, and vitest inlines `@solana/*` (`vitest.config.mts` in the keeper and the attestor).
 - **docker compose:**
   - Every compose command needs `POSTGRES_PASSWORD` set (the existing file).
   - The keeper is behind the `keeper` profile, and its image installs with `--legacy-peer-deps` (npm 10's arborist crashes without it).
   - Full CI's `docker-health` job runs `docker compose up --build` over the whole file, so a new service's Dockerfile gets built in CI even if you never build it locally.
-- **Agave 4.x:** `ExtendProgram` needs ≥ 10,240 bytes, or an extension to the maximum size. The 3.0.14 rehearsal validator can't catch this; `deploy-devnet-acl.sh` handles it (`MIN_EXTEND`).
-- **Devnet CU ≠ localnet CU** for the same story (Agave 4.3.0 vs 3.0.14, fresh keys), but the gate frames are identical. Quote devnet numbers as devnet.
-- **Devnet story command:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`. `yarn test:story` is localnet only.
+- **Agave 4.x:** `ExtendProgram` needs at least 10,240 bytes, or an extension to the maximum size. `deploy-devnet-acl.sh` handles it (`MIN_EXTEND`).
+- **Devnet CU ≠ localnet CU** for the same story (Agave 4.3.0 vs 3.0.14, fresh keys, different PDA bumps), but the gate frames are identical. Quote devnet numbers as devnet.
+- **Devnet story command:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`. It reuses `~/.keys/thawgate/attestor.json` and the issuer's live attestation. `yarn test:story` is localnet only.
 - **Secrets:** never print `.env`. `solana` CLI errors contain the full RPC URL; mask them.
 - **SIGINT:** a background job in a non-interactive shell starts with SIGINT ignored. Send SIGTERM.
 - **gh:** in WSL, `gh` resolves to the upstream fork. Use `-R AryaSingh22/thawgate` and the full 40-character SHA.
@@ -630,5 +651,114 @@ Gotchas:
     - races: SSS-1 Steps 04/08/09, SSS-2 Step 04
     - "already in use": SSS-1 Step 16, SSS-2 Step 15
     - SSS-2 Step 16, downstream
+- **CI on `8da6b22` (this log + handoff; read in S9):**
+  - Full CI, CI, TypeScript Tests and Gate Tests are green. Gate Tests (run 36871446947): 38 / 7 / keeper 7 passing, revoke→freeze p50 811 ms.
+  - Anchor Integration (run 36871446979): 67 / 8, known classes:
+    - races: SSS-1 Steps 02/04 and SSS-2 Step 04 (`TokenAccountNotFoundError`), SSS-1 Steps 08/09 (`isFrozen`)
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
 - **Links:** the devnet txs above. Commits `b861418` (keeper), `25dc202` (e2e + CI), `f1a0a91` (Docker fix), and this log + handoff.
 - **Next:** S9, reserve-backed mint, per the handoff at the top of this file.
+
+## S9 · 2026-10-01 · Reserve-backed mint; blacklist owner check; issuer credentials
+- **First:** the CI result for `8da6b22` is recorded in the S8 entry.
+- **Decisions (user, plan mode):**
+  - **Mints without a ReserveAttestation:** option B. Acl/Both mints must have one to mint. Hook mints (legacy SSS-1/SSS-2) mint as before until they opt in, and opting in can't be undone. Rejected: A, opt-in everywhere; C, required everywhere.
+  - **No `report_hash` field.**
+  - **The devnet `oracle-module` program stays deployed, unused.** Closing it was rejected as irreversible.
+  - **Deploy:** approved ("deploy") after the dry run.
+  - **Keeper check:** `/mints/:mint` must show the S7b treasury as compliant (KYC), not skipped.
+- **Shipped: sss-token** (`e2cc307`; clippy fix after the deploy, same bytes):
+  - **`ReserveAttestation`** PDA `["reserve_attestation", mint]`, 373 B: attestor, reserves (**base units**), `as_of`, `max_staleness`, `report_uri`, `posted_at`, bump, and 64 reserved bytes. `StablecoinConfig` is untouched.
+  - **`set_reserve_attestor(attestor, max_staleness)`:** MasterAuthority only, `init_if_needed`. A new attestor clears the posted reserves.
+  - **`attest_reserves(reserves, as_of, report_uri)`:** the attestor only. `as_of` must not be in the future, nor older than the stored one.
+  - **`mint_tokens`:** takes the attestation as a required, seeds-checked account.
+    - The checks: `ReserveStale` (`now − as_of > max_staleness`, checked first), then `ReserveInsufficient` (`mint.supply + amount > reserves`, Token-2022 supply), and `ReserveAttestationMissing` on Acl/Both.
+    - Each deny logs `SSS:DENY:RESERVE_<MISSING|STALE|INSUFFICIENT>` with the numbers.
+    - There is no close instruction.
+  - **`add_to_blacklist`:** `target_token_account.owner == target`, otherwise `TargetAccountOwnerMismatch` (the S8 finding).
+  - **Errors 6035–6040** are appended; every earlier code keeps its number (pinned in `tests/test_reserves.rs`).
+- **Retired:** `programs/oracle-module` (out of the workspace, Anchor.toml and verify-ids), `services/oracle-service` (fixed responses) and `sdk/tests/oracle.test.ts` (`f860a2c`). The file deletions landed in `e2cc307` because they were already staged; `f860a2c` says so. History was not rewritten.
+- **Shipped: `services/attestor`** (`@thawgate/attestor`, `5e84baa`):
+  - **What it does:** reads `{ mint, reserves, asOf, reportUri }` from a JSON file or URL and posts `attest_reserves`.
+  - **When it skips:** no attestation, another attestor, a future or older `asOf`, or an unchanged report. Each is checked against the cluster `Clock`.
+  - **Modes:** `ATTESTOR_ONCE`, `DRY_RUN`.
+  - **Encoding:** the instruction is built with kit by hand and pinned against the IDL.
+  - **Not included:** HTTP and compose.
+- **Shipped: SDK** (`a4ad516`): `findReserveAttestationPda` and `client.reserves(mint)` (`setReserveAttestor`, `attestReserves`, `fetch`). `mintTokens` passes the attestation. The legacy `.accounts()` callers resolve it from the IDL seeds; the legacy suite ran unchanged.
+- **Shipped: issuer wallets get credentials** (`99e99b3`):
+  - The story's setup attests the issuer's wallet, reusing a live attestation.
+  - In step 7, a crank on the issuer-thawed treasury is refused with `TG:DENY:COMPLIANT`.
+  - Keeper case 4 is now 4a (an issuer-thawed account whose owner has no credential is frozen) and 4b (the attested issuer treasury stays thawed, verdict `compliant:KYC`).
+  - PLAN.md S16 TODO: treasury held by a PDA + BypassForPdas for mainnet; issuer wallets need credentials under SAS policies.
+- **Shipped: keeper `/mints/:mint` verdict.** Each owner gets `compliant:<CODE>` (the gate's thaw code: KYC, PDA_ALLOWLISTED, ALLOWLISTED, CLEAN), `freezable:<REASON>` or `unknown`, at the last sweep's cluster time. A skipped mint returns 404.
+- **Docs:**
+  - `docs/RESERVES.md` replaces ORACLE.md: base units, check order, the Acl/Hook rule, trust model with the self-attested demo, errors, CU.
+  - DEPLOYMENT.md: full signatures in every row. The March table's `4pA2fQxH...` and `3xY9kL...` are in no program's on-chain history (read 2026-10-01). They are replaced with `3w85S6K9…` and `4UpEcwAM…`, the only March entries in each ProgramData history, which match RESEARCH §9.
+  - README, API, ARCHITECTURE, SECURITY, OPERATIONS, CLAUDE.md and the keeper README updated.
+- **Measured, localnet** (Agave 3.0.14):
+  - **Gate suite:** `yarn test:gate` **48 passing**: 38 from before, 9 reserve cases (`tests/gate/reserves.test.ts`) and 1 blacklist-owner case.
+    - The reserve cases: missing on Acl; master-only attestor; attestor-only posts; never posted is stale; 1,000 tokens of reserves let 600 + 400 through and refuse +1 base unit; stale past `max_staleness`; invalid posts; attestor change resets; seize makes no room (counters say supply − 500, `mint.supply` doesn't); Hook opt-in, with a burn making room; the attestor service posting from a JSON file.
+  - **Story:** `yarn test:story` 7 passing.
+  - **Keeper:** `yarn test:keeper` 8 passing, twice; revoke→freeze p50 715 / 817 ms over 3 runs.
+  - **Rust:** `cargo test --workspace` 135/0. That's 130, minus the oracle crate's 6 (Anchor's generated IDL-print tests; it had no tests of its own), plus 9 in `test_reserves`, plus 2 IDL-print tests for the new events. `cargo clippy --workspace --all-targets -D warnings` is clean after the fix.
+  - **Vitest:** SDK 96/96 (106 − 15 oracle + 5). Attestor 9/9. Keeper 35/35 (+3 for the verdict).
+  - **Typecheck:** `yarn typecheck` and the root `tsc` over `tests/` are clean.
+  - **Legacy `anchor test`:** 70 passing / 5 failing, all known classes.
+  - **Build:** `anchor build` 48 s warm. `sss_token.so` is 704,952 B (+46,864); gate and hook bytes unchanged.
+  - **CU:**
+
+    | Operation | CU |
+    |---|---|
+    | `mint_tokens` 1,000 in the story (S7a: 20,702) | 23,181 (+2,479) |
+    | `mint_tokens`, Acl, within reserves (reserves suite) | 26,090 |
+    | `attest_reserves` | 4,625–4,740 |
+    | `set_reserve_attestor`, creating the account | 13,991 |
+    | the refused mint, landed | 18,025 |
+    | `add_to_blacklist` (S7a: 26,830) | 26,851 (+21, the owner check) |
+- **Devnet deploy** (2026-10-01 15:34:55–15:35:24 UTC, `scripts/deploy-devnet-acl.sh` at `1ef417f`, Helius):
+  - **Dry run first:** the gate and the hook are "same" and skipped; sss-token gets extend + upgrade, ~738 txs.
+  - **Extend +46,864 B:** [5msnVe8X…](https://explorer.solana.com/tx/5msnVe8XpWp7LswDmvELUQYZYFJC1fgDjQp9oY3KDcjMxbUyVAfHxKkCyAHqi6WomYdnmJ3X4q6Dfru38bhW4Cvk?cluster=devnet). It paid 0.238069120 SOL of rent, because the S7b upgrade had left ProgramData holding exactly its rent.
+  - **Upgrade:** [2qMFNobE…](https://explorer.solana.com/tx/2qMFNobEbqUZpAvnFGLxjTRSzoJ3mQuLnrApE7EtMRePHHhjMQzKXAq4p49rDFr5zwdLFtok75Yia4Mf9CQdcFvy?cluster=devnet), slot 506,320,264.
+  - **Totals:** 738 transactions, 0 failed, 29 s. The script confirmed that all three programs match `target/deploy`.
+  - **Cost:** `5BXg…` 31.377003178 → 31.135140293 SOL: rent plus 0.003793765 in fees.
+- **Devnet story: 7 passing** (between the upgrade at 15:35:24 and the keeper start at 15:38:36 UTC; the blocked mint is at 15:37:22). Payer and issuer `5BXg…`; SAS issuer `5avMn…`; attestor `2da6PGUxkJGKXwNP95FnxtCGKsqoV2q1kxRxX21CqtTW` (new, mode 600, no SOL). Fresh keys: mint `D6Q5PA7xzxbrZaRoiXGfMcbGsLCH35cneRweEMysXEoq`, alice `9iwmDVZ8…`, bob `DSWh46DJ…`, carol `8SWWoiDG…`, keeper `J9VSZE3C…`.
+
+  | Step | devnet CU | tx |
+  |---|---|---|
+  | SAS `create_attestation` alice / bob / carol | 5,877 / 8,877 / 10,377 | [23udcDit…](https://explorer.solana.com/tx/23udcDitLseUJHnffZbPKM44vsJKkDAKqox2HvraLEXmwt4YQWZ7VMhNGc2q6FMQ1WQrg68tEDKWVB6h32TwFMF4?cluster=devnet) · [4gmhh2Yn…](https://explorer.solana.com/tx/4gmhh2Ync1MAKAtAK1NvN7QmR2PqbeS6ozHVB59pX3Jco4gFn7pmmGyFfBn7xnZUbbDh5XkxvDUpkXJTtfyWR1Zt?cluster=devnet) · [5XXkDbFX…](https://explorer.solana.com/tx/5XXkDbFX6Z3xUwEQM7sEh6RAAgFfEdpUpUnUoV3jpMvdGvDEXMqyQQB6bJSzxLonbf8cX5nLw8hYBTxTjE6Qr8xW?cluster=devnet) |
+  | **SAS `create_attestation`, issuer wallet `5BXg…`** (self-issued demo KYC, level 2, expiry 2027-10-01) | 7,377 | [3q7irNvS…](https://explorer.solana.com/tx/3q7irNvSV26FpjetVimGtZpSz4R9e3g69vrhCq2ZYPD374zp9UyybGV29PfPkoE2C6oz8jUyfmfTburTeFSCFGGE?cluster=devnet) |
+  | sss-token `initialize` (Acl) | 58,705 | [4y9Wp5ck…](https://explorer.solana.com/tx/4y9Wp5ckzzqNNuo2oiaBGq8RQoCFeC47JSz2c6NtvyugFCkuobw6RjqqcSLoG6GXLs2WyBErXX2SYv3o3RCVhLoM?cluster=devnet) |
+  | `enable_token_acl`, SAS + blacklist | 77,477 (gate 28,696) | [rJzQPbXF…](https://explorer.solana.com/tx/rJzQPbXFzVLCBeBfRgKQycuhosrTiF6Fh8fLXoFX3BJ7hbf1rDeMRrLsxZYu6DBzqBz5a1Z5eJWQq1qgPDRg2pe?cluster=devnet) |
+  | alice creates her ATA; her own `thaw_permissionless` (`TG:ALLOW:KYC`) | 20,567; 36,867 (gate 5,203) | [62ZqWi1W…](https://explorer.solana.com/tx/62ZqWi1W6qtnV8JRXR1qd1PdzeFMfNoygKdBg5kbA145PwZNZRjGDrHuNfvfLDQryZ4jm7EcZhK8pz3PQCWT5aDL?cluster=devnet) · [XoKb1Frv…](https://explorer.solana.com/tx/XoKb1FrvxMwYV3qQ14nk4imahAsqzGtgo8kndwf26SVLBBTzMprDw4rpjN3yH339s2Ra2wAqHUnhP2WppzrmVKt?cluster=devnet) |
+  | **`set_reserve_attestor`** (attestor `2da6PG…`, 86,400 s) | 24,437 | [5u6G2Mr1…](https://explorer.solana.com/tx/5u6G2Mr1gP43sw3rehDsMwzycHMm1Pktj7tAwtr4R3pEgzUePSJ8g9FvPrqykeAkfrCKNz9qnmHUSvpBZBYLZq26?cluster=devnet) |
+  | **attestor service: `attest_reserves`** 1,000,000,000 base units (1,000 tokens), `as_of` 15:37:10 UTC | 4,740 | [3AiYMGHk…](https://explorer.solana.com/tx/3AiYMGHkPdWdT12e2nwHiQj1Z2QUhcB5KFkcnHGK1jjFLbA1rNAeHNyq7c6hLB8vYZHgTX65gDixS6MyZowVHVxe?cluster=devnet) |
+  | **`mint_tokens` 1,000 to alice** (supply = reserves) | 33,627 | [67Er1NZ9…](https://explorer.solana.com/tx/67Er1NZ9zGKKWZugzRkLKk6TT1TZuFmd1podGjAukAZMy11KK585yRyNF6DQVrUdVmh8xNeeFTpR4d5t9qd38eEn?cluster=devnet) |
+  | **"mint blocked": `mint_tokens` 1 base unit above reserves, landed FAILED** (`Custom 6035` `ReserveInsufficient`; log `SSS:DENY:RESERVE_INSUFFICIENT supply=1000000000 amount=1 reserves=1000000000 as_of=1790869030`; slot 506,320,766) | 28,525 | [45sYEnpQ…](https://explorer.solana.com/tx/45sYEnpQzBn6czRGon7xwQPwVnpN8Ewv5d5ngHQUQGrRBbRX3kHWL54m1YAiEEjTeHqGQnDpgKciT6bQStZGZ7qa?cluster=devnet) |
+  | alice → bob 250; bob → carol 100 | 3,556 each | [3sbUopaK…](https://explorer.solana.com/tx/3sbUopaKRduw6LDQ1H1Q5bkm3Ada6UuXPi5239vwtos4mGYR1C8if97whbiXggXetTz58c5yYwyqsWL9w9W2nYwq?cluster=devnet) · [5Tx2kn7r…](https://explorer.solana.com/tx/5Tx2kn7rn5MAV19qyDWBdEHsBXuznsMPiiSxVU5J4LBkqfNSrkTHAW1utetryBfvsjuRumVC1V6jKMY6unja81Fz?cluster=devnet) |
+  | SAS `close_attestation` (alice); keeper crank freezes her (`TG:ALLOW:NO_CREDENTIAL`) | 3,009; 38,143 (gate 4,824) | [3VWMg2dn…](https://explorer.solana.com/tx/3VWMg2dna9fgxd8gDEacTVjNhXRQ66yjbYthvMCK6oHA5EZ5HV1V1EcGs9g5ovw953CBY9bRGQpoEAT6srNHZ4QC?cluster=devnet) · [3RgyjjTq…](https://explorer.solana.com/tx/3RgyjjTqA5HTzZMygAr3vsPN3xrEpC32P81dneVhfKWb6j82ED7HwGhmHvfZwcVpGcE5MHLBfR4uGcSUqwcMX7kY?cluster=devnet) |
+  | `add_to_blacklist` carol | 28,190 | [ibibCtaP…](https://explorer.solana.com/tx/ibibCtaPNxN2mP1VEJrtLmtLCi3txdVdo11asGLFxW3aYF5nZdE7iBm3zoK2XAmLRPYvib8pmahTT2AxDb5bpzk?cluster=devnet) |
+  | `thaw_account` issuer treasury; **crank on it refused in simulation (`TG:DENY:COMPLIANT`)** | 15,931 | [4CjcLdCo…](https://explorer.solana.com/tx/4CjcLdCoCqHYcETXYQWq4gKx4VE1VjumQ93SvrVs8doehsU9crAVPFj2qGBkMEFTSLKpcHdJouPPAyC9SRLpHc6o?cluster=devnet) |
+  | `seize` carol → treasury | 35,592 | [54t6k3Q1…](https://explorer.solana.com/tx/54t6k3Q1y47g8pnEovSEtCEXtPcTwezdC9uiTXzxa7MWL3KL1p9CJUfkifdHN6CwTtmR5g6Vz3fijgjMnrL5kbja?cluster=devnet) |
+
+  - Refused in simulation, not sent (as in S7b): the crank on bob (`COMPLIANT`), alice's transfer (0x11), alice's re-thaw (`NO_CREDENTIAL`), carol's thaw (`BLACKLISTED`) and carol's transfer (0x11).
+  - **`mint_tokens` is 33,627 on devnet vs 20,648 in S7b.** This mint's reserve PDA bump is 248, so Anchor's bump search tries 8 seeds; the localnet story mint's bump is 255. The gap, 12,979, equals the localnet +2,479 plus 7 × 1,500. Optimization for S15 in the handoff.
+  - **Cost:** `5BXg…` 31.135140293 → 31.064245653 SOL (0.070894640: rent, 4 × 0.01 wallet funding, the attestation, fees).
+- **Devnet keeper, no skip** (15:38:36–15:40:00 UTC, `KEEPER_SKIP_MINTS` unset; the log shows `skipMints: []`):
+  - **Coverage:** it tracked 3 mints (S7b `5632jF…`, S8 `4234DQ…`, S9 `D6Q5PA…`) and 15 token accounts (5 thawed, 10 frozen).
+  - **`GET /mints/5632jF…` → 200:**
+    - the treasury `9GezLRfYkpvLykk7v6qA6My5sLz3osTAy8bg5RTroHWK` (owner `5BXg…`) is `initialized`, and its owner's verdict is **`compliant:KYC`**: attestation present, `kycLevel` 2, expiry 1,822,405,001, blacklist `none`;
+    - bob is `compliant:KYC` too;
+    - alice and carol are frozen.
+  - **The gate's own word:** a simulated (not sent) `freeze_permissionless` on that treasury, signed by the keeper key, returns `TG:DENY:COMPLIANT` (6019 `DeniedCompliant`).
+  - **Result over 5 sweeps:** 0 freezes, failures, denials, skips or retries. The fee payer stayed at 0.04993 SOL, and there were no warn or error lines.
+  - **Stop:** it stopped 3 ms after SIGTERM. The RPC URL appears in neither the keeper log nor the story log.
+- **CI on `1ef417f`:**
+  - **Green:** Full CI, TypeScript Tests, and Gate Tests (run 36884215548: gate 48, story 7, keeper 8, revoke→freeze p50 816 ms).
+  - **Red, CI** (run 36884215518): clippy `needless_borrow` at `mint.rs:162`. I hadn't run clippy locally. Fixed. The rebuilt `sss_token.so` hashes the same as the deployed one (`b7ad86d3…`).
+  - **Anchor Integration** (run 36884215508): 68 / 7, known classes:
+    - races: SSS-1 Steps 04/08/09, SSS-2 Step 06
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
+- **Links:** the devnet txs above. Commits `e2cc307` (sss-token), `5e84baa` (attestor), `a4ad516` (SDK), `99e99b3` (tests), `f860a2c` (oracle retirement), `1ef417f` (docs), and this log, the keeper verdict and the clippy fix.
+- **Next:** S10, sanctions policy, per the handoff at the top of this file.
