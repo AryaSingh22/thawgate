@@ -19,6 +19,7 @@
     "services/compliance-service",
     "services/webhook-service",
     "services/keeper",
+    "services/attestor",
     "tests"
   ],
   "scripts": {

@@ -1,0 +1,21 @@
+{
+    "name": "@thawgate/attestor",
+    "version": "0.1.0",
+    "private": true,
+    "description": "ThawGate reserve attestor: posts a mint's reserves from a JSON source to sss-token attest_reserves",
+    "main": "dist/main.js",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/main.js",
+        "typecheck": "tsc --noEmit && tsc --noEmit -p test/tsconfig.json",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@solana/kit": "5.5.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "typescript": "^5.4.0",
+        "vitest": "^4.0.18"
+    }
+}
