@@ -38,6 +38,8 @@ yarn workspace @thawgate/keeper build
 KEEPER_KEYPAIR=~/.keys/thawgate/keeper.json node services/keeper/dist/main.js   # RPC: HELIUS_DEVNET_RPC from .env
 ```
 
+**Issuer wallets need credentials too.** Under a SAS policy, the gate treats any thawed account whose owner has no live credential as freezable, including accounts the issuer thawed itself, such as its treasury. The keeper freezes them, and so could anyone (LOG.md S8). On devnet the issuer wallet `5BXg…` holds a demo attestation under the policy's credential (self-issued; the S9 story creates it if it is missing). So the keeper runs on every ThawGate mint, the S7b mint included, with no `KEEPER_SKIP_MINTS`. For mainnet, hold the treasury in a PDA allowlisted with `BypassForPdas` (PLAN.md S16).
+
 Docker: `docker compose --profile keeper up keeper`. The keeper is an opt-in profile, so a plain `docker compose up` leaves it out, because it needs a funded keypair and an RPC. The compose file reads `.env` for `HELIUS_DEVNET_RPC` and mounts the keypair from `KEEPER_KEYPAIR_FILE` as a secret. The rest of the compose file requires `POSTGRES_PASSWORD` to be set, even though the keeper doesn't use it.
 
 The image is built with `npm install --legacy-peer-deps`, because npm 10 crashes resolving the `@solana/*` peer sets (`Cannot read properties of null (reading 'edgesOut')`). Full CI builds the image but doesn't start it.
@@ -60,7 +62,12 @@ The image is built with `npm install --legacy-peer-deps`, because npm 10 crashes
   - `_freeze_latency_seconds{trigger}`, a histogram from trigger seen to freeze confirmed
   - `_sweeps_total`, `_last_sweep_timestamp_seconds`, `_last_sweep_cluster_time_seconds`, `_sweep_duration_seconds`
   - `_tracked_{mints,token_accounts,owners}`, `_ws_connected{stream}`, `_triggers_total{source}`, `_fee_payer_lamports`
-- `GET /mints/:mint`: the index for one mint: token accounts, owners, and their last reads.
+- `GET /mints/:mint`: the index for one mint: token accounts, owners, and their last reads. A mint excluded by `KEEPER_MINTS` / `KEEPER_SKIP_MINTS` isn't tracked and returns 404. Each owner of a thawed account has a `verdict` at the last sweep's cluster time (`clusterTime`):
+  - `compliant:<CODE>`, with the code the gate's thaw would log (`KYC`, `PDA_ALLOWLISTED`, `ALLOWLISTED`, `CLEAN`);
+  - `freezable:<REASON>`, a freeze candidate (`NO_CREDENTIAL`, `BLACKLISTED`, …);
+  - `unknown`, when a read is missing or malformed, or no sweep has run yet. The keeper never freezes an unknown.
+
+  The gate still decides every freeze in preflight.
 
 ## Tests
 - `yarn workspace @thawgate/keeper test`: vitest suite.

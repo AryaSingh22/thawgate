@@ -58,3 +58,25 @@ export function freezeReason(policy: GatePolicy, reads: OwnerReads, now: bigint)
   if (credential === "levelTooLow") return "KYC_LEVEL_TOO_LOW";
   return null;
 }
+
+/**
+ * One owner's standing, for GET /mints/:mint. `compliant:<CODE>` uses the code the gate's thaw would log
+ * (decision.rs `admitted_by`: KYC, PDA_ALLOWLISTED, ALLOWLISTED, CLEAN). `freezable:<REASON>` is a freeze candidate.
+ * `unknown` means a read is missing or malformed, or no sweep has read the cluster clock yet; the keeper never freezes
+ * on an unknown.
+ */
+export function ownerVerdict(policy: GatePolicy, reads: OwnerReads, now: bigint | undefined): string {
+  if (now === undefined) return "unknown";
+  const reason = freezeReason(policy, reads, now);
+  if (reason) return `freezable:${reason}`;
+  // freezeReason is null both for a compliant owner and for one it can't judge yet.
+  const blacklist = policy.checkBlacklist ? reads.blacklist : "none";
+  const allowlist = policy.allowlistMode !== "off" ? reads.allowlist : "none";
+  if (blacklist === undefined || allowlist === undefined || blacklist === "bad" || allowlist === "bad") return "unknown";
+  if (policy.requireSas) {
+    if (policy.allowlistMode === "bypassForPdas" && allowlist === "active" && reads.ownerOffCurve) return "compliant:PDA_ALLOWLISTED";
+    if (reads.attestation === undefined || credentialState(reads.attestation, policy.minKycLevel, now) !== "valid") return "unknown";
+    return "compliant:KYC";
+  }
+  return allowlist === "active" ? "compliant:ALLOWLISTED" : "compliant:CLEAN";
+}

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { address } from "@solana/kit";
 import { AllowlistMode, AttestationRead, EntryRead, GatePolicy } from "../src/accounts";
-import { credentialState, freezeReason, OwnerReads } from "../src/policy";
+import { credentialState, freezeReason, OwnerReads, ownerVerdict } from "../src/policy";
 
 const K = address("11111111111111111111111111111111");
 const policy = (p: Partial<GatePolicy> = {}): GatePolicy => ({
@@ -99,5 +99,30 @@ describe("credential state (sas.rs)", () => {
     expect(credentialState(at(NOW - 1n, 2), 3, NOW)).toBe("expired"); // expired whatever the level
     expect(credentialState(at(NOW + 1n, undefined), 0, NOW)).toBe("valid");
     expect(credentialState(at(NOW + 1n, undefined), 1, NOW)).toBe("bad");
+  });
+});
+
+describe("ownerVerdict (GET /mints/:mint)", () => {
+  const sas = policy({ checkBlacklist: true, requireSas: true, minKycLevel: 1 });
+
+  it("names the code the gate's thaw would log for a compliant owner", () => {
+    expect(ownerVerdict(sas, reads({ attestation: valid }), NOW)).toBe("compliant:KYC");
+    expect(ownerVerdict(policy(), reads(), NOW)).toBe("compliant:CLEAN");
+    expect(ownerVerdict(policy({ allowlistMode: "allowOnly" }), reads({ allowlist: "active" }), NOW)).toBe("compliant:ALLOWLISTED");
+    const bypass = policy({ requireSas: true, allowlistMode: "bypassForPdas" });
+    expect(ownerVerdict(bypass, reads({ allowlist: "active", ownerOffCurve: true, attestation: missing }), NOW)).toBe("compliant:PDA_ALLOWLISTED");
+  });
+
+  it("freezable:<reason> exactly when freezeReason flags the owner", () => {
+    expect(ownerVerdict(sas, reads({ attestation: missing }), NOW)).toBe("freezable:NO_CREDENTIAL");
+    expect(ownerVerdict(sas, reads({ attestation: expired }), NOW)).toBe("freezable:CREDENTIAL_EXPIRED");
+    expect(ownerVerdict(sas, reads({ blacklist: "active", attestation: valid }), NOW)).toBe("freezable:BLACKLISTED");
+  });
+
+  it("unknown until every read and the cluster clock are in", () => {
+    expect(ownerVerdict(sas, reads({ attestation: valid }), undefined)).toBe("unknown");
+    expect(ownerVerdict(sas, reads({ attestation: undefined }), NOW)).toBe("unknown");
+    expect(ownerVerdict(sas, reads({ blacklist: undefined, attestation: valid }), NOW)).toBe("unknown");
+    expect(ownerVerdict(sas, reads({ attestation: { kind: "bad" } }), NOW)).toBe("unknown");
   });
 });

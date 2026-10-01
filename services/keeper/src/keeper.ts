@@ -45,7 +45,7 @@ import { KeeperConfig, Logger } from "./config";
 import { Freezer, Outcome, Trigger } from "./freezer";
 import { HolderIndex, MintEntry, OwnerFacts } from "./holders";
 import { Metrics } from "./metrics";
-import { freezeReason } from "./policy";
+import { freezeReason, ownerVerdict } from "./policy";
 
 type RawAccount = { owner: Address; data: Uint8Array } | null;
 
@@ -167,12 +167,15 @@ export class Keeper {
     if (!entry) return undefined;
     const attestation = (r: OwnerFacts["reads"]["attestation"]) =>
       r?.kind === "present" ? { kind: r.kind, expiry: r.expiry.toString(), kycLevel: r.firstByte } : r;
+    const now = this.lastSweep?.clusterTime;
     return {
       mint,
       policy: entry.policy,
+      clusterTime: now?.toString(),
       accounts: [...entry.accounts].map(([address, a]) => ({ address, owner: a.owner, state: a.state })),
       owners: [...entry.owners.values()].map((o) => ({
         owner: o.owner,
+        verdict: ownerVerdict(entry.policy, o.reads, now),
         attestationPda: o.attestationPda,
         reads: { ...o.reads, attestation: attestation(o.reads.attestation) },
       })),

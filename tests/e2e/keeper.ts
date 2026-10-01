@@ -443,7 +443,10 @@ describe(`S8 keeper: revoke, blacklist, expiry and policy freezes with no manual
     const sweepsBefore = counter(await metricsText(), "thawgate_keeper_sweeps_total");
     await waitFor("one more sweep", async () => counter(await metricsText(), "thawgate_keeper_sweeps_total") > sweepsBefore, 3 * sweepMs + 30_000, 500);
     assert.equal(await tokenAccountState(treasury), "initialized");
-    rows.push(`  issuer treasury (owner ${issuer.toBase58()}, credential ${live.exists ? "reused" : "issued"}): still thawed after a sweep`);
+    const { body } = await getJson(`/mints/${mint.toBase58()}`);
+    const owner = body.owners.find((o: any) => o.owner === issuer.toBase58());
+    assert.equal(owner?.verdict, "compliant:KYC", JSON.stringify(owner));
+    rows.push(`  issuer treasury (owner ${issuer.toBase58()}, credential ${live.exists ? "reused" : "issued"}): still thawed after a sweep; keeper verdict ${owner.verdict}`);
   });
 
   it("5. policy tightening (min_kyc_level 1 -> 3): the level-2 holder is frozen, the level-3 one is not", async () => {
