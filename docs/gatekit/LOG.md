@@ -2,33 +2,38 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S7b handoff (read first; remove when S7 ends)
-S7a (entry at the bottom) ran the whole PLAN.md S7 story on localnet (`yarn test:story`, 7 passing, twice) and wrote `scripts/deploy-devnet-acl.sh`. The script has a dry run, and a local rehearsal really deployed with it. S7a also guarded the SAS spike's schema step. **Nothing has been sent to devnet.** S7b, in order (Wed 30 is the buffer + C1):
-1. **Helius URL (user).** `HELIUS_DEVNET_RPC` in `~/thawgate/.env` gets HTTP 401 on every method, `getHealth` included. Its api-key is 8 characters; Helius keys are 36-character UUIDs. Once it's fixed, run the config survey (read-only, timebox 20 minutes): `npx ts-node --transpile-only scripts/survey-legacy-configs.ts`. Record the count by size, the 0-spare outliers and any non-zero mode bytes.
-2. **Approvals before any devnet transaction (user):**
-   - the `sas-credential.ts` schema diff (S7a entry; commit `5bbcfa2`);
-   - the gate's upgrade authority: the script defaults to `5BXg…` (`GATE_AUTHORITY=<keypair>` overrides). Add it to the CLAUDE.md programs table;
-   - the deploy, after a dry run through Helius.
-3. **Demo credential + schema:** `CLUSTER=devnet npx ts-node --transpile-only scripts/spikes/sas-credential.ts credential schema`. The payer and credential authority is the spike payer `5avMn…`, which has held 1 SOL since 2026-09-29. It creates `BYSdZK…` and `Fovh6z…`. The spike's devnet RPC is the public endpoint, not Helius. The other steps (`holder attest verify close`) only exercise a throwaway holder.
-4. **Deploy:** `DRY_RUN=1 scripts/deploy-devnet-acl.sh`, compared with the S7a dry run; then `scripts/deploy-devnet-acl.sh`, which asks for `deploy` (`YES=1` skips the prompt).
-   - Expect about 1,260 transactions. 5BXg needs 4.83 SOL at the peak and pays ≈ 0.67 SOL net. Fees ≈ 0.0078 SOL (measured in the rehearsal; they don't depend on rent). Both extends cost only the fee.
-   - On failure the script prints the buffer address and the `solana program close` command. A rerun resumes the buffer and skips whatever already matches on chain.
-   - The CLI is 3.0.14 and devnet runs Agave 4.3.0; the rehearsal validator was 3.0.14. If the deploy fails feature verification, stop and report. Don't add `--skip-feature-verify`.
-   - Record the three final signatures (the masked log is in `~/.cache/thawgate/deploy-devnet-acl-*.log`), the real tx counts and fees. Update DEPLOYMENT.md. The Anchor IDL upload isn't in the script (optional).
-5. **Devnet story:** `CLUSTER=devnet npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`.
-   - The payer is `5BXg…` and the SAS issuer `5avMn…` (`tests/e2e/cluster.ts`). Keys are fresh each run, and it funds 4 wallets with 0.01 SOL each.
-   - It prints explorer links and CU per step. Copy them into the log, and label the credential self-issued.
-6. **Legacy e2e** (`anchor test`, 6–7 failing per run, all known; untouched in S7a):
-   - Read-after-write races: `.rpc({ commitment: "confirmed", preflightCommitment: "confirmed" })`. `commitment` alone gets "Blockhash not found".
-   - `transfer_authority` back to a previous holder fails "already in use" (SSS-1 Step 16, SSS-2 Step 15). That's a program fix: `new_master_role` is `init`.
-7. **Carried to S7 or the buffer:** the gate/sas fixture conversion and the Both-mode test (PLAN.md S7). `add_to_allowlist_v3` needs `enable_allowlist` (`initArgs` sets it false). Expected Both-mode limit: the hook rejects `seize` while paused.
+## ▶ S8 handoff (read first; remove when S8 ends)
+S7 is done (S7b entry at the bottom). The Token ACL release is on devnet, the S7 story passes there (7/7), and C1 is tagged `c1-core`.
+
+State on devnet (2026-10-01):
+- **Programs** (= `target/deploy` at `c1-core`; DEPLOYMENT.md has signatures and hashes):
+  - gate `THAW2da…`, upgrade authority `5BXg…`
+  - sss-token `HLvh…`, upgrade authority `5BXg…`
+  - hook `2wcw…`, upgrade authority `3YnV…`
+- **Demo SAS credential** `BYSdZK…` and schema `Fovh6z…` (`thawgate-demo-kyc` v1). The authority is the spike payer `5avMn…`. It's self-issued demo KYC; label it so.
+- **RPC:** `~/thawgate/.env` holds `HELIUS_DEVNET_RPC` (mode 600), and every script reads it directly.
+- **Balances:** `5BXg…` 31.5086, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
+
+S8, in order (PLAN.md S8, the keeper):
+1. **CI on the S7b push:** `gh run list -R AryaSingh22/thawgate --commit <full sha of c1-core>`. Record the result in the S7b entry.
+2. **Keeper:** the story's step 5 is its manual version: SAS `close_attestation` → keeper `freeze_permissionless` → `TG:ALLOW:NO_CREDENTIAL`. The CloseAttestationEvent has no holder in it (seen again on devnet in S7b), so the keeper derives the attestation PDA for each holder it tracks. A devnet freeze costs 35,143 CU (gate 4,824).
+3. **Done when:** a revoke on devnet freezes the account with no manual step, and the revoke→freeze latency (p50 over 10 runs) is in LOG.md.
+
+Carried, not done in S7:
+- **Legacy e2e** (`anchor test`, 5–7 failing per run, all known classes):
+  - read-after-write races: `.rpc({ commitment: "confirmed", preflightCommitment: "confirmed" })`;
+  - `transfer_authority` "already in use": a program fix, `new_master_role` is `init`.
+- **Fixtures and tests:** the gate/sas fixture conversion and the Both-mode test (PLAN.md S7 carry list).
+- **Build-in-public thread** with the devnet links (user, C1).
 
 Gotchas:
-- Never print `.env`. `solana` CLI errors contain the full RPC URL (the S7a 401 error did). The deploy script masks it; mask the output of any other command yourself.
-- `yarn test:story` is `GENESIS_FIXTURES=0 GATE_TESTS=tests/e2e/acl-story.ts scripts/test-gate.sh`.
-- A background job in a non-interactive shell starts with SIGINT ignored. To interrupt a scripted run, send SIGTERM (as the rehearsal does).
-- In WSL, `gh` resolves to the upstream fork. Use `gh run list -R AryaSingh22/thawgate --commit <full sha>`.
-- Token-2022 errors as logged: `MintPaused` = 0x43, `AccountFrozen` = 0x11.
+- **Agave 4.x:** `ExtendProgram` needs ≥ 10,240 bytes, or an extension to the maximum size. The 3.0.14 rehearsal validator can't catch this; `deploy-devnet-acl.sh` handles it (`MIN_EXTEND`).
+- **Devnet CU ≠ localnet CU** for the same story (Agave 4.3.0 vs 3.0.14, fresh keys), but the gate frames are identical. Quote devnet numbers as devnet.
+- **Devnet story command:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`. `yarn test:story` is localnet only: `test-gate.sh` sets `ANCHOR_WALLET=test-keypair.json`, which `cluster.ts` keeps.
+- **Secrets:** never print `.env`. `solana` CLI errors contain the full RPC URL; mask them. The Windows-side old repo's `.env` (`solana-stablecoin-standard\.env`) holds the same key; `~/thawgate/.env` is the one the repo reads.
+- **SIGINT:** a background job in a non-interactive shell starts with SIGINT ignored. To interrupt a scripted run, send SIGTERM.
+- **gh:** in WSL, `gh` resolves to the upstream fork. Use `-R AryaSingh22/thawgate` and the full 40-character SHA.
+- **Token-2022 errors** as logged: `MintPaused` = 0x43, `AccountFrozen` = 0x11.
 - `transfer_authority` doesn't move the gate policy admin (S6a, for the S16 docs).
 
 ## S0 · 2026-09-24 · Baseline, name, repo, CLAUDE.md
@@ -439,3 +444,51 @@ Gotchas:
   - Devnet (Agave 4.3.0) rejected the transfer hook's 4,624-byte extend in simulation (`invalid program argument`). The loader logged: "ExtendProgram requires a minimum of 10240 additional bytes or to extend to maximum size, but only 4624 were requested". Nothing was sent for the hook. sss-token's extend (116,368 B) had passed minutes before.
   - The S7a local rehearsal can't catch this. Its validator is Agave 3.0.14, which has no minimum. The rehearsal stays useful for counts, fees and resume, but not for loader rules that only 4.x has.
   - Fix `4c6f71f`: `deploy-devnet-acl.sh` extends by max(needed, `MIN_EXTEND` = 10,240). For the hook that is 10,240 B for 4,624 needed. Its ProgramData already held more than the rent for the larger size, so the extend costs only the fee. 0.0285 SOL more stays in the hook's ProgramData than the S7a plan said.
+- **Approvals (user):** the `sas-credential.ts` schema diff; the gate's upgrade authority = `5BXg…` (CLAUDE.md table; `docs/SECURITY.md` TODO: mainnet upgrade authorities → multisig); the deploy after a dry run through Helius (2026-10-01; re-approved after the hook fix). The two 2026-09-29 18:04 transfers from `5BXg…` (S7a entry) were the user's.
+- **Helius:** `getHealth` = `ok` through `HELIUS_DEVNET_RPC` (2026-09-29 22:42 IST). `~/thawgate/.env` was empty (0 B since 22:24); the working 36-character key was in the Windows-side old repo's `.env`. Until the deploy finished, the scripts got it through the environment (the deploy as `RPC_URL`, still masked). After the deploy, the line was copied into `~/thawgate/.env` (mode 600, git-ignored), and the story read it from there. The URL was never printed.
+- **Legacy config survey** (`scripts/survey-legacy-configs.ts`, Helius, 1.6 s, 2026-09-29): **0** StablecoinConfig accounts. Cross-check: 0 accounts of any kind owned by sss-token on devnet, through Helius and the public RPC; the discriminator `7f19f4d5…` matches the IDL. The 350 → 351-byte layout change has nothing to migrate on devnet.
+- **Shipped: the Token ACL release on devnet** (`scripts/deploy-devnet-acl.sh` at `4c6f71f`, through Helius; DEPLOYMENT.md has the record).
+  - Run 1 (2026-10-01 10:50 UTC): gate first deploy [54kMBaGM…](https://explorer.solana.com/tx/54kMBaGM1LYZAomTrwGTutAFZKdYBS8ETy3bqif53V5qecvnHLnJGfEG8WacoGbRLqJZomwyWnCddch7WMTrMJMe?cluster=devnet); sss-token extend +116,368 B [LQ4mBfre…](https://explorer.solana.com/tx/LQ4mBfredv1V9BoN15tLCt5wLeRuWMoGt59s4ZAcBkPd97PfY3SMaZ5BMVqw3gaK8fFi343TogeEJESuyzuaTQg?cluster=devnet) and upgrade [5475i54L…](https://explorer.solana.com/tx/5475i54LXcQkaYcqwvv957uhhZ5tjrqy4rQ6JPvuLM8NtTr2oruE2fEVt3cMXJkWc814KE9PMJjUwpdV5BA6spYj?cluster=devnet). Then the hook extend was refused (above).
+  - Run 2 (10:58 UTC, after `4c6f71f`): gate and sss-token skipped as "same"; hook extend +10,240 B [tbpaeL5K…](https://explorer.solana.com/tx/tbpaeL5K4CvqxFQJxCqPYVFycR5oQyu9cFYxQsQaeaS7zSkD4XaFExRDZb4ajifmc1roCunTcL7u8UurcpoPasY?cluster=devnet) (paid by `3YnV…`) and upgrade [3Y9AjRxK…](https://explorer.solana.com/tx/3Y9AjRxK82VkiQWbVVnnPLnqbmSDBnFwfzLnfcXiM2eSS97phRop3yoJUReRNZFtAQuPrTpkgBUcXPvE9dgb7D56?cluster=devnet).
+  - **On chain = local build:** for each program, the first N bytes of `solana program dump` hash to the local `.so` (gate `09b46b84…`, sss-token `7ab99760…`, hook `edad2ef5…`), and every byte after them is zero. Upgrade authorities: gate and sss-token `5BXg…`, hook `3YnV…`. The used buffers are closed (AccountNotFound).
+  - **Measured:** 1,261 transactions, 0 failed: 1,260 paid by `5BXg…` (994 in run 1, 266 in run 2) and 1 by `3YnV…`. The dry run predicted ~1,260. Sending took 45 s + 21 s. No 429s and no feature-verification error on Agave 4.3.0.
+  - Fees: 7,813,742 lamports (the balance change minus the exact rent moves), the same figure as the S7a rehearsal.
+  - `5BXg…` 32.262296080 → 31.575396538 SOL (−0.686899542): the gate's ProgramData and program account (1.474993240) less the sss-token spill (0.427609400) and the hook spill (0.368298040), plus fees. The S7a plan said ≈ 0.6708 with an upper bound on fees; the gap is the hook's larger ProgramData. `3YnV…` paid 5,000 lamports.
+- **Demo SAS credential on devnet** (`CLUSTER=devnet scripts/spikes/sas-credential.ts`, public RPC, payer and credential authority `5avMn…`). Self-issued demo KYC, not a real provider:
+  - credential `BYSdZKskggc4vxQs97KFXY6G5c3dA8x8zQy61VgjBwRc` "ThawGate Demo KYC" [5zzfrMWd…](https://explorer.solana.com/tx/5zzfrMWdYZuY9w88whN5vDVjj8CegHNEanoiLzo6vMdeDwwX9mvjA6qyFRxV9dQVah4Ao9GBN6R1xCuoqNbZa1s7?cluster=devnet) (4,710 CU)
+  - schema `Fovh6zUrtq6CW52hwkwuW4sx4wPc3a8tECPV8tvDkVrT` "thawgate-demo-kyc" v1, `kyc_level: u8, country: String` [JdHD2Qxj…](https://explorer.solana.com/tx/JdHD2QxjHLftrP7eQAf6QGZj1JMht1GfPTYWo9NNhixudeU5fjSFQgNiZQ5FJPhiVtWygLSgqmspsPnDXCMvxsL?cluster=devnet) (5,412 CU)
+  - throwaway holder `73eXpeuQ…`, its mint and ATA [5ZPF7tgA…](https://explorer.solana.com/tx/5ZPF7tgASw5yFysoPVCniF5h7BVUFDsZ6HVX2we1639JNurBbH336msxjpanX7zwnUedb6cku1VD5Wu2tPupaPV5?cluster=devnet) (18,967 CU); attestation `HCLb1Q3b…` (`kyc_level` 2, "IN", 1-year expiry, 180 B) [4btapyJN…](https://explorer.solana.com/tx/4btapyJNDC54fWvBjb5oohuLeZ2LTvCnfeLjLwMakdd1mBdeYsomoR8c5eBaaaPAK5eqcmAdpfNS7LHXwwQ7ji7W?cluster=devnet) (5,878 CU)
+  - `verify`: all 17 checks true (PDA by hand, sas-lib and the extra-meta resolver; `kyc_level` 2 at byte 101). `close` [54W6fdWD…](https://explorer.solana.com/tx/54W6fdWDSMhf37NLBYTndnTcnjVqsZ4p2oEyn52BC2MvNHB3Cz7JhgtLtC3pct6TANkfvkPuQey6APirpmeaDZ59?cluster=devnet) (3,010 CU): the account is gone, and the CloseAttestationEvent doesn't contain the holder. The credential and schema stay.
+  - `5avMn…` 1 → 0.99475284 SOL.
+- **Shipped: the S7 story on devnet: 7 passing** (2026-10-01 11:01:57 → 11:03:22 UTC).
+  - Command: `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`, with no local validator. `yarn test:story` isn't usable for devnet: `test-gate.sh` sets `ANCHOR_WALLET=test-keypair.json`, which `cluster.ts` keeps (`??=`), and it starts a validator.
+  - Payer and issuer `5BXg…`; SAS issuer `5avMn…`, credential `BYSdZK…`. Fresh keys: mint `5632jFw8mU2hAjP2p8jNcCG9CW2MdeikDkbpd4Knr2G6`, alice `AWEuwyPV…`, bob `HtNxwm5y…`, carol `FMXLSEm9…`, keeper `3UEMovjf…`.
+
+  | Step | devnet CU (program frames) | localnet S7a | tx |
+  |---|---|---|---|
+  | SAS `create_attestation` alice / bob / carol | 5,877 / 13,377 / 8,877 | 5,676 / 10,176 / 16,176 | [66ZdHiHk…](https://explorer.solana.com/tx/66ZdHiHkovQYtFmjrfFyUNmidF459pqMrPTUEEkp4U7gk9FWHHB8YTgDGhxHADkb3bq7PX55PT9dMXFxr9tr6i1A?cluster=devnet) · [3zodtGkX…](https://explorer.solana.com/tx/3zodtGkXkAH7CK1MJnNYXwxrCn88kscA8rpE56hBSk27E9H1WQH4iS4PYWyJNdaGZeindw4TWAhRKHHWiZ2LDXov?cluster=devnet) · [43yTKYTW…](https://explorer.solana.com/tx/43yTKYTW1u21J76LzVy42q9889eMcgWR5R5gsih7HwHhpwjpXZAjui7KX11iLuHjGUWZw1u2sPUCTyjwgG2etPbJ?cluster=devnet) |
+  | sss-token `initialize` (Acl) | 66,205 | 54,745 | [4rVunmh5…](https://explorer.solana.com/tx/4rVunmh5FR9ttG5UHLk2aB9r1bNs6dxNDVCGmaAxABCbD5bcmAiSn9weVtAf5ejtFw4Tg5f6QyNNRcsWYDi7iPgk?cluster=devnet) |
+  | `enable_token_acl`, SAS + blacklist policy | 86,477 (Token ACL 14,072 + 612, gate 31,696) | 81,282 (12,788 + 612, gate 30,574) | [gVbmsqbQ…](https://explorer.solana.com/tx/gVbmsqbQKbLwGT13YVUUSUVWT1xp8QNBYSiYASKTXKK3Pfj7WgbxHfE3vBPMXKN3z1DgCr3krtumi3vk7mgq6gA?cluster=devnet) |
+  | alice creates her ATA (frozen) | 20,567 | – | [5HcYTyMn…](https://explorer.solana.com/tx/5HcYTyMnFpHvPtDDcePvH3GjUMrSKb8KhYEirdfepKmFdKjmne7e6rj3Fo7qKW6UQMJBF7NdTsvDa6UgTV19WPT9?cluster=devnet) |
+  | alice's own `thaw_permissionless` (`TG:ALLOW:KYC`) | 36,867 (gate 5,203) | 47,578 (gate 5,203) | [3PUYCbfA…](https://explorer.solana.com/tx/3PUYCbfAehKSZ8orHqXv4BfcJpsz36NBAHtJ7i9nHyQ59sAYaTmuLmnuuQUggBYkcWPyYV4Gi4sXUbzB4mtGzkk5?cluster=devnet) |
+  | `mint_tokens` 1,000 to alice | 20,648 | 20,702 | [4DaV6ipn…](https://explorer.solana.com/tx/4DaV6ipn2xo5Hxw2N7Zk1mfcLfZvjiia7e9Up1CR6kHqjDhun2BmcKAquJkWEBqfkGhbrqf99iyzanvZxJtxRHux?cluster=devnet) |
+  | alice → bob 250 (`transfer_checked`) | 3,556 | 3,556 | [5HsQCXYa…](https://explorer.solana.com/tx/5HsQCXYa2hFVaA3yHijt8b3cz3BHMWCo6phgsa9ZPwT7dGyZ1UmjmrAC9LQqLXB9SaWCzG8vbouNTf1DbGiVZZnq?cluster=devnet) |
+  | keeper freeze on bob | refused in simulation, `TG:DENY:COMPLIANT`, not sent | same | – |
+  | SAS `close_attestation` (alice revoked) | 3,009 | 3,063 | [4pBhzUoE…](https://explorer.solana.com/tx/4pBhzUoExoWbzKRASBoqc7BQYCNMCivCcSFx9DWro87CtbuRnW3JkmVqPXsMNdF6nj1nAs1RBnZkZvWqyh9mCVjW?cluster=devnet) |
+  | keeper `freeze_permissionless` on alice (`TG:ALLOW:NO_CREDENTIAL`) | 35,143 (gate 4,824) | 47,354 (gate 4,824) | [5WwdnLKE…](https://explorer.solana.com/tx/5WwdnLKEofMpzPt7fVbtDR3Wubo32Qr5NFd6SGf15Yh8WDHyLQhXPkpjxxQMZrm9gy8UWqLrGLjL8u1tN27FsAeo?cluster=devnet) |
+  | alice → bob 1; alice's re-thaw | refused in simulation: 0x11 (`AccountFrozen`); `TG:DENY:NO_CREDENTIAL` | same | – |
+  | bob → carol 100 | 3,556 | 3,556 | [2zSB9AeH…](https://explorer.solana.com/tx/2zSB9AeHLFeYa1ULfCeYH2wZi6kYLnxBkqF3LZhEie8Kuk43MWY7g9tjLMtijG9PtX3VvunAqXDEPKb1QpuQWkdb?cluster=devnet) |
+  | `add_to_blacklist` carol (entry + Token ACL freeze) | 26,669 (Token ACL 4,827) | 26,830 (4,881) | [5N3qAwth…](https://explorer.solana.com/tx/5N3qAwthqX1x3Er5173xPeDNxKkr88H6zVNbCps3QN4KmgT6C8jqEQf8AGcCMhPnYhNAYii3gGfP1LeGHVHrokWq?cluster=devnet) |
+  | carol's thaw; carol → bob 1 | refused in simulation: `TG:DENY:BLACKLISTED`; 0x11 | same | – |
+  | sss-token `thaw_account` (treasury) | 17,431 (Token ACL 4,829) | 16,038 (4,883) | [25XNYoh5…](https://explorer.solana.com/tx/25XNYoh5YkvT8atSxYjqSYGzeNV7fUfugn8JokdBd9e6CBniw8Tvf1PGeNHn7NNagdJ5ALF8x6SGvizYFhZ4JPAE?cluster=devnet) |
+  | `seize` carol → treasury | 37,092 (Token ACL 4,829 + 4,827) | 35,859 (4,883 + 4,881) | [5kPvrUS3…](https://explorer.solana.com/tx/5kPvrUS3w6gyiLDttqMbxgspEhJazLP8qMdcd6M3Mzkk2ZZ9ubkFUL9wWZp7RR6YKg5rNpuBJuCFrqCb4d5ZhAj3?cluster=devnet) |
+
+  - **Devnet CU ≠ localnet CU, and the gate frames are identical** (thaw 5,203, freeze 4,824). Devnet's Token ACL, Token-2022 and SAS are byte-identical to `tests/fixtures` (sha256 checked 2026-10-01). So the differences come from the runtime (Agave 4.3.0 vs 3.0.14) or from the fresh keys. PDA bump searches vary per key: the three SAS attestations differ by multiples of 1,500 CU, on devnet and on localnet. Not broken down further. Quote devnet numbers as devnet.
+  - Cost: `5BXg…` 31.575396538 → 31.508641618 SOL (0.066754920: rent for the mint and accounts, 4 × 0.01 SOL funding, fees).
+- **Checks:**
+  - `anchor build` 23.8 s warm (IDL builds included), 0 warnings; the three `.so` hashes are unchanged. `verify-ids.sh` OK, now also requiring the gate's ID in DEPLOYMENT.md.
+  - Devnet story 7 passing; spike `verify` all true.
+  - Not run in S7b: `cargo test`, `yarn test:gate`, the localnet story. S7b changed only `scripts/deploy-devnet-acl.sh`, `scripts/verify-ids.sh` and docs; programs and tests are as in S7a.
+- **Not done in S7 (carried to S8's handoff):** the legacy e2e fixes, the gate/sas fixture conversion and the Both-mode test. C1 was due Wed 30; `c1-core` is tagged on 2026-10-01.
+- **Links:** the deploy, credential and story txs above. Commits `4c6f71f` (MIN_EXTEND), `d5e63ed` (log), `61d5739` (authority + TODO), `d273ed2` (deploy record), and this log + handoff. Tag `c1-core`.
+- **Next:** S8, the keeper, per the handoff at the top of this file.
