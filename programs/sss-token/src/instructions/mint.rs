@@ -159,7 +159,7 @@ pub fn mint_handler(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
     }
 
     let clock = Clock::get()?;
-    check_reserve_attestation(&ctx.accounts, amount, clock.unix_timestamp)?;
+    check_reserve_attestation(ctx.accounts, amount, clock.unix_timestamp)?;
 
     let mint_key = ctx.accounts.config.mint;
     let config_seeds = &[SEED_CONFIG, mint_key.as_ref()];
