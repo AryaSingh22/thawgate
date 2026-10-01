@@ -433,3 +433,9 @@ Gotchas:
     - SSS-2 Step 16, downstream
 - **Links:** no devnet tx sent by S7a. Commits `34edb51` (story + harness), `18cecd2` (deploy script + rehearsal), `5bbcfa2` (schema guard), `4d8a1b1` (survey script), `b0cff26` (log).
 - **Next:** S7b, per the handoff at the top of this file.
+
+## S7b · 2026-09-29 → 2026-10-01 · Devnet deploy of the Token ACL release
+- **Agave 4.x: `ExtendProgram` needs at least 10,240 bytes, or an extension to the maximum size.**
+  - Devnet (Agave 4.3.0) rejected the transfer hook's 4,624-byte extend in simulation (`invalid program argument`). The loader logged: "ExtendProgram requires a minimum of 10240 additional bytes or to extend to maximum size, but only 4624 were requested". Nothing was sent for the hook. sss-token's extend (116,368 B) had passed minutes before.
+  - The S7a local rehearsal can't catch this. Its validator is Agave 3.0.14, which has no minimum. The rehearsal stays useful for counts, fees and resume, but not for loader rules that only 4.x has.
+  - Fix `4c6f71f`: `deploy-devnet-acl.sh` extends by max(needed, `MIN_EXTEND` = 10,240). For the hook that is 10,240 B for 4,624 needed. Its ProgramData already held more than the rent for the larger size, so the extend costs only the fee. 0.0285 SOL more stays in the hook's ProgramData than the S7a plan said.
