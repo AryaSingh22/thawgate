@@ -46,7 +46,8 @@ pub mod sss_token {
 
     /// Mints tokens to a recipient.
     ///
-    /// Validates minter role, pause state, and quota before minting.
+    /// Validates minter role, pause state, quota and the reserve attestation before minting:
+    /// `mint.supply + amount <= reserves` and `now - as_of <= max_staleness`.
     /// Creates recipient ATA if it doesn't exist.
     pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
         instructions::mint::mint_handler(ctx, amount)
@@ -155,6 +156,25 @@ pub mod sss_token {
     /// Requires compliance_mode Acl or Both and the MasterAuthority. The config PDA signs every CPI.
     pub fn enable_token_acl(ctx: Context<EnableTokenAcl>, policy: GatePolicyConfig) -> Result<()> {
         instructions::enable_token_acl::enable_token_acl_handler(ctx, policy)
+    }
+
+    // ====================================================================
+    // Reserve-backed mint (S9)
+    // ====================================================================
+
+    /// Sets the key that attests the mint's reserves and the staleness window (seconds).
+    ///
+    /// MasterAuthority only. Creates the ReserveAttestation on first use. A new attestor clears the posted
+    /// reserves, so minting waits for its first `attest_reserves`.
+    pub fn set_reserve_attestor(ctx: Context<SetReserveAttestor>, attestor: Pubkey, max_staleness: i64) -> Result<()> {
+        instructions::reserves::set_reserve_attestor_handler(ctx, attestor, max_staleness)
+    }
+
+    /// Posts the mint's reserves (in the mint's base units), measured at `as_of` (unix seconds).
+    ///
+    /// Signed by the attestor. `as_of` may not be in the future or older than the stored one.
+    pub fn attest_reserves(ctx: Context<AttestReserves>, reserves: u64, as_of: i64, report_uri: String) -> Result<()> {
+        instructions::reserves::attest_reserves_handler(ctx, reserves, as_of, report_uri)
     }
 
     // ====================================================================

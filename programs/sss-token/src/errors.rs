@@ -151,4 +151,30 @@ pub enum SssError {
     /// The mint's freeze authority is neither this config nor its Token ACL MintConfig.
     #[msg("Unknown freeze authority: the mint's freeze authority is neither the config PDA nor the Token ACL MintConfig")]
     UnknownFreezeAuthority,
+
+    // S9: reserve-backed mint. Appended, so the codes above keep their numbers.
+
+    /// `mint.supply + amount` would exceed the attested reserves.
+    #[msg("Reserve insufficient: mint supply plus this amount would exceed the attested reserves")]
+    ReserveInsufficient,
+
+    /// The reserve attestation is older than its `max_staleness`.
+    #[msg("Reserve stale: the reserve attestation is older than max_staleness")]
+    ReserveStale,
+
+    /// A Token ACL mode mint has no `ReserveAttestation`.
+    #[msg("Reserve attestation missing: Acl and Both mode mints need a ReserveAttestation (set_reserve_attestor, then attest_reserves)")]
+    ReserveAttestationMissing,
+
+    /// `attest_reserves` was not signed by the attestor that MasterAuthority set.
+    #[msg("Not the reserve attestor: attest_reserves must be signed by the attestor set with set_reserve_attestor")]
+    NotReserveAttestor,
+
+    /// An `as_of` in the future or older than the stored one, `max_staleness` <= 0, or a report URI over 200 bytes.
+    #[msg("Invalid reserve attestation: as_of must be <= now and >= the stored as_of, max_staleness > 0, report_uri <= 200 bytes")]
+    InvalidReserveAttestation,
+
+    /// `add_to_blacklist`: the token account isn't owned by the wallet being blacklisted.
+    #[msg("Target account owner mismatch: target_token_account must be owned by the blacklisted wallet")]
+    TargetAccountOwnerMismatch,
 }

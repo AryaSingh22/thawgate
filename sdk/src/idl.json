@@ -234,7 +234,8 @@
         {
           "name": "target_token_account",
           "docs": [
-            "The target's token account to be frozen."
+            "The target's token account to be frozen. It must belong to `target`, so an entry for one wallet can't",
+            "freeze another wallet's account."
           ],
           "writable": true
         },
@@ -378,6 +379,90 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "attest_reserves",
+      "docs": [
+        "Posts the mint's reserves (in the mint's base units), measured at `as_of` (unix seconds).",
+        "",
+        "Signed by the attestor. `as_of` may not be in the future or older than the stored one."
+      ],
+      "discriminator": [
+        68,
+        20,
+        40,
+        240,
+        165,
+        2,
+        146,
+        10
+      ],
+      "accounts": [
+        {
+          "name": "attestor",
+          "docs": [
+            "The attestor set by MasterAuthority."
+          ],
+          "signer": true,
+          "relations": [
+            "reserve_attestation"
+          ]
+        },
+        {
+          "name": "reserve_attestation",
+          "docs": [
+            "The mint's reserve attestation."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  115,
+                  101,
+                  114,
+                  118,
+                  101,
+                  95,
+                  97,
+                  116,
+                  116,
+                  101,
+                  115,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "reserve_attestation.mint",
+                "account": "ReserveAttestation"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "reserves",
+          "type": "u64"
+        },
+        {
+          "name": "as_of",
+          "type": "i64"
+        },
+        {
+          "name": "report_uri",
+          "type": "string"
+        }
+      ]
     },
     {
       "name": "burn_tokens",
@@ -1176,7 +1261,8 @@
       "docs": [
         "Mints tokens to a recipient.",
         "",
-        "Validates minter role, pause state, and quota before minting.",
+        "Validates minter role, pause state, quota and the reserve attestation before minting:",
+        "`mint.supply + amount <= reserves` and `now - as_of <= max_staleness`.",
         "Creates recipient ATA if it doesn't exist."
       ],
       "discriminator": [
@@ -1350,6 +1436,45 @@
             "System program for account creation."
           ],
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "reserve_attestation",
+          "docs": [
+            "The mint's reserve attestation (S9). Always passed, so a caller can't skip the check by leaving it out;",
+            "it may not exist (Hook mode mints that never opted in)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  115,
+                  101,
+                  114,
+                  118,
+                  101,
+                  95,
+                  97,
+                  116,
+                  116,
+                  101,
+                  115,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
         }
       ],
       "args": [
@@ -1874,6 +1999,140 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "set_reserve_attestor",
+      "docs": [
+        "Sets the key that attests the mint's reserves and the staleness window (seconds).",
+        "",
+        "MasterAuthority only. Creates the ReserveAttestation on first use. A new attestor clears the posted",
+        "reserves, so minting waits for its first `attest_reserves`."
+      ],
+      "discriminator": [
+        63,
+        122,
+        156,
+        201,
+        184,
+        150,
+        75,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "The MasterAuthority; pays for the attestation account the first time."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "The stablecoin configuration PDA."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  116,
+                  97,
+                  98,
+                  108,
+                  101,
+                  99,
+                  111,
+                  105,
+                  110,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "config.mint",
+                "account": "StablecoinConfig"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority_role",
+          "docs": [
+            "The authority's MasterAuthority role record."
+          ]
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "reserve_attestation",
+          "docs": [
+            "The mint's reserve attestation, created on first use."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  115,
+                  101,
+                  114,
+                  118,
+                  101,
+                  95,
+                  97,
+                  116,
+                  116,
+                  101,
+                  115,
+                  116,
+                  97,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "System program for account creation."
+          ],
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "attestor",
+          "type": "pubkey"
+        },
+        {
+          "name": "max_staleness",
+          "type": "i64"
+        }
+      ]
     },
     {
       "name": "thaw_account",
@@ -2522,6 +2781,19 @@
       ]
     },
     {
+      "name": "ReserveAttestation",
+      "discriminator": [
+        105,
+        212,
+        95,
+        216,
+        140,
+        42,
+        205,
+        75
+      ]
+    },
+    {
       "name": "RoleRecord",
       "discriminator": [
         178,
@@ -2664,6 +2936,32 @@
         36,
         146,
         33
+      ]
+    },
+    {
+      "name": "ReserveAttestorSet",
+      "discriminator": [
+        100,
+        112,
+        135,
+        14,
+        59,
+        118,
+        196,
+        107
+      ]
+    },
+    {
+      "name": "ReservesAttested",
+      "discriminator": [
+        77,
+        249,
+        23,
+        254,
+        52,
+        235,
+        131,
+        145
       ]
     },
     {
@@ -2933,6 +3231,36 @@
       "code": 6034,
       "name": "UnknownFreezeAuthority",
       "msg": "Unknown freeze authority: the mint's freeze authority is neither the config PDA nor the Token ACL MintConfig"
+    },
+    {
+      "code": 6035,
+      "name": "ReserveInsufficient",
+      "msg": "Reserve insufficient: mint supply plus this amount would exceed the attested reserves"
+    },
+    {
+      "code": 6036,
+      "name": "ReserveStale",
+      "msg": "Reserve stale: the reserve attestation is older than max_staleness"
+    },
+    {
+      "code": 6037,
+      "name": "ReserveAttestationMissing",
+      "msg": "Reserve attestation missing: Acl and Both mode mints need a ReserveAttestation (set_reserve_attestor, then attest_reserves)"
+    },
+    {
+      "code": 6038,
+      "name": "NotReserveAttestor",
+      "msg": "Not the reserve attestor: attest_reserves must be signed by the attestor set with set_reserve_attestor"
+    },
+    {
+      "code": 6039,
+      "name": "InvalidReserveAttestation",
+      "msg": "Invalid reserve attestation: as_of must be <= now and >= the stored as_of, max_staleness > 0, report_uri <= 200 bytes"
+    },
+    {
+      "code": 6040,
+      "name": "TargetAccountOwnerMismatch",
+      "msg": "Target account owner mismatch: target_token_account must be owned by the blacklisted wallet"
     }
   ],
   "types": [
@@ -3641,6 +3969,187 @@
             "name": "timestamp",
             "docs": [
               "Unix timestamp."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReserveAttestation",
+      "docs": [
+        "The attested reserves for one mint.",
+        "",
+        "Derived as a PDA from `[SEED_RESERVE, mint.key()]`. MasterAuthority sets `attestor` and `max_staleness`",
+        "(`set_reserve_attestor`); only the attestor posts `reserves`, `as_of` and `report_uri` (`attest_reserves`)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "docs": [
+              "The mint these reserves back."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "attestor",
+            "docs": [
+              "The key whose signature `attest_reserves` requires."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "reserves",
+            "docs": [
+              "Reserves in the mint's **base units** (same decimals as the token: 1.00 of a 6-decimal coin is 1_000_000)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "as_of",
+            "docs": [
+              "Unix time (seconds) at which the attestor measured `reserves`. 0 until the first post."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "max_staleness",
+            "docs": [
+              "Seconds after `as_of` during which minting may rely on this attestation."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "report_uri",
+            "docs": [
+              "Where the attestor's report lives (max 200 bytes)."
+            ],
+            "type": "string"
+          },
+          {
+            "name": "posted_at",
+            "docs": [
+              "Cluster time of the last `attest_reserves`. 0 until the first post."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "docs": [
+              "PDA bump seed for this account."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "reserved",
+            "docs": [
+              "Zero. Room for an oracle-fed source (Switchboard, Chainlink) without a layout change."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReserveAttestorSet",
+      "docs": [
+        "Event emitted when MasterAuthority sets the attestor or the staleness window."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "docs": [
+              "The mint address."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "attestor",
+            "docs": [
+              "The attestor whose signature `attest_reserves` now requires."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "max_staleness",
+            "docs": [
+              "Seconds after `as_of` during which minting may rely on an attestation."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "reset",
+            "docs": [
+              "Whether the posted reserves were cleared (new account or new attestor)."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "Unix timestamp."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReservesAttested",
+      "docs": [
+        "Event emitted when the attestor posts reserves."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "docs": [
+              "The mint address."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "attestor",
+            "docs": [
+              "The attestor who signed."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "reserves",
+            "docs": [
+              "Reserves in the mint's base units."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "as_of",
+            "docs": [
+              "Unix time at which the reserves were measured."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "report_uri",
+            "docs": [
+              "Where the report lives."
+            ],
+            "type": "string"
+          },
+          {
+            "name": "timestamp",
+            "docs": [
+              "Cluster time of the post."
             ],
             "type": "i64"
           }

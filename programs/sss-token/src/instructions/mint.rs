@@ -1,6 +1,6 @@
 //! Mint instruction — mints new stablecoin tokens to a recipient.
 //!
-//! Validates minter role, pause state, quota limits, and updates supply tracking.
+//! Validates minter role, pause state, quota limits and attested reserves, and updates supply tracking.
 //! Creates the recipient's associated token account if it doesn't exist.
 
 use anchor_lang::prelude::*;
@@ -80,6 +80,12 @@ pub struct MintTokens<'info> {
 
     /// System program for account creation.
     pub system_program: Program<'info, System>,
+
+    /// The mint's reserve attestation (S9). Always passed, so a caller can't skip the check by leaving it out;
+    /// it may not exist (Hook mode mints that never opted in).
+    /// CHECK: PDA constraint; read in the handler.
+    #[account(seeds = [SEED_RESERVE, mint.key().as_ref()], bump)]
+    pub reserve_attestation: UncheckedAccount<'info>,
 }
 
 /// Event emitted when tokens are minted.
@@ -97,9 +103,44 @@ pub struct TokensMinted {
     pub timestamp: i64,
 }
 
+/// Reserve check (S9): the Token-2022 supply after this mint must not exceed the attested reserves, and the
+/// attestation must be within `max_staleness`. Acl and Both mode mints must have an attestation; a Hook mode mint
+/// without one mints as before. A deny logs `SSS:DENY:RESERVE_<STALE|INSUFFICIENT>` with the numbers.
+fn check_reserve_attestation(accounts: &MintTokens, amount: u64, now: i64) -> Result<()> {
+    let info = accounts.reserve_attestation.to_account_info();
+    if info.data_is_empty() {
+        if accounts.config.uses_token_acl() {
+            msg!("SSS:DENY:RESERVE_MISSING");
+            return err!(SssError::ReserveAttestationMissing);
+        }
+        return Ok(());
+    }
+    require_keys_eq!(*info.owner, crate::ID, SssError::ReserveAttestationMissing);
+    let att = ReserveAttestation::try_deserialize(&mut &info.try_borrow_data()?[..])?;
+
+    let supply = accounts.mint.supply;
+    match check_reserves(supply, amount, att.reserves, att.as_of, att.max_staleness, now) {
+        ReserveCheck::Ok => Ok(()),
+        ReserveCheck::Stale => {
+            msg!(
+                "SSS:DENY:RESERVE_STALE as_of={} now={} age={} max_staleness={}",
+                att.as_of,
+                now,
+                now.saturating_sub(att.as_of),
+                att.max_staleness
+            );
+            err!(SssError::ReserveStale)
+        }
+        ReserveCheck::Insufficient => {
+            msg!("SSS:DENY:RESERVE_INSUFFICIENT supply={} amount={} reserves={} as_of={}", supply, amount, att.reserves, att.as_of);
+            err!(SssError::ReserveInsufficient)
+        }
+    }
+}
+
 /// Handler for the mint instruction.
 ///
-/// Mints tokens to a recipient after validating role, pause state, and quota.
+/// Mints tokens to a recipient after validating role, pause state, quota and reserves.
 pub fn mint_handler(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
     // Validate amount > 0
     require!(amount > 0, SssError::InvalidAmount);
@@ -118,6 +159,8 @@ pub fn mint_handler(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
     }
 
     let clock = Clock::get()?;
+    check_reserve_attestation(&ctx.accounts, amount, clock.unix_timestamp)?;
+
     let mint_key = ctx.accounts.config.mint;
     let config_seeds = &[SEED_CONFIG, mint_key.as_ref()];
     let (_, config_bump) = Pubkey::find_program_address(config_seeds, ctx.program_id);

@@ -12,6 +12,7 @@ pub mod allowlist;
 pub mod confidential;
 pub mod enable_token_acl;
 pub mod freeze_route;
+pub mod reserves;
 
 pub use initialize::*;
 pub use mint::*;
@@ -24,3 +25,4 @@ pub use seize::*;
 pub use allowlist::*;
 pub use confidential::*;
 pub use enable_token_acl::*;
+pub use reserves::*;

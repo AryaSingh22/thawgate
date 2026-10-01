@@ -66,11 +66,13 @@ pub struct AddToBlacklist<'info> {
     )]
     pub mint: InterfaceAccount<'info, Mint>,
 
-    /// The target's token account to be frozen.
+    /// The target's token account to be frozen. It must belong to `target`, so an entry for one wallet can't
+    /// freeze another wallet's account.
     #[account(
         mut,
         token::mint = mint,
         token::token_program = token_program,
+        constraint = target_token_account.owner == target.key() @ SssError::TargetAccountOwnerMismatch,
     )]
     pub target_token_account: InterfaceAccount<'info, TokenAccount>,
 
