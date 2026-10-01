@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Devnet deploy of the Token ACL release (S7): a fresh deploy of the ThawGate gate, then upgrades of sss-token and
-# the transfer hook to the S6 builds, each extended first when the new .so is longer than its on-chain program data.
+# the transfer hook to the S6 builds, each extended first when the new .so is longer than its on-chain program data
+# (by at least MIN_EXTEND bytes, Agave 4.x's minimum).
 #
 #   DRY_RUN=1 scripts/deploy-devnet-acl.sh   every step, its signers and its SOL cost; reads the chain, sends nothing
 #   scripts/deploy-devnet-acl.sh             sends, after typing "deploy" (YES=1 skips the prompt)
@@ -48,6 +49,9 @@ CU_LIMIT_BOUND=200000
 # account keys and compute-budget instructions. Estimates; the local rehearsal (LOG.md S7a) measured the real counts.
 CHUNK_1_SIGNER=960
 CHUNK_2_SIGNERS=870
+# Agave 4.x rejects a smaller ExtendProgram: "ExtendProgram requires a minimum of 10240 additional bytes or to extend
+# to maximum size" (devnet 4.3.0, S7b). Agave 3.0.14, the rehearsal validator, has no minimum.
+MIN_EXTEND=10240
 [ -d "$HOME/.cargo/targets/solana-stablecoin-standard" ] && export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$HOME/.cargo/targets/solana-stablecoin-standard}"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -243,11 +247,11 @@ case "$GATE_STATE" in
 esac
 
 # Steps 2 and 3: upgrades. plan_upgrade <label> <id> <so> <authority keypair> <expected authority> <signers per write tx>
-# records the on-chain state and program length it read, for do_upgrade.
-declare -A STATE ON_LEN
+# records the on-chain state it read and the extend size, for do_upgrade.
+declare -A STATE EXTEND
 plan_upgrade() {
   local label=$1 id=$2 so=$3 auth_kp=$4 auth=$5 sigs=$6
-  local len on_len on_bal on_auth state extend rent_new extend_rent buf writes txs fee refund peak net chunk
+  local len on_len on_bal on_auth state need extend rent_new extend_rent buf writes txs fee refund peak net chunk
   len=$(stat -c%s "$so")
   on_auth=$(program_field "$id" authority)
   on_len=$(program_field "$id" dataLen)
@@ -255,9 +259,10 @@ plan_upgrade() {
   [ "$on_auth" = "$auth" ] || die "$id upgrade authority is $on_auth on chain, expected $auth"
   state=$(program_state "$id" "$so")
   STATE[$id]=$state
-  ON_LEN[$id]=$on_len
-  extend=$((len > on_len ? len - on_len : 0))
-  rent_new=$(rent $((45 + (len > on_len ? len : on_len))))
+  need=$((len > on_len ? len - on_len : 0))
+  extend=$((need > 0 && need < MIN_EXTEND ? MIN_EXTEND : need))
+  EXTEND[$id]=$extend
+  rent_new=$(rent $((45 + on_len + extend)))
   extend_rent=$((extend > 0 && rent_new > on_bal ? rent_new - on_bal : 0))
   echo
   echo "$label $id: upgrade to $len bytes (on chain: program length $on_len, ProgramData balance $(sol "$on_bal"), authority $on_auth; bytes $state)"
@@ -266,7 +271,7 @@ plan_upgrade() {
     return
   fi
   if [ "$extend" -gt 0 ]; then
-    echo "    extend by $extend bytes: signer $auth (fee payer and authority), cost $(sol "$extend_rent") rent (ProgramData needs $(sol "$rent_new") for $((45 + len)) bytes, holds $(sol "$on_bal")) + $(sol $LAMPORTS_PER_SIGNATURE) fee"
+    echo "    extend by $extend bytes$([ "$extend" != "$need" ] && echo " ($need needed; the minimum is $MIN_EXTEND)"): signer $auth (fee payer and authority), cost $(sol "$extend_rent") rent (ProgramData needs $(sol "$rent_new") for $((45 + on_len + extend)) bytes, holds $(sol "$on_bal")) + $(sol $LAMPORTS_PER_SIGNATURE) fee"
     if [ "$auth" = "$EXPECT_SSS_AUTH" ]; then
       PAYER_NEED=$(max "$PAYER_NEED" $((PAYER_NET + extend_rent + LAMPORTS_PER_SIGNATURE)))
       PAYER_NET=$((PAYER_NET + extend_rent + LAMPORTS_PER_SIGNATURE))
@@ -339,14 +344,13 @@ fi
 
 # do_upgrade <label> <id> <so> <authority keypair>
 do_upgrade() {
-  local label=$1 id=$2 so=$3 auth_kp=$4 len on_len=${ON_LEN[$2]}
+  local label=$1 id=$2 so=$3 auth_kp=$4
   if [ "${STATE[$id]}" = same ]; then echo "$label: already upgraded, skip"; return; fi
-  len=$(stat -c%s "$so")
   CURRENT_BUFFER=""
-  if [ "$len" -gt "$on_len" ]; then
+  if [ "${EXTEND[$id]}" -gt 0 ]; then
     CURRENT_STEP="$label extend"
     echo "$CURRENT_STEP"
-    step solana program extend "$id" $((len - on_len)) --keypair "$auth_kp" --url "$RPC"
+    step solana program extend "$id" "${EXTEND[$id]}" --keypair "$auth_kp" --url "$RPC"
   fi
   CURRENT_STEP="$label upgrade"
   CURRENT_BUFFER=$(buffer_for_step "$(basename "$so" .so)")
