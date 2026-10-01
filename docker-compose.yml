@@ -93,7 +93,9 @@ services:
         condition: service_healthy
 
   # ThawGate keeper: permissionless freeze crank (services/keeper/README.md). No database; its key only pays fees.
+  # Opt-in profile, because it needs a funded keypair and an RPC: docker compose --profile keeper up keeper
   keeper:
+    profiles: [ "keeper" ]
     build:
       context: .
       dockerfile: services/keeper/Dockerfile

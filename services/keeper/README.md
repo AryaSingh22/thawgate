@@ -38,7 +38,9 @@ yarn workspace @thawgate/keeper build
 KEEPER_KEYPAIR=~/.keys/thawgate/keeper.json node services/keeper/dist/main.js   # RPC: HELIUS_DEVNET_RPC from .env
 ```
 
-Docker: `docker compose up keeper`. The compose file reads `.env` for `HELIUS_DEVNET_RPC` and mounts the keypair from `KEEPER_KEYPAIR_FILE` as a secret. The rest of the compose file requires `POSTGRES_PASSWORD` to be set, even though the keeper doesn't use it.
+Docker: `docker compose --profile keeper up keeper`. The keeper is an opt-in profile, so a plain `docker compose up` leaves it out, because it needs a funded keypair and an RPC. The compose file reads `.env` for `HELIUS_DEVNET_RPC` and mounts the keypair from `KEEPER_KEYPAIR_FILE` as a secret. The rest of the compose file requires `POSTGRES_PASSWORD` to be set, even though the keeper doesn't use it.
+
+The image is built with `npm install --legacy-peer-deps`, because npm 10 crashes resolving the `@solana/*` peer sets (`Cannot read properties of null (reading 'edgesOut')`). Full CI builds the image but doesn't start it.
 
 | Variable | Default | |
 |---|---|---|

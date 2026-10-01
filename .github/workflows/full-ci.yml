@@ -79,6 +79,10 @@ jobs:
           SOLANA_RPC_URL: http://localhost:8899
           SSS_PROGRAM_ID: SSS11111111111111111111111111111111111111111
           MINTER_KEYPAIR: '[1,2,3]'
+      - name: Build the keeper image (opt-in profile; not started, it needs a funded keypair and an RPC)
+        run: docker compose --profile keeper build keeper
+        env:
+          POSTGRES_PASSWORD: sss_dev_password
       - name: Wait for services
         run: sleep 20
       - name: Health checks
