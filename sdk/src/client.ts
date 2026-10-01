@@ -39,6 +39,7 @@ import * as tokenOps from "./base/token";
 import * as roleOps from "./base/roles";
 import { ComplianceModule } from "./modules/compliance";
 import { PrivacyModule } from "./modules/privacy";
+import { ReservesModule } from "./modules/reserves";
 import IDL from "./idl.json";
 import type {
     SSSClientConfig,
@@ -375,6 +376,13 @@ export class SolanaStablecoin {
      */
     privacy(mint: PublicKey): PrivacyModule {
         return new PrivacyModule(mint);
+    }
+
+    /**
+     * Returns a ReservesModule for the reserve attestation that `mint_tokens` checks.
+     */
+    reserves(mint: PublicKey): ReservesModule {
+        return new ReservesModule(this.program, mint);
     }
 
     // ============================================================================

@@ -18,6 +18,7 @@ const SEED_PAUSE = Buffer.from("pause_state");
 const SEED_ROLE = Buffer.from("role");
 const SEED_QUOTA = Buffer.from("minter_quota");
 const SEED_BLACKLIST = Buffer.from("blacklist");
+const SEED_RESERVE = Buffer.from("reserve_attestation");
 
 // ============================================================================
 // PDA Derivation Functions
@@ -112,6 +113,23 @@ export function findBlacklistPda(
 ): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
         [SEED_BLACKLIST, mint.toBuffer(), target.toBuffer()],
+        programId,
+    );
+}
+
+/**
+ * Derives the ReserveAttestation PDA address (S9).
+ *
+ * @param mint - The Token-2022 mint address
+ * @param programId - The SSS-Token program ID
+ * @returns [pda, bump]
+ */
+export function findReserveAttestationPda(
+    mint: PublicKey,
+    programId: PublicKey,
+): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+        [SEED_RESERVE, mint.toBuffer()],
         programId,
     );
 }

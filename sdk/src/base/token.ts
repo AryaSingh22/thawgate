@@ -24,6 +24,7 @@ import {
     findPauseStatePda,
     findRolePda,
     findQuotaPda,
+    findReserveAttestationPda,
 } from "../pda";
 import { ComplianceMode, RoleType } from "../types";
 import type { InitializeArgs, TransactionResult } from "../types";
@@ -139,6 +140,7 @@ export async function mintTokens(
                 tokenProgram: TOKEN_2022_PROGRAM_ID,
                 associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
+                reserveAttestation: findReserveAttestationPda(mint, programId)[0],
             })
             .instruction();
 

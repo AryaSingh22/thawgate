@@ -5,3 +5,4 @@
 
 export { ComplianceModule } from "./compliance";
 export { PrivacyModule } from "./privacy";
+export { ReservesModule } from "./reserves";

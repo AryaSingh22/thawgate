@@ -122,11 +122,14 @@ export {
     findQuotaPda,
     findBlacklistPda,
     findExtraAccountMetaListPda,
+    findReserveAttestationPda,
 } from "./pda";
 
 // Modules
 export { ComplianceModule } from "./modules/compliance";
 export { PrivacyModule } from "./modules/privacy";
+export { ReservesModule } from "./modules/reserves";
+export type { ReserveAttestation } from "./modules/reserves";
 
 // Base operations (for advanced usage)
 export * as token from "./base/token";
