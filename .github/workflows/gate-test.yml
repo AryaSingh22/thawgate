@@ -82,6 +82,12 @@ jobs:
       - name: Localnet ACL story (tests/e2e/acl-story.ts, no genesis fixtures)
         run: SKIP_BUILD=1 yarn test:story
 
+      - name: Keeper unit tests (services/keeper, vitest)
+        run: yarn workspace @thawgate/keeper test
+
+      - name: Localnet keeper e2e (tests/e2e/keeper.ts, in-process keeper)
+        run: SKIP_BUILD=1 KEEPER_LOG_LEVEL=info yarn test:keeper
+
       - name: Upload validator log
         if: failure()
         uses: actions/upload-artifact@v4
