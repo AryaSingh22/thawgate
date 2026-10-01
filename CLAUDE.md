@@ -28,11 +28,12 @@ Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for
 | sss_token | `HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` |
 | transfer_hook | `2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv` | `3YnVTN8gWWnvgn4AFmtZu4vFDpMAn4vu27uF5ppKS1EM` |
 | oracle_module | `HEuTBAakSu9sojbzjbcgBzsFkRYeRaZJdixqcao5Gvo6` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` |
+| thawgate_gate | `THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` |
 
 Don't change program IDs or `declare_id!` unless the session plan says so.
 
 ## Keypairs (WSL paths; never print, cat or commit their contents)
-- `5BXg…` upgrades **sss_token + oracle_module**: `~/.config/solana/sss-authority.json`. It's a copy of Windows `C:\Users\ARYA\.config\solana\id.json`.
+- `5BXg…` upgrades **sss_token + oracle_module + thawgate_gate**: `~/.config/solana/sss-authority.json`. It's a copy of Windows `C:\Users\ARYA\.config\solana\id.json`.
 - `3YnV…` upgrades **transfer_hook**: `~/.config/solana/id.json` (default CLI wallet).
 - Program keypairs, backed up: `~/.keys/thawgate/{sss_token,transfer_hook,oracle_module}-keypair.json`. The originals are in `~/.cargo/targets/solana-stablecoin-standard/deploy/`, the Cargo target dir that `scripts/deploy-localnet.sh` copies from. The devnet deploy is `scripts/deploy-devnet-acl.sh` (`DRY_RUN=1` first).
 - `test-keypair.json` in the repo root is the localnet test wallet (gitignored).

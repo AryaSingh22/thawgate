@@ -72,3 +72,7 @@ The optional `oracle-module` provides an integration point for price-gated mints
 1. **Confidential Transfers (SSS-3):** SSS-3 confidential transfer instructions validate feature flags but rely on the raw SPL Confidential Transfer CPI. Production deployment requires careful adherence to Solana's exact compute budget limits for ZK proofs.
 2. **Oracle Feed Implementations:** The current `oracle-module` validates internal configuration bounds. Native deserialization of Pyth or Switchboard V2 accounts requires implementing the specific cross-program invocations (CPIs) aligned with the chosen oracle provider's SDK.
 3. **Extra Account Meta Lists:** The transfer hook program enforces blacklist/pause checks securely, but requires the `ExtraAccountMetaList` PDA to be explicitly initialized by the admin immediately after mint creation to function.
+
+## TODO
+
+- **Mainnet: upgrade authorities → multisig.** On devnet each program is upgradeable by a single key: `5BXg…` for sss-token, oracle-module and the ThawGate gate, `3YnV…` for the transfer hook. Before any mainnet deploy, move each upgrade authority to a multisig. (The gate is unaudited; there are no mainnet deploys.)
