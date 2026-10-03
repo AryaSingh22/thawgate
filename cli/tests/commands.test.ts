@@ -59,6 +59,20 @@ describe("CLI Config Management", () => {
         expect(config.rpcUrl).toBe("https://override.rpc.com");
         expect(config.commitment).toBe("finalized");
     });
+
+    it("an undefined override (flag not given) keeps the env value", () => {
+        const before = process.env.SSS_RPC_URL;
+        process.env.SSS_RPC_URL = "https://env.rpc.test";
+        try {
+            // createClient passes every flag, given or not.
+            const config = loadConfig({ rpcUrl: undefined, keypairPath: undefined, commitment: "confirmed" });
+            expect(config.rpcUrl).toBe("https://env.rpc.test");
+            expect(config.keypairPath).toContain("id.json");
+        } finally {
+            if (before === undefined) delete process.env.SSS_RPC_URL;
+            else process.env.SSS_RPC_URL = before;
+        }
+    });
 });
 
 describe("CLI Input Validation", () => {

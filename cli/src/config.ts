@@ -68,12 +68,14 @@ export function loadConfig(overrides?: Partial<CLIConfig>): CLIConfig {
     if (process.env.SSS_KEYPAIR_PATH)
         envConfig.keypairPath = process.env.SSS_KEYPAIR_PATH;
 
-    // Merge with precedence: overrides > env > file > defaults
+    // Merge with precedence: overrides > env > file > defaults. An override left undefined (a CLI flag that wasn't
+    // given) must not erase the env or file value: createClient always passes rpcUrl and keypairPath.
+    const given = Object.fromEntries(Object.entries(overrides ?? {}).filter(([, v]) => v !== undefined)) as Partial<CLIConfig>;
     return {
         ...DEFAULTS,
         ...fileConfig,
         ...envConfig,
-        ...overrides,
+        ...given,
     };
 }
 
