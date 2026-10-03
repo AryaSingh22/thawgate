@@ -25,6 +25,15 @@
 
 // Main client
 export { SolanaStablecoin } from "./client";
+export type { CreateStablecoinOptions, CreatedStablecoin } from "./client";
+
+// ThawGate gate client (any Token ACL mint gated by ThawGate; also SolanaStablecoin#gate)
+export { GateClient, toGatePolicyConfig } from "./gate/client";
+export type { AllowlistMode, PolicyInput, GatePolicy, Explanation, FreezeResult, GateWallet, GateClientOptions } from "./gate/client";
+
+// A wallet from a Keypair, for scripts and servers
+export { keypairWallet } from "./wallet";
+export type { KeypairWallet } from "./wallet";
 
 // The BN the SDK's amounts use. Imported from bn.js, not anchor: anchor's CJS exports BN through a getter that native
 // Node ESM can't name-import ("Named export 'BN' not found").
@@ -176,6 +185,7 @@ export {
     findRolePda,
     findQuotaPda,
     findBlacklistPda,
+    findAllowlistPda,
     findExtraAccountMetaListPda,
     findReserveAttestationPda,
 } from "./pda";

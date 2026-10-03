@@ -311,11 +311,17 @@ export async function updatePolicyIx(mint: PublicKey, args: ReturnType<typeof po
  * `token_acl` = gate field (how Token ACL clients discover the gate), a Token ACL MintConfig with the gate as
  * gating program and permissionless thaw + freeze enabled, and, when `args` is given, the gate policy.
  * The payer is mint authority and Token ACL freeze authority. The mint key is derived from `name`.
+ * `opts` starts it on another gating program (the SDK's swap-gate test uses the ABL gate) or with a permissionless
+ * instruction off.
  */
-export async function createGatedMint(name: string, args?: ReturnType<typeof policyArgs>): Promise<PublicKey> {
+export async function createGatedMint(
+  name: string,
+  args?: ReturnType<typeof policyArgs>,
+  opts: { gatingProgram?: PublicKey; thaw?: boolean; freeze?: boolean } = {},
+): Promise<PublicKey> {
   const payer = await payerSigner();
   const mint = await signerOf(keypair(name));
-  const gateAddress = kitAddress(GATE_ID);
+  const gateAddress = kitAddress(opts.gatingProgram ?? GATE_ID);
   const extensions: ExtensionArgs[] = [
     { __kind: "DefaultAccountState", state: AccountState.Frozen },
     { __kind: "MetadataPointer", authority: payer.address, metadataAddress: mint.address },
@@ -342,7 +348,7 @@ export async function createGatedMint(name: string, args?: ReturnType<typeof pol
   const [mintConfig] = await findMintConfigPda({ mint: mint.address });
   await send([
     await getCreateConfigInstructionAsync({ payer: payer.address, authority: payer, mint: mint.address, gatingProgram: gateAddress }),
-    getTogglePermissionlessInstructionsInstruction({ authority: payer, mintConfig, freezeEnabled: true, thawEnabled: true }),
+    getTogglePermissionlessInstructionsInstruction({ authority: payer, mintConfig, freezeEnabled: opts.freeze ?? true, thawEnabled: opts.thaw ?? true }),
   ]);
   const mintKey = new PublicKey(mint.address);
   if (args) await send([fromWeb3(await initPolicyIx(mintKey, args), [payer])]);

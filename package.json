@@ -31,6 +31,7 @@
     "test:story": "GENESIS_FIXTURES=0 GATE_TESTS=tests/e2e/acl-story.ts scripts/test-gate.sh",
     "test:keeper": "GENESIS_FIXTURES=0 GATE_TESTS=tests/e2e/keeper.ts scripts/test-gate.sh",
     "test:screener": "GENESIS_FIXTURES=0 GATE_TESTS=tests/e2e/screener.ts scripts/test-gate.sh",
+    "test:sdk": "yarn workspace @thawgate/sdk build && GENESIS_FIXTURES=0 GATE_TESTS=tests/e2e/sdk.ts scripts/test-gate.sh",
     "lint": "yarn workspaces run lint",
     "typecheck": "yarn workspace @thawgate/sdk build && yarn workspace @thawgate/shared build && yarn workspaces run typecheck"
   },

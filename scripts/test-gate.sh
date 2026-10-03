@@ -4,6 +4,7 @@
 #   - Token ACL from tests/fixtures
 #   - devnet Token-2022 from tests/fixtures (the bundled one fails TokenMetadata initialize on 3.x)
 #   - the Solana Attestation Service (SAS) from tests/fixtures
+#   - Token ACL's reference ABL gate from tests/fixtures (the SDK suite swaps a mint from it to ThawGate)
 #   - sss-token registry entries injected at genesis (tests/gate/registry-fixtures.ts) for the S4/S5 gate suites,
 #     plus one malformed SAS attestation (tests/gate/keys.ts). hook.test.ts and issuer.test.ts write theirs
 #     through sss-token. GENESIS_FIXTURES=0 starts the validator without them (tests/e2e/acl-story.ts: `yarn test:story`).
@@ -38,6 +39,7 @@ solana-test-validator --reset --ledger "$LEDGER" --quiet \
   --bpf-program TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP tests/fixtures/token_acl.so \
   --bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tests/fixtures/token_2022.so \
   --bpf-program 22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG tests/fixtures/sas.so \
+  --bpf-program GATEzzqxhJnsWF6vHRsgtixxSB8PaQdcqGEVTEHWiULz tests/fixtures/abl_gate.so \
   "${ACCOUNTS[@]}" > "$LOG" 2>&1 &
 VPID=$!
 # `|| true`: wait returns the killed validator's 143, and under set -e a failing command in the EXIT trap becomes the

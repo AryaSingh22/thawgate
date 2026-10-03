@@ -118,6 +118,25 @@ export function findBlacklistPda(
 }
 
 /**
+ * Derives an AllowlistEntry PDA address (`add_to_allowlist_v3`; read by ThawGate AllowOnly / BypassForPdas policies).
+ *
+ * @param mint - The Token-2022 mint address
+ * @param wallet - The allowlisted wallet's public key
+ * @param programId - The SSS-Token program ID
+ * @returns [pda, bump]
+ */
+export function findAllowlistPda(
+    mint: PublicKey,
+    wallet: PublicKey,
+    programId: PublicKey,
+): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+        [Buffer.from("allowlist"), mint.toBuffer(), wallet.toBuffer()],
+        programId,
+    );
+}
+
+/**
  * Derives the ReserveAttestation PDA address (S9).
  *
  * @param mint - The Token-2022 mint address

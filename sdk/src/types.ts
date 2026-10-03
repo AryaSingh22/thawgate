@@ -260,6 +260,8 @@ export interface SSSClientConfig {
     programId?: PublicKey;
     /** Transfer Hook program ID (default: the devnet deployment, `TRANSFER_HOOK_PROGRAM_ID`). */
     hookProgramId?: PublicKey;
+    /** ThawGate gate program ID (default: the devnet deployment, `THAWGATE_GATE_PROGRAM_ID`). */
+    gateProgramId?: PublicKey;
 }
 
 /**

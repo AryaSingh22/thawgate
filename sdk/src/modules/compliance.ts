@@ -24,6 +24,7 @@ import {
     findConfigPda,
     findRolePda,
     findBlacklistPda,
+    findAllowlistPda,
 } from "../pda";
 import { RoleType } from "../types";
 import type { StablecoinConfig, BlacklistEntry } from "../types";
@@ -63,6 +64,8 @@ export class ComplianceModule {
      * @param operator - The Blacklister operator's public key
      * @param target - The wallet to blacklist
      * @param reason - Human-readable reason (max 200 chars)
+     * @param opts.targetTokenAccount - The target's token account to pass (default: its ATA). sss-token requires an
+     *   account owned by `target` (S9); on Token ACL mints it is frozen in the same transaction if thawed.
      * @returns Transaction instructions
      * @throws FeatureNotEnabledError if transfer_hook is not enabled
      */
@@ -70,6 +73,7 @@ export class ComplianceModule {
         operator: PublicKey,
         target: PublicKey,
         reason: string,
+        opts: { targetTokenAccount?: PublicKey } = {},
     ): Promise<TransactionInstruction[]> {
         const [configPda] = findConfigPda(this.mint, this.programId);
         const [operatorRolePda] = findRolePda(
@@ -80,10 +84,10 @@ export class ComplianceModule {
         );
         const [blacklistPda] = findBlacklistPda(this.mint, target, this.programId);
 
-        const targetAta = getAssociatedTokenAddressSync(
+        const targetAta = opts.targetTokenAccount ?? getAssociatedTokenAddressSync(
             this.mint,
             target,
-            false,
+            true,
             TOKEN_2022_PROGRAM_ID,
             ASSOCIATED_TOKEN_PROGRAM_ID,
         );
@@ -144,6 +148,36 @@ export class ComplianceModule {
                 })
                 .instruction();
 
+            return [ix];
+        } catch (error) {
+            throw parseError(error);
+        }
+    }
+
+    /**
+     * Adds a wallet to the issuer allowlist (`add_to_allowlist_v3`, MasterAuthority). Needs a mint initialized with
+     * `enableAllowlist`; a ThawGate `allowOnly` or `bypassForPdas` policy reads the entry.
+     */
+    async addToAllowlist(authority: PublicKey, wallet: PublicKey): Promise<TransactionInstruction[]> {
+        return this.allowlistIx("addToAllowlistV3", authority, wallet);
+    }
+
+    /** Deactivates a wallet's allowlist entry (`remove_from_allowlist_v3`, MasterAuthority). */
+    async removeFromAllowlist(authority: PublicKey, wallet: PublicKey): Promise<TransactionInstruction[]> {
+        return this.allowlistIx("removeFromAllowlistV3", authority, wallet);
+    }
+
+    private async allowlistIx(method: "addToAllowlistV3" | "removeFromAllowlistV3", authority: PublicKey, wallet: PublicKey): Promise<TransactionInstruction[]> {
+        const accounts: Record<string, PublicKey> = {
+            authority,
+            config: findConfigPda(this.mint, this.programId)[0],
+            authorityRole: findRolePda(this.mint, authority, RoleType.MasterAuthority, this.programId)[0],
+            wallet,
+            allowlistEntry: findAllowlistPda(this.mint, wallet, this.programId)[0],
+        };
+        if (method === "addToAllowlistV3") accounts.systemProgram = SystemProgram.programId;
+        try {
+            const ix = await (this.program.methods as any)[method]().accountsStrict(accounts).instruction();
             return [ix];
         } catch (error) {
             throw parseError(error);
