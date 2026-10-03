@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { address } from "@solana/kit";
 import { AllowlistMode, AttestationRead, EntryRead, GatePolicy } from "../src/accounts";
-import { credentialState, freezeReason, OwnerReads, ownerVerdict } from "../src/policy";
+import { credentialState, freezeReason, OwnerReads, ownerVerdict, verdictReason } from "../src/policy";
 
 const K = address("11111111111111111111111111111111");
 const policy = (p: Partial<GatePolicy> = {}): GatePolicy => ({
@@ -124,5 +124,13 @@ describe("ownerVerdict (GET /mints/:mint)", () => {
     expect(ownerVerdict(sas, reads({ attestation: undefined }), NOW)).toBe("unknown");
     expect(ownerVerdict(sas, reads({ blacklist: undefined, attestation: valid }), NOW)).toBe("unknown");
     expect(ownerVerdict(sas, reads({ attestation: { kind: "bad" } }), NOW)).toBe("unknown");
+  });
+});
+
+describe("verdictReason (the SDK's sentences, shared with explain())", () => {
+  it("reads each kind of verdict", () => {
+    expect(verdictReason("freezable:NO_CREDENTIAL")).toMatch(/^Freezable by anyone: the owner has no SAS attestation/);
+    expect(verdictReason("compliant:KYC")).toMatch(/^Unlock allowed: the owner holds a live SAS attestation/);
+    expect(verdictReason("unknown")).toMatch(/^Not judged yet/);
   });
 });

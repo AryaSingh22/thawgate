@@ -8,9 +8,11 @@
  * BypassForPdas: an off-curve owner with an active allowlist entry skips SAS. A malformed registry entry or
  * attestation denies both thaw and freeze (BAD_REGISTRY_ENTRY / BAD_CREDENTIAL), so it is never a candidate.
  */
+import { describe, type FlagCode } from "@thawgate/sdk/reasons";
 import { AttestationRead, EntryRead, GatePolicy } from "./accounts";
 
-export type FreezeReason = "BLACKLISTED" | "NOT_ALLOWLISTED" | "NO_CREDENTIAL" | "CREDENTIAL_EXPIRED" | "KYC_LEVEL_TOO_LOW";
+/** A policy flag on the owner: the `TG:ALLOW:<reason>` of a freeze (the SDK's code list, shared with `explain()`). */
+export type FreezeReason = FlagCode;
 
 /** What the gate would read for one owner. `undefined` = not read yet (never a candidate until it is). */
 export interface OwnerReads {
@@ -79,4 +81,12 @@ export function ownerVerdict(policy: GatePolicy, reads: OwnerReads, now: bigint 
     return "compliant:KYC";
   }
   return allowlist === "active" ? "compliant:ALLOWLISTED" : "compliant:CLEAN";
+}
+
+/** One sentence for an `ownerVerdict`, from the SDK's descriptions (the same text `explain()` gives). */
+export function verdictReason(verdict: string): string {
+  const [kind, code] = verdict.split(":");
+  if (kind === "freezable") return describe("ALLOW", code, "freeze");
+  if (kind === "compliant") return describe("ALLOW", code, "thaw");
+  return "Not judged yet: a read is missing or malformed, or no sweep has read the cluster clock.";
 }

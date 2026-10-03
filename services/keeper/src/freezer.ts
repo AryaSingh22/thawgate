@@ -28,6 +28,7 @@ import {
   TransactionSigner,
 } from "@solana/kit";
 import { createFreezePermissionlessIdempotentInstructionWithExtraMetas } from "@token-acl/sdk";
+import { classifyGateLogs } from "@thawgate/sdk/reasons";
 import { COMPUTE_BUDGET_ID, freezeExtraMetasPda, GATE_ID, mintConfigPda, TOKEN_ACL_ID } from "./accounts";
 import { KeeperConfig, Logger } from "./config";
 import { Metrics } from "./metrics";
@@ -58,19 +59,23 @@ const CONFIRM_POLL_MS = 400;
 
 export type Verdict = { kind: "frozen"; reason: string } | { kind: "already_frozen" } | { kind: "compliant" } | { kind: "denied"; code: string };
 
-/** The gate's verdict in a freeze transaction's logs (a confirmed transaction's, or a failed preflight's). */
+/**
+ * The gate's verdict in a freeze transaction's logs (a confirmed transaction's, or a failed preflight's). The logs are
+ * read by the SDK's parser, the one `explain()` and `freezeIfInvalid()` use, so the keeper and the SDK can't disagree
+ * on a reason. Only TG lines inside the gate's own frames count.
+ */
 export function classifyLogs(logs: readonly string[], succeeded: boolean): Verdict {
-  const code = (prefix: string) => logs.map((l) => new RegExp(`${prefix}([A-Z_]+)`).exec(l)?.[1]).find(Boolean);
-  if (succeeded) {
-    const gateRan = logs.some((l) => l.startsWith(`Program ${GATE_ID} invoke`));
-    if (!gateRan) return { kind: "already_frozen" };
-    return { kind: "frozen", reason: code("TG:ALLOW:") ?? "UNKNOWN" };
+  const v = classifyGateLogs(logs, succeeded, "freeze", { gateId: GATE_ID });
+  switch (v.outcome) {
+    case "allowed":
+      return { kind: "frozen", reason: v.code };
+    case "skipped":
+      return { kind: "already_frozen" };
+    case "denied":
+      return v.code === "COMPLIANT" ? { kind: "compliant" } : { kind: "denied", code: v.code };
+    case "failed":
+      return { kind: "denied", code: v.program === "unknown" ? "UNKNOWN" : `${v.program}: ${v.message}` };
   }
-  const deny = code("TG:DENY:");
-  if (deny === "COMPLIANT") return { kind: "compliant" };
-  if (deny) return { kind: "denied", code: deny };
-  const failed = logs.find((l) => /^Program \S+ failed: /.test(l));
-  return { kind: "denied", code: failed ? failed.replace(/^Program (\S+) failed: /, "$1: ") : "UNKNOWN" };
 }
 
 const programFailed = (logs: readonly string[]) => logs.some((l) => /^Program \S+ failed: /.test(l));

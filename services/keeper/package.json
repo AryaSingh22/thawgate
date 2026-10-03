@@ -13,6 +13,7 @@
     "dependencies": {
         "@solana-program/token-2022": "0.6.1",
         "@solana/kit": "5.5.1",
+        "@thawgate/sdk": "0.1.0",
         "@token-acl/sdk": "0.2.7",
         "fastify": "4.29.1"
     },
