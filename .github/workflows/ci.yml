@@ -98,3 +98,35 @@ jobs:
 
       - name: Run tests
         run: yarn test
+
+  sdk-node:
+    # Integrators run @thawgate/sdk and the thawgate CLI on Node 20 and 22. The workspace itself needs Node >= 22.12 to
+    # install (see NODE_VERSION), so build on 22, then switch Node and install the npm-packed tarballs outside the repo.
+    name: SDK pack smoke (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }} (workspace build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build the SDK and the CLI
+        run: yarn workspace @thawgate/sdk build && yarn workspace @thawgate/cli build
+
+      - name: Setup Node.js ${{ matrix.node }} (the integrator's)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: npm-packed SDK + CLI in an empty project (require, ESM import, reasons entry, thawgate --help)
+        run: scripts/sdk-pack-smoke.sh

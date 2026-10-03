@@ -76,6 +76,12 @@ jobs:
       - name: Verify program IDs
         run: scripts/verify-ids.sh
 
+      - name: The SDK's IDLs match this build (sdk/src/idl.json, sdk/src/gate/idl.json + its types)
+        run: |
+          cmp target/idl/sss_token.json sdk/src/idl.json
+          cmp target/idl/thawgate_gate.json sdk/src/gate/idl.json
+          cmp target/types/thawgate_gate.ts sdk/src/gate/idl-type.ts
+
       - name: Rust unit tests
         run: cargo test -p thawgate-gate -p sss-token -p transfer-hook
 
@@ -96,6 +102,9 @@ jobs:
 
       - name: Localnet screener e2e (tests/e2e/screener.ts, in-process keeper + screener)
         run: SKIP_BUILD=1 SCREENER_LOG_LEVEL=info yarn test:screener
+
+      - name: Localnet SDK + CLI e2e (tests/e2e/sdk.ts, through sdk/dist and cli/dist; includes the README quickstart)
+        run: SKIP_BUILD=1 yarn test:sdk
 
       - name: Upload validator log
         if: failure()
