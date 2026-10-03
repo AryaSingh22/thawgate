@@ -884,6 +884,12 @@ Gotchas:
     - races: SSS-1 Steps 02/08/09, SSS-2 Step 04
     - "already in use": SSS-1 Step 16, SSS-2 Step 15
     - SSS-2 Step 16, downstream
+- **CI on `2b4c3a0`** (this log and the S11 handoff; recorded in S11):
+  - **Green:** Full CI (run 37131966724), CI (37131966797), TypeScript Tests (37131966753) and Gate Tests (37131966783).
+  - **Anchor Integration** (run 37131966788): 68 / 7, known classes:
+    - races: SSS-1 Steps 02/04/08/09. Step 04 is new to this list: a `TokenAccountNotFoundError` on the read after the mint, the same read-after-write class as SSS-2 Step 04 in the `c3a0e5a` run;
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
 - **Links:** the devnet txs above. Commits:
   - `297b635` (.gitignore + attestor example), `c9cdc8a` (keeper `/mints`), `3ccf42e` (screener), `69f027c` (CLI fix), `ad408c1` (tests + CI), `c3a0e5a` (docs);
   - and this log, the S11 handoff and a SANCTIONS.md correction: the re-run's keeper freezes were all labelled `blacklist`.

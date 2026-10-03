@@ -227,6 +227,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
   - ImmutableOwner enforced
   - reserve check uses `mint.supply`
 - [ ] Try the Trident fuzz target on the gate. If it still won't run, **say so in the docs**; don't claim it.
+- [ ] **Blacklist re-add** (user, S11): either `remove_from_blacklist` closes the entry or `add_to_blacklist` reactivates an inactive one. Ship it in **one sss-token upgrade** together with the reserve-PDA bump fix (`mint_tokens` CU depends on the bump; check the address with `create_program_address` and the stored bump; LOG.md S9). Today an inactive entry blocks a second blacklist ("already in use"; SECURITY.md known limitation 4).
 - **Done when:** the findings are closed or listed in `SECURITY.md` "Known limitations". Tag `c2-freeze`.
 
 ## Phase 4: publish (Thu 8 → Fri 9)
@@ -269,6 +270,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
 ### S19 · Videos
 - [ ] Pitch (2–3 min): problem (0 custom gates, 33/33 on the basic list, a compliance hook taxes every transfer) → user → solution → traction (integrators, mints, thaws) → ask. CU wording (LOG.md S6b): our SSS hook makes a transfer 27,627 CU vs 2,787 without it (localnet), paid **per transfer**; the gate runs **once per account thaw** (26k–40k CU tx, gate frame 3.4k–5.4k) and a Token ACL mint's transfer stays at Token-2022 cost (3,557 CU). "52,410–70,410 CU" is IssuerForge's own hook (their README, devnet, MARKET.md:10), not ours; attribute it if used.
 - [ ] Demo (≤3 min): the S18 run with the console on screen. Show the "own devnet credential" label if you used one.
+- [ ] Range adapter wording (user, S11): **"built, tested against mocks; the demo uses the labelled static list"**, unless a live probe passes first (`main.js probe` on Range's two test addresses, LOG.md S10). Use the same wording in the video, README and submission.
 - **Done when:** both are uploaded (unlisted is fine), with captions.
 
 ### S20 · Submit
