@@ -1,7 +1,7 @@
 {
     "name": "@thawgate/cli",
     "version": "0.1.0",
-    "description": "CLI tool for the Solana Stablecoin Standard (SSS)",
+    "description": "ThawGate CLI: Token ACL gate policies, SSS-ACL stablecoins and SAS credentials",
     "license": "MIT",
     "repository": {
         "type": "git",
@@ -13,7 +13,10 @@
         "url": "https://github.com/AryaSingh22/thawgate/issues"
     },
     "bin": {
-        "sss-token": "./dist/index.js"
+        "thawgate": "./dist/index.js"
+    },
+    "engines": {
+        "node": ">=20"
     },
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",

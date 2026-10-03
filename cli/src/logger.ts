@@ -2,14 +2,14 @@
  * @module logger
  * @description Audit logging for the SSS CLI.
  *
- * All operations are logged to ~/.sss-token/audit.log with timestamps.
+ * All operations are logged to ~/.thawgate/audit.log with timestamps.
  */
 
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const LOG_DIR = path.join(os.homedir(), ".sss-token");
+const LOG_DIR = path.join(os.homedir(), ".thawgate");
 const LOG_FILE = path.join(LOG_DIR, "audit.log");
 
 export enum LogLevel {
@@ -58,9 +58,9 @@ export class Logger {
             // Silently fail if we can't write to audit log
         }
 
-        // Console output
+        // Console output. With --json, progress lines go to stderr so stdout holds only the command's JSON result.
         if (this.jsonOutput) {
-            console.log(JSON.stringify(entry));
+            if (level !== LogLevel.DEBUG || this.verbose) console.error(JSON.stringify(entry));
         } else if (level !== LogLevel.DEBUG || this.verbose) {
             const prefix = level === LogLevel.ERROR ? "✗" : level === LogLevel.WARN ? "⚠" : "✓";
             console.log(`${prefix} ${message}`);

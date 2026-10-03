@@ -13,8 +13,10 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const CONFIG_DIR = path.join(os.homedir(), ".sss-token");
+const CONFIG_DIR = path.join(os.homedir(), ".thawgate");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+/** Before S11 the binary was `sss-token`; its config file is still read while ~/.thawgate has none. */
+const LEGACY_CONFIG_FILE = path.join(os.homedir(), ".sss-token", "config.json");
 
 /**
  * CLI configuration options.
@@ -29,7 +31,7 @@ export interface CLIConfig {
 }
 
 /**
- * Default configuration values.
+ * Default configuration values. Empty program IDs mean the SDK's defaults: the devnet deployments.
  */
 const DEFAULTS: CLIConfig = {
     rpcUrl: "https://api.devnet.solana.com",
@@ -47,9 +49,10 @@ export function loadConfig(overrides?: Partial<CLIConfig>): CLIConfig {
     let fileConfig: Partial<CLIConfig> = {};
 
     // Load from config file if it exists
-    if (fs.existsSync(CONFIG_FILE)) {
+    const file = fs.existsSync(CONFIG_FILE) ? CONFIG_FILE : fs.existsSync(LEGACY_CONFIG_FILE) ? LEGACY_CONFIG_FILE : undefined;
+    if (file) {
         try {
-            const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
+            const raw = fs.readFileSync(file, "utf-8");
             fileConfig = JSON.parse(raw);
         } catch {
             // Ignore invalid config file

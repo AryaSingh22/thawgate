@@ -12,9 +12,15 @@
  *   7. blacklist through a non-ATA account (targetTokenAccount); the holder's ATA becomes freezable (BLACKLISTED)
  *   8. the SDK's web3.js thaw/freeze instructions equal @token-acl/sdk's for live accounts
  *   9. swapGate moves an ABL-gated Token ACL mint to ThawGate in one transaction, metadata included
+ *  10. the `thawgate` CLI (cli/dist) on the same Acl mint: policy show, explain, sas attest, unlock, freeze-if-invalid,
+ *      and the older issuer commands freeze, thaw, grant-role, blacklist --token-account (unverified on Acl mints in S10)
  */
 import { CLUSTER } from "./cluster"; // first: sets the RPC and payer before the helpers load
 import assert from "node:assert/strict";
+import { execFileSync } from "child_process";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { Connection, Keypair, PublicKey, SystemProgram, TransactionInstruction } from "@solana/web3.js";
 import {
   TOKEN_2022_PROGRAM_ID,
@@ -281,4 +287,45 @@ describe("@thawgate/sdk on localnet", () => {
     // Swapping again only rewrites the policy: the gate, flags and metadata are already ThawGate's.
     assert.equal((await gate.swapGate(swapMint, { sas: { credential, schema, minKycLevel: 1 } })).length, 1);
   });
+
+  it("10. the thawgate CLI on the Acl mint", async () => {
+    // A clean HOME and cwd: no ~/.thawgate config, and not the repo's .env.
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "thawgate-cli-"));
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("SSS_")));
+    const cli = (...args: string[]) =>
+      execFileSync("node", [CLI, "--json", "--rpc-url", RPC_URL, "--keypair", KEYPAIR, ...args], { cwd: home, env: { ...env, HOME: home }, encoding: "utf8" });
+    const json = (...args: string[]) => JSON.parse(cli(...args));
+    const m = mint.toBase58();
+
+    const shown = json("policy", "show", "--mint", m);
+    assert.equal(shown.gatingProgram, THAWGATE_GATE_PROGRAM_ID.toBase58());
+    assert.deepEqual([shown.requireSas, shown.checkBlacklist, shown.minKycLevel], [true, true, 1]);
+
+    const erin = Keypair.generate().publicKey.toBase58();
+    assert.deepEqual(pick(json("explain", "--mint", m, "--wallet", erin), "status", "code"), { status: "denied", code: "NO_CREDENTIAL" });
+    json("sas", "attest", "--credential", credential.toBase58(), "--schema", schema.toBase58(), "--wallet", erin, "--kyc-level", "1");
+    const unlocked = json("unlock", "--mint", m, "--owner", erin);
+    assert.equal(unlocked.status, "unlocked");
+    const ata = new PublicKey(unlocked.tokenAccount);
+    assert.equal(await frozen(ata), false);
+    assert.equal(json("unlock", "--mint", m, "--owner", erin).status, "already_unlocked");
+    assert.deepEqual(pick(json("freeze-if-invalid", "--token-account", ata.toBase58()), "frozen", "code"), { frozen: false, code: "COMPLIANT" });
+
+    // The issuer commands that predate Token ACL, on an Acl mint (sss-token routes them through Token ACL).
+    cli("freeze", "--mint", m, "--target", ata.toBase58(), "--confirm");
+    assert.equal(await frozen(ata), true, "issuer freeze");
+    cli("thaw", "--mint", m, "--target", ata.toBase58());
+    assert.equal(await frozen(ata), false, "issuer thaw");
+    const pauser = Keypair.generate().publicKey;
+    cli("grant-role", "--mint", m, "--holder", pauser.toBase58(), "--role", "pauser");
+    assert.ok(await client.hasRole(mint, pauser, RoleType.Pauser));
+    cli("blacklist", "--mint", m, "--target", erin, "--reason", "cli smoke", "--token-account", ata.toBase58(), "--confirm");
+    assert.equal(await frozen(ata), true, "blacklisting froze the passed account");
+    assert.deepEqual(pick(json("explain", "--mint", m, "--wallet", erin), "account", "status", "code"), { account: "frozen", status: "denied", code: "BLACKLISTED" });
+    fs.rmSync(home, { recursive: true, force: true });
+  });
 });
+
+const CLI = path.join(__dirname, "../../cli/dist/index.js");
+const KEYPAIR = path.resolve(process.env.ANCHOR_WALLET ?? "test-keypair.json");
+const pick = (o: Record<string, unknown>, ...keys: string[]) => Object.fromEntries(keys.map((k) => [k, o[k]]));

@@ -16,7 +16,7 @@ import * as readline from "readline";
 import { Command } from "commander";
 import { PublicKey, Keypair, Connection, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { BN, AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import { BN } from "@coral-xyz/anchor";
 import {
     SolanaStablecoin,
     sss1Preset,
@@ -29,34 +29,35 @@ import { Logger } from "./logger";
 import { simulateTransaction } from "./utils";
 
 /**
- * Creates a configured SDK client from CLI options.
+ * Creates a configured SDK client from CLI options. Program IDs default to the SDK's (the devnet deployments) unless
+ * SSS_PROGRAM_ID / SSS_HOOK_PROGRAM_ID or the config file set them.
  */
-function createClient(opts: Record<string, string>): {
+export function createClient(opts: Record<string, unknown>): {
     client: SolanaStablecoin;
     keypair: Keypair;
     logger: Logger;
     connection: Connection;
 } {
     const config = loadConfig({
-        rpcUrl: opts.rpcUrl,
+        rpcUrl: opts.rpcUrl as string | undefined,
         commitment: opts.commitment as "confirmed" | undefined,
-        keypairPath: opts.keypair,
+        keypairPath: opts.keypair as string | undefined,
     });
 
-    const logger = new Logger(opts.verbose === "true", opts.json === "true");
+    // Commander passes flags as booleans (a string comparison here kept --json and --verbose off before S11).
+    const logger = new Logger(Boolean(opts.verbose), Boolean(opts.json));
     const keypairBytes = loadKeypair(config.keypairPath);
     const keypair = Keypair.fromSecretKey(keypairBytes);
 
     const connection = new Connection(config.rpcUrl, config.commitment);
-    const wallet = new Wallet(keypair);
     const client = SolanaStablecoin.fromConfig(
         {
             rpcUrl: config.rpcUrl,
             commitment: config.commitment,
-            programId: new PublicKey(config.programId),
-            hookProgramId: new PublicKey(config.hookProgramId),
+            programId: config.programId ? new PublicKey(config.programId) : undefined,
+            hookProgramId: config.hookProgramId ? new PublicKey(config.hookProgramId) : undefined,
         },
-        wallet,
+        keypair,
     );
 
     return { client, keypair, logger, connection };
@@ -91,7 +92,7 @@ async function confirmSSS2Warning(): Promise<boolean> {
  */
 function auditLog(entry: Record<string, unknown>): void {
     const config = loadConfig({});
-    const logPath = (config as unknown as Record<string, string>).auditLogPath || `${os.homedir()}/.sss-token/audit.log`;
+    const logPath = (config as unknown as Record<string, string>).auditLogPath || `${os.homedir()}/.thawgate/audit.log`;
     const dir = logPath.substring(0, logPath.lastIndexOf('/'));
     if (dir && !fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -310,7 +311,7 @@ export function registerCommands(program: Command): void {
         .action(async (opts) => {
             if (!opts.confirm && !opts.dryRun) {
                 console.error(
-                    `ERROR: Freeze is irreversible.\nRe-run with --confirm to proceed:\n  sss-token freeze --mint ${opts.mint} --target ${opts.target} --confirm`
+                    `ERROR: Freeze is irreversible.\nRe-run with --confirm to proceed:\n  thawgate freeze --mint ${opts.mint} --target ${opts.target} --confirm`
                 );
                 process.exit(1);
             }
@@ -455,7 +456,7 @@ export function registerCommands(program: Command): void {
 
     // ========================================================================
     // Roles (NEW-002: spec-required `roles` parent command with subcommands)
-    // Provides sss-token roles grant / sss-token roles revoke interface.
+    // Provides thawgate roles grant / thawgate roles revoke interface.
     // The top-level grant-role / revoke-role commands above are kept for
     // backward compatibility.
     // ========================================================================
@@ -553,7 +554,7 @@ export function registerCommands(program: Command): void {
             // HIGH-003: --confirm guard
             if (!opts.confirm) {
                 console.error(
-                    `ERROR: Transferring authority is irreversible without a follow-up transfer-back.\nRe-run with --confirm to proceed:\n  sss-token transfer-authority --mint ${opts.mint} --new-authority ${opts.newAuthority} --confirm`
+                    `ERROR: Transferring authority is irreversible without a follow-up transfer-back.\nRe-run with --confirm to proceed:\n  thawgate transfer-authority --mint ${opts.mint} --new-authority ${opts.newAuthority} --confirm`
                 );
                 process.exit(1);
             }
@@ -583,16 +584,17 @@ export function registerCommands(program: Command): void {
     // ========================================================================
     program
         .command("blacklist")
-        .description("Add a wallet to the blacklist (SSS-2)")
+        .description("Add a wallet to the blacklist (Blacklister role); on Token ACL mints its passed account is frozen too")
         .requiredOption("--mint <pubkey>", "Mint address")
         .requiredOption("--target <pubkey>", "Wallet to blacklist")
         .requiredOption("--reason <reason>", "Reason for blacklisting")
+        .option("--token-account <pubkey>", "A token account owned by the target (default: its associated token account)")
         .option("--confirm", "Confirm this irreversible action")
         .action(async (opts) => {
             // HIGH-003: --confirm guard
             if (!opts.confirm) {
                 console.error(
-                    `ERROR: Blacklisting is irreversible without a separate unblacklist operation.\nRe-run with --confirm to proceed:\n  sss-token blacklist --mint ${opts.mint} --target ${opts.target} --reason "${opts.reason}" --confirm`
+                    `ERROR: Blacklisting is irreversible without a separate unblacklist operation.\nRe-run with --confirm to proceed:\n  thawgate blacklist --mint ${opts.mint} --target ${opts.target} --reason "${opts.reason}" --confirm`
                 );
                 process.exit(1);
             }
@@ -608,6 +610,7 @@ export function registerCommands(program: Command): void {
                 keypair.publicKey,
                 target,
                 opts.reason,
+                { targetTokenAccount: opts.tokenAccount ? new PublicKey(opts.tokenAccount) : undefined },
             );
             const tx = new Transaction().add(...instructions);
             const sig = await sendAndConfirmTransaction(connection, tx, [keypair]);
@@ -629,7 +632,7 @@ export function registerCommands(program: Command): void {
             // HIGH-003: --confirm guard
             if (!opts.confirm) {
                 console.error(
-                    `ERROR: Confirm required for this operation.\nRe-run with --confirm:\n  sss-token unblacklist --mint ${opts.mint} --target ${opts.target} --confirm`
+                    `ERROR: Confirm required for this operation.\nRe-run with --confirm:\n  thawgate unblacklist --mint ${opts.mint} --target ${opts.target} --confirm`
                 );
                 process.exit(1);
             }
@@ -666,7 +669,7 @@ export function registerCommands(program: Command): void {
         .action(async (opts) => {
             if (!opts.confirm) {
                 console.error(
-                    `ERROR: Seize is irreversible. Re-run with --confirm to proceed:\n  sss-token seize --mint ${opts.mint} --source ${opts.source} --source-authority ${opts.sourceAuthority} --treasury ${opts.treasury} --confirm`
+                    `ERROR: Seize is irreversible. Re-run with --confirm to proceed:\n  thawgate seize --mint ${opts.mint} --source ${opts.source} --source-authority ${opts.sourceAuthority} --treasury ${opts.treasury} --confirm`
                 );
                 process.exit(1);
             }
@@ -859,7 +862,7 @@ export function registerCommands(program: Command): void {
         .option("--format <format>", "Output format: json|csv", "json")
         .action((opts) => {
             const config = loadConfig({}) as unknown as Record<string, string>;
-            const logPath = config.auditLogPath || `${os.homedir()}/.sss-token/audit.log`;
+            const logPath = config.auditLogPath || `${os.homedir()}/.thawgate/audit.log`;
 
             if (!fs.existsSync(logPath)) {
                 console.log("No audit log found.");
@@ -920,7 +923,7 @@ export function registerCommands(program: Command): void {
 
             try {
                 saveConfig(updates);
-                console.log("Configuration saved to ~/.sss-token/config.json");
+                console.log("Configuration saved to ~/.thawgate/config.json");
                 for (const [key, value] of Object.entries(updates)) {
                     console.log(`  ${key}: ${value}`);
                 }
