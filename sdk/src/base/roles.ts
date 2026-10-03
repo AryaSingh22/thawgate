@@ -8,7 +8,8 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
-import { Program, BN } from "@coral-xyz/anchor";
+import { Program } from "@coral-xyz/anchor";
+import BN from "bn.js";
 import {
     findConfigPda,
     findRolePda,

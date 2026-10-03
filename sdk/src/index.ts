@@ -26,6 +26,20 @@
 // Main client
 export { SolanaStablecoin } from "./client";
 
+// The BN the SDK's amounts use. Imported from bn.js, not anchor: anchor's CJS exports BN through a getter that native
+// Node ESM can't name-import ("Named export 'BN' not found").
+export { default as BN } from "bn.js";
+
+// Program IDs (devnet deployments + upstream Token ACL / SAS / ABL)
+export {
+    SSS_TOKEN_PROGRAM_ID,
+    TRANSFER_HOOK_PROGRAM_ID,
+    THAWGATE_GATE_PROGRAM_ID,
+    TOKEN_ACL_PROGRAM_ID,
+    SAS_PROGRAM_ID,
+    ABL_GATE_PROGRAM_ID,
+} from "./programs";
+
 // Types and enums
 export {
     RoleType,

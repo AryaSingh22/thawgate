@@ -6,7 +6,7 @@
  */
 
 import { PublicKey } from "@solana/web3.js";
-import { BN } from "@coral-xyz/anchor";
+import BN from "bn.js";
 
 // ============================================================================
 // Enums
@@ -256,9 +256,9 @@ export interface SSSClientConfig {
     commitment?: "processed" | "confirmed" | "finalized";
     /** Whether to skip preflight checks. */
     skipPreflight?: boolean;
-    /** SSS-Token program ID (default: from IDL). */
+    /** SSS-Token program ID (default: the devnet deployment, `SSS_TOKEN_PROGRAM_ID`). */
     programId?: PublicKey;
-    /** Transfer Hook program ID (default: from IDL). */
+    /** Transfer Hook program ID (default: the devnet deployment, `TRANSFER_HOOK_PROGRAM_ID`). */
     hookProgramId?: PublicKey;
 }
 

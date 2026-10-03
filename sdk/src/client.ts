@@ -28,7 +28,8 @@ import {
     Keypair,
     TransactionInstruction,
 } from "@solana/web3.js";
-import { Program, AnchorProvider, BN } from "@coral-xyz/anchor";
+import { Program, AnchorProvider } from "@coral-xyz/anchor";
+import BN from "bn.js";
 import {
     findConfigPda,
     findPauseStatePda,
@@ -41,6 +42,7 @@ import { ComplianceModule } from "./modules/compliance";
 import { PrivacyModule } from "./modules/privacy";
 import { ReservesModule } from "./modules/reserves";
 import IDL from "./idl.json";
+import { SSS_TOKEN_PROGRAM_ID, TRANSFER_HOOK_PROGRAM_ID } from "./programs";
 import type {
     SSSClientConfig,
     InitializeArgs,
@@ -164,8 +166,9 @@ export class SolanaStablecoin {
             config.commitment ?? "confirmed",
         );
 
-        const programId = config.programId;
-        const hookProgramId = config.hookProgramId;
+        // Default: the devnet deployments (localnet uses the same IDs).
+        const programId = config.programId ?? SSS_TOKEN_PROGRAM_ID;
+        const hookProgramId = config.hookProgramId ?? TRANSFER_HOOK_PROGRAM_ID;
 
         // Validate program IDs — reject placeholders and missing IDs
         validateProgramId(programId, "SSS Token program ID (programId)");

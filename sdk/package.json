@@ -1,7 +1,7 @@
 {
     "name": "@thawgate/sdk",
     "version": "0.1.0",
-    "description": "TypeScript SDK for the Solana Stablecoin Standard (SSS)",
+    "description": "TypeScript SDK for ThawGate: Token ACL gate policies, SSS-ACL stablecoins, SAS credentials",
     "license": "MIT",
     "repository": {
         "type": "git",
@@ -17,11 +17,19 @@
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {
-            "import": "./dist/index.mjs",
-            "require": "./dist/index.js",
-            "types": "./dist/index.d.ts"
+            "import": {
+                "types": "./dist/index.d.mts",
+                "default": "./dist/index.mjs"
+            },
+            "require": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            }
         },
         "./package.json": "./package.json"
+    },
+    "engines": {
+        "node": ">=20"
     },
     "files": [
         "dist",
@@ -37,11 +45,10 @@
     },
     "dependencies": {
         "@coral-xyz/anchor": "^0.32.1",
-        "@solana/spl-token": "^0.4.0",
-        "@solana/web3.js": "^1.95.0",
-        "bs58": "^5.0.0",
-        "fastify": "5.7.4",
-        "mocha": "5.0.5"
+        "@solana/spl-token": "^0.4.14",
+        "@solana/web3.js": "^1.98.4",
+        "@types/bn.js": "^5.1.6",
+        "bn.js": "^5.2.1"
     },
     "devDependencies": {
         "@types/node": "^20.0.0",
