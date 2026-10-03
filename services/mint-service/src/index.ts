@@ -28,13 +28,19 @@ const connection = new Connection(config.rpcUrl, "confirmed");
 
 // sss-token instructions come from the SDK, not a hand-written IDL (before S11 it had 7 accounts in the wrong order,
 // no reserve attestation, and role seeds off by one). SSS_PROGRAM_ID / SSS_HOOK_PROGRAM_ID override the SDK's devnet
-// IDs; the shared config's placeholder defaults mean "not set".
+// IDs; the shared config's placeholder defaults mean "not set". The client is built on first use, so an invalid ID
+// fails that request (500 with the reason) rather than the service and its /health (Full CI on 2e4dbbb sets
+// SSS_PROGRAM_ID to a placeholder that isn't a valid key).
 const configuredId = (id: string) => (/^(SSSToken|Hook)1+$/.test(id) || !id ? undefined : new PublicKey(id));
-const sss = SolanaStablecoin.fromConfig({
-    rpcUrl: config.rpcUrl,
-    programId: configuredId(config.programId),
-    hookProgramId: configuredId(config.hookProgramId),
-});
+let sssClient: SolanaStablecoin | undefined;
+function sss(): SolanaStablecoin {
+    sssClient ??= SolanaStablecoin.fromConfig({
+        rpcUrl: config.rpcUrl,
+        programId: configuredId(config.programId),
+        hookProgramId: configuredId(config.hookProgramId),
+    });
+    return sssClient;
+}
 
 // ---------------------------------------------------------------------------
 // Keypair loading — supports JSON array env var or file path
@@ -147,7 +153,7 @@ app.post<{
 
         // 3. mint_tokens from the SDK's builder (the program's real IDL: role PDA, quota, pause state, the recipient's
         //    ATA, and the reserve attestation Acl mints require)
-        const ixs = await sss.mintTokens(mintPubkey, minterKeypair.publicKey, recipientPubkey, new BN(amount));
+        const ixs = await sss().mintTokens(mintPubkey, minterKeypair.publicKey, recipientPubkey, new BN(amount));
 
         // 4. Submit with retry: up to 3 attempts, exponential backoff
         const tx = new Transaction().add(...ixs);
@@ -245,7 +251,7 @@ app.post<{
         }
 
         // burn_tokens from the SDK's builder: burns from the burner's own ATA (Burner role).
-        const ixs = await sss.burnTokens(mintPubkey, burnerKeypair.publicKey, new BN(amount));
+        const ixs = await sss().burnTokens(mintPubkey, burnerKeypair.publicKey, new BN(amount));
 
         const tx = new Transaction().add(...ixs);
         const signature = await sendWithRetry(connection, tx, [burnerKeypair], 3);
