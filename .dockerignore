@@ -6,7 +6,9 @@ target
 trident-tests
 .anchor
 test-ledger
-sdk
+# The keeper and mint-service images build @thawgate/sdk from its sources (S11); only its build output stays out.
+sdk/dist
+sdk/tests
 cli
 programs
 tests

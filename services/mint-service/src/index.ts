@@ -13,6 +13,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { Connection, PublicKey, Keypair, Transaction } from "@solana/web3.js";
+import { BN, SolanaStablecoin } from "@thawgate/sdk";
 import { db } from "@thawgate/shared";
 import { loadServiceConfig } from "@thawgate/shared";
 import { sendWithRetry } from "@thawgate/shared";
@@ -24,6 +25,16 @@ app.register(cors, { origin: true });
 
 const config = loadServiceConfig({ port: 3001 });
 const connection = new Connection(config.rpcUrl, "confirmed");
+
+// sss-token instructions come from the SDK, not a hand-written IDL (before S11 it had 7 accounts in the wrong order,
+// no reserve attestation, and role seeds off by one). SSS_PROGRAM_ID / SSS_HOOK_PROGRAM_ID override the SDK's devnet
+// IDs; the shared config's placeholder defaults mean "not set".
+const configuredId = (id: string) => (/^(SSSToken|Hook)1+$/.test(id) || !id ? undefined : new PublicKey(id));
+const sss = SolanaStablecoin.fromConfig({
+    rpcUrl: config.rpcUrl,
+    programId: configuredId(config.programId),
+    hookProgramId: configuredId(config.hookProgramId),
+});
 
 // ---------------------------------------------------------------------------
 // Keypair loading — supports JSON array env var or file path
@@ -134,75 +145,12 @@ app.post<{
             });
         }
 
-        // 3. Build the mint instruction using the SSS program
-        //    Uses the program IDL to construct the instruction
-        const { Program, AnchorProvider, Wallet, BN } = await import("@coral-xyz/anchor");
-        const provider = new AnchorProvider(
-            connection,
-            new Wallet(minterKeypair),
-            { commitment: "confirmed" },
-        );
-
-        const programId = new PublicKey(config.programId);
-
-        // Derive PDAs
-        const [configPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("stablecoin_config"), mintPubkey.toBuffer()],
-            programId,
-        );
-        const [rolePda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("role"), mintPubkey.toBuffer(), minterKeypair.publicKey.toBuffer(), Buffer.from([2])], // 2 = Minter
-            programId,
-        );
-        const [quotaPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("minter_quota"), mintPubkey.toBuffer(), minterKeypair.publicKey.toBuffer()],
-            programId,
-        );
-
-        // Build mint_tokens instruction via Anchor IDL
-        const idl = {
-            version: "0.1.0",
-            name: "sss_token",
-            instructions: [{
-                name: "mintTokens",
-                accounts: [
-                    { name: "config", isMut: true, isSigner: false },
-                    { name: "mint", isMut: true, isSigner: false },
-                    { name: "minterRole", isMut: false, isSigner: false },
-                    { name: "minterQuota", isMut: true, isSigner: false },
-                    { name: "recipientToken", isMut: true, isSigner: false },
-                    { name: "minter", isMut: true, isSigner: true },
-                    { name: "tokenProgram", isMut: false, isSigner: false },
-                ],
-                args: [{ name: "amount", type: "u64" }],
-            }],
-        };
-
-        const program = new (Program as any)(idl, programId, provider);
-
-        const { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } = await import("@solana/spl-token");
-        const recipientAta = getAssociatedTokenAddressSync(
-            mintPubkey,
-            recipientPubkey,
-            false,
-            TOKEN_2022_PROGRAM_ID,
-        );
-
-        const ix = await program.methods
-            .mintTokens(new BN(amount))
-            .accounts({
-                config: configPda,
-                mint: mintPubkey,
-                minterRole: rolePda,
-                minterQuota: quotaPda,
-                recipientToken: recipientAta,
-                minter: minterKeypair.publicKey,
-                tokenProgram: TOKEN_2022_PROGRAM_ID,
-            })
-            .instruction();
+        // 3. mint_tokens from the SDK's builder (the program's real IDL: role PDA, quota, pause state, the recipient's
+        //    ATA, and the reserve attestation Acl mints require)
+        const ixs = await sss.mintTokens(mintPubkey, minterKeypair.publicKey, recipientPubkey, new BN(amount));
 
         // 4. Submit with retry: up to 3 attempts, exponential backoff
-        const tx = new Transaction().add(ix);
+        const tx = new Transaction().add(...ixs);
         const signature = await sendWithRetry(connection, tx, [minterKeypair], 3);
 
         // 5. Wait for confirmation and get slot
@@ -296,64 +244,10 @@ app.post<{
             });
         }
 
-        const { Program, AnchorProvider, Wallet, BN } = await import("@coral-xyz/anchor");
-        const provider = new AnchorProvider(
-            connection,
-            new Wallet(burnerKeypair),
-            { commitment: "confirmed" },
-        );
+        // burn_tokens from the SDK's builder: burns from the burner's own ATA (Burner role).
+        const ixs = await sss.burnTokens(mintPubkey, burnerKeypair.publicKey, new BN(amount));
 
-        const programId = new PublicKey(config.programId);
-
-        const [configPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("stablecoin_config"), mintPubkey.toBuffer()],
-            programId,
-        );
-        const [rolePda] = PublicKey.findProgramAddressSync(
-            [Buffer.from("role"), mintPubkey.toBuffer(), burnerKeypair.publicKey.toBuffer(), Buffer.from([3])], // 3 = Burner
-            programId,
-        );
-
-        const idl = {
-            version: "0.1.0",
-            name: "sss_token",
-            instructions: [{
-                name: "burnTokens",
-                accounts: [
-                    { name: "config", isMut: true, isSigner: false },
-                    { name: "mint", isMut: true, isSigner: false },
-                    { name: "burnerRole", isMut: false, isSigner: false },
-                    { name: "sourceToken", isMut: true, isSigner: false },
-                    { name: "burner", isMut: true, isSigner: true },
-                    { name: "tokenProgram", isMut: false, isSigner: false },
-                ],
-                args: [{ name: "amount", type: "u64" }],
-            }],
-        };
-
-        const program = new (Program as any)(idl, programId, provider);
-
-        const { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddressSync } = await import("@solana/spl-token");
-        const burnerAta = getAssociatedTokenAddressSync(
-            mintPubkey,
-            burnerKeypair.publicKey,
-            false,
-            TOKEN_2022_PROGRAM_ID,
-        );
-
-        const ix = await program.methods
-            .burnTokens(new BN(amount))
-            .accounts({
-                config: configPda,
-                mint: mintPubkey,
-                burnerRole: rolePda,
-                sourceToken: burnerAta,
-                burner: burnerKeypair.publicKey,
-                tokenProgram: TOKEN_2022_PROGRAM_ID,
-            })
-            .instruction();
-
-        const tx = new Transaction().add(ix);
+        const tx = new Transaction().add(...ixs);
         const signature = await sendWithRetry(connection, tx, [burnerKeypair], 3);
 
         const confirmation = await connection.getTransaction(signature, {
