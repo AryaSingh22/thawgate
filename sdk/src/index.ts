@@ -52,6 +52,25 @@ export type {
     GateVerdict,
 } from "./gate/reasons";
 
+// Token ACL (sRFC 37) instructions on web3.js v1
+export {
+    TOKEN_ACL_IX,
+    MINT_CONFIG_SIZE,
+    findMintConfigPda,
+    findFlagAccountPda,
+    findThawExtraMetasPda,
+    findFreezeExtraMetasPda,
+    decodeMintConfig,
+    fetchMintConfig,
+    setGatingProgramIx,
+    togglePermissionlessIx,
+    permissionlessIx,
+} from "./gate/tokenAcl";
+export type { MintConfig, PermissionlessKind, PermissionlessArgs } from "./gate/tokenAcl";
+
+// Solana Attestation Service: credentials, schemas, attestations (sas.createCredentialIx, sas.KYC_SCHEMA, …)
+export * as sas from "./sas";
+
 // Program IDs (devnet deployments + upstream Token ACL / SAS / ABL)
 export {
     SSS_TOKEN_PROGRAM_ID,

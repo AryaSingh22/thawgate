@@ -68,10 +68,13 @@
         "bn.js": "^5.2.1"
     },
     "devDependencies": {
+        "@solana/kit": "^5",
+        "@token-acl/sdk": "0.2.7",
         "@types/node": "^20.0.0",
         "@typescript-eslint/eslint-plugin": "^8.56.0",
         "@typescript-eslint/parser": "^8.56.0",
         "eslint": "^10.0.1",
+        "sas-lib": "1.0.10",
         "tsup": "^8.0.0",
         "typescript": "^5.4.0",
         "vitest": "^4.0.18"
