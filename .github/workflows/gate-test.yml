@@ -88,6 +88,12 @@ jobs:
       - name: Localnet keeper e2e (tests/e2e/keeper.ts, in-process keeper)
         run: SKIP_BUILD=1 KEEPER_LOG_LEVEL=info yarn test:keeper
 
+      - name: Screener unit tests (services/compliance-service, vitest)
+        run: yarn workspace @thawgate/compliance-service test
+
+      - name: Localnet screener e2e (tests/e2e/screener.ts, in-process keeper + screener)
+        run: SKIP_BUILD=1 SCREENER_LOG_LEVEL=info yarn test:screener
+
       - name: Upload validator log
         if: failure()
         uses: actions/upload-artifact@v4
