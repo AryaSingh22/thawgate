@@ -2,76 +2,94 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S11 handoff (read first; remove when S11 ends)
-S10 is done (S10 entry at the bottom). On devnet, a flagged wallet goes from the provider result to blacklisted to frozen by the keeper with no manual on-chain step: **flag→frozen p50 3,714.5 ms over 10 runs**. The provider was the static list (the fallback): there is no Range key.
+## ▶ S12 / S13 handoff (read first; remove when S13 ends)
+S11 is done (S11 entry at the bottom). `@thawgate/sdk` now has the gate client, the issuer preset, the SAS helpers and the shared TG parser, and the CLI is `thawgate`. **The quickstart passed on devnet from fresh wallets: 39.1 s on Node 22, 43.4 s on Node 20,** plus funding the wallet. The public faucet refused both wallets, so each was funded by a transfer.
 
-State on devnet (2026-10-03):
-- **Programs:** unchanged since S9. No program changed in S10.
+State on devnet (2026-10-04):
+- **Programs:** unchanged since S9; no Rust changed in S11.
 - **Keys:**
-  - **Keeper** `4auu6t…` (`~/.keys/thawgate/keeper.json`): 0.049865 SOL, no role. **Not running.**
-  - **Screener** `AUPc2FiAYMe6jcXBvoyRuckypNq8gNAGftKPoacbLsRv` (`~/.keys/thawgate/screener.json`, mode 600, new in S10): 0.0235598 SOL. It holds the Blacklister role on the two S10 mints only. **Not running.**
-    - Start: build with `yarn workspace @thawgate/compliance-service build`, start the keeper first, then `SCREENER_KEYPAIR=~/.keys/thawgate/screener.json SCREENER_STATIC_LIST=<list> node services/compliance-service/dist/screener/main.js` (:3006).
-    - The S10 list `/tmp/s10-devnet-list.json` is scratch. Without `SCREENER_STATIC_LIST` it uses the empty `lists/demo.json`.
-  - **Reserve attestor** `2da6PG…`: 0 SOL (unchanged).
-- **Mints added in S10** (Acl, SAS + blacklist; issuer `5BXg…`):
-  - **`34GiwSEd…` (run A):** 10 holders blacklisted by the screener, plus frank. Run 1's wallet `27RoMe1p…` had its entry removed in case 4 (inactive), with 100 tokens frozen in place.
-  - **`ABtEsA6h…` (run B):** 3 holders, plus frank (removed in case 4). Run 1's wallet `CosvnnUN…` had its 60 ATA tokens seized by the CLI to the treasury `9yC4iKdy…`; 40 stay frozen in its second account.
-  - S7b, S8 and S9 mints are unchanged. The screener has no role on them, so it skips them.
-- **S9 story mint `D6Q5PA…`:** its reserves went stale on 2026-10-02 15:37 UTC. It needs a new post before it can mint (PLAN.md S17/S18).
-- **Balances:** `5BXg…` 30.769536493, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
+  - Keeper `4auu6t…` (0.049865 SOL), screener `AUPc2FiA…` (0.0235598 SOL) and attestor `2da6PG…` (0 SOL) are unchanged and **not running**.
+  - `5BXg…` 30.369526493 SOL.
+  - The two quickstart wallets (`G6bJyJsC…`, `fraTVHfY…`, 0.1765 SOL each) have scratch keys in `/tmp/qs-node{22,20}/app/`.
+- **New mints (S11 quickstart; issuers = the quickstart wallets):** `FMitUU5r…` and `6zGi5yAM…`, each with a self-issued "Quickstart KYC" credential. Alice's account is frozen (NO_CREDENTIAL) and holds 100 QUSD.
+- **S9 story mint `D6Q5PA…`:** reserves stale since 2026-10-02 (S17/S18).
 
-S11, in order (PLAN.md S11, SDK + CLI):
-1. **CI:** check the S10 log commit with `gh run list -R AryaSingh22/thawgate --commit <full sha>`, and record it in the S10 entry. `c3a0e5a`'s result is already there.
-2. **Gate client:** `initPolicy`, `updatePolicy`, `setupExtraMetas`, `createAtaAndThaw`, `freezeIfInvalid`; `explain(mint, wallet)`; the issuer preset + `enableTokenAcl`; the swap-gate helper; CLI commands mirroring them; the timed quickstart.
-3. **From S10:**
-   - SDK `addToBlacklist` always passes the target's ATA. Since S9 the account must be owned by the target, so add an optional `targetTokenAccount`, and `sss-token blacklist --token-account`.
-   - The CLI's `seize` works on an Acl mint (devnet, S10) after the `SSS_RPC_URL` fix. Its other commands (freeze, thaw, blacklist, grant-role) are unverified on Acl mints.
-4. **From S9:** `services/mint-service` builds `mint_tokens` from a hand-written IDL that is wrong (`index.ts:162`). Switch it to the SDK or drop it.
+**S12, Payments with Subscriptions & Allowances** (PLAN.md S12): `examples/agent-budget.ts`, then "after revoke + freeze, the agent's pull fails"; answer the RESEARCH.md §3 TODOs.
+- **Use the SDK:** `createStablecoin`, `sas.*`, `createAtaAndThaw`, `freezeIfInvalid` and `explain` replace the test helpers. The quickstart is the template: it already does revoke → freeze.
+- **The S&A program `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`** is in `tests/fixtures/` and Anchor.toml's genesis, but **not loaded by `scripts/test-gate.sh`**. Add a `--bpf-program` line, as S11 did for the ABL gate.
+- **No S&A client is installed** (`@solana/subscriptions`: TODO(verify) the package name and whether it is kit-based). If it is kit-based, mind the native-ESM gotcha below; the keeper and tests run kit as CommonJS.
 
-Open (for S15/S16/S17):
-- **Range is untested live.** `RangeProvider` follows Range's docs (`GET /v1/risk/address`, Bearer key, `riskScore` 1–10) and passes the mocked tests. When a key arrives, put `RANGE_API_KEY` in `.env` (never print it) and run `node services/compliance-service/dist/screener/main.js probe 42RLPACwZPx3vYYmxSueqsogfynBDqXK298EDsNoyoHi` (Range's test address, expected 10) and `… probe 6AwuGoRLd54NTjAWeYZBVHnK4reK78FYpsqe6Z2PvU27` (expected 1).
-- **No second blacklist after a removal.** `add_to_blacklist` creates the entry with `init`, and `remove_from_blacklist` only deactivates it, so the same wallet and mint can't be blacklisted again ("already in use"). The screener treats an inactive entry as an operator override. A re-activation path is S15 work (SECURITY.md known limitation 4).
-- **Keeper self-trigger:** each keeper freeze on a SAS mint mentions SAS, because Token ACL resolves the attestation and the SAS program as extra metas. So the freeze comes back through the keeper's own `sas_logs` stream as a `getTransaction` and a no-op re-check (seen on `5u78kBRe…` and `5F1BpQDr…`). It's harmless but wastes 2 RPC calls per freeze. Skip transactions whose fee payer is the keeper.
-- **Trigger label race:** when the 15 s sweep checks an account at the moment an event arrives, the freezer makes one attempt and the first caller's label wins (1 in 10 on devnet was labelled `sweep`). Cosmetic: the freeze and its reason are right.
-- **Screener ops:**
-  - no docker-compose entry; it has to run through judging, along with the keeper and the attestor (PLAN.md S17);
-  - state is in memory, so a restart re-screens every holder (one Range call each);
-  - one provider only, no static list and Range together.
-- **Carried from S9, unchanged:**
-  - `mint_tokens` CU depends on the reserve PDA's bump. Fix: check the address with `create_program_address` and the stored bump.
-  - Treasury held by a PDA + `BypassForPdas` for mainnet (PLAN.md S16).
-  - The attestor has no HTTP health or metrics. The Switchboard/Chainlink adapter is a TODO.
-  - `cargo fmt --all -- --check` fails workspace-wide. Keep any reformat out of feature commits.
-- **Carried, unchanged since S7:**
-  - legacy e2e: `anchor test` 68 passing / 7 failing on CI, all known classes;
-  - the gate/sas fixture conversion and the Both-mode test;
-  - the build-in-public thread (user).
+**S13, Console I** (PLAN.md S13): split `frontend/src/App.tsx`; routes `/issuer`, `/holders`, `/decisions`, `/reserves`; an issuer wizard and an "Unlock my wallet" button, all through `@thawgate/sdk`.
+- **Mint wizard:** `SolanaStablecoin.fromConfig({ rpcUrl }, walletAdapter)` then `createStablecoin`. `send` uses AnchorProvider, so the adapter signs after the mint keypair's partial signature.
+- **Unlock:** `gate.explain(mint, wallet)` first, then `gate.createAtaAndThaw(mint, wallet)`, paid by the holder's wallet. `explain` needs a funded fee payer: pass `{ payer: wallet }`.
+- **Hooking up the SDK:**
+  - The frontend is not a yarn workspace. Use `"@thawgate/sdk": "file:../sdk"` (npm symlinks it; build `sdk/dist` first) or the packed tarball.
+  - web3.js needs a `Buffer` polyfill in Vite.
+- **mint-service:** the old panels call mint-service, whose `/mint` and `/burn` now go through the SDK. Its runtime is untested (it needs Postgres). Decide in S13 whether the console mints client-side and mint-service retires.
+- **`/decisions` (S14):** `explain()` plus the keeper's `GET /mints/:mint`, which now carries a `reason` per owner from the same table.
+
+Open:
+- **Docker images not built locally** (no daemon in WSL). The keeper and mint-service Dockerfiles changed and were only replayed by hand. **Check that S11's Full CI docker-health is green.**
+- **`@thawgate/shared` is still a `file:` dependency** in mint-service, indexer, compliance-service and webhook-service. Yarn 1 copies it, the bug S11 fixed for the SDK. Switch them to `"0.1.0"` and rewrite the dependency in each Dockerfile as mint-service does for the SDK (S16/S17).
+- **npm publish (S17):**
+  - Both packages are publish-ready: the CLI depends on `@thawgate/sdk` `0.1.0`, and both have READMEs and `engines >=20`.
+  - The pack smoke runs in CI on Node 20 and 22.
+  - The quickstart README says "until 0.1.0 is on npm"; update it after publishing.
+- **Carried from S10 (unchanged):**
+  - Range untested live; S19 wording is now in PLAN.md.
+  - No second blacklist after a removal; S15, with the reserve bump fix.
+  - Keeper self-trigger on SAS logs; trigger-label race.
+  - Screener ops: no compose entry, state in memory, one provider.
+- **Carried from S9 and earlier:**
+  - Treasury PDA + BypassForPdas for mainnet (S16).
+  - Attestor health and metrics.
+  - `cargo fmt` fails workspace-wide.
+  - Legacy e2e 68/7.
+  - The gate/sas fixture conversion and the Both-mode test.
+  - The build-in-public thread (user).
 
 Gotchas:
-- **New in S10:**
-  - **`*.json` is gitignored repo-wide** (keypairs). A new JSON data file needs a negation in `.gitignore`, or it silently stays out of git. S9's `services/attestor/examples/reserves.example.json` was missed this way, though the S9 story wrote its URL on chain as the `report_uri`; committed in S10.
-  - **CLI env:** `SSS_RPC_URL`, `SSS_PROGRAM_ID` and `SSS_HOOK_PROGRAM_ID` are needed, and the RPC goes in the env, never on the command line. `/tmp/s10-seize.sh` (scratch) shows the masked pattern.
-  - **Devnet rent:** a 218 B BlacklistEntry holds 1,757,680 lamports, less than the classic 2-year formula (2,408,160). Read rent from the cluster; don't compute it.
-  - **Edit over `\\wsl.localhost` normalizes line endings:** it turned `.gitignore`'s three LF lines into CRLF like the rest (whitespace only).
-  - **Screener e2e on devnet:** `CLUSTER=devnet SCREENER=external LIST_FILE=<the screener's SCREENER_STATIC_LIST> RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/screener.ts`, with the keeper (:3005) and the screener (:3006) already running. Case 3 (fault injection) is in-process only.
-- **From S9 and earlier, still true:**
-  - **clippy:** CI runs `cargo clippy --workspace --all-targets -- -D warnings`. Run it before pushing Rust.
-  - **Acl mints need reserves to mint:** `reservesForTestsIxs(mint, await chainNow())`.
-  - **Staged changes ride along:** `git rm` and `git mv` stage at once.
-  - **`pkill -f` inside `bash -lc '…'` kills its own shell.** Use the pid file and SIGTERM.
-  - **Keeper `/mints/:mint`:** a skipped mint returns 404. `GET /mints` (S10) lists the tracked mints.
-  - **@solana/kit 5.5.1 fails native Node ESM.** CommonJS and vitest's inlining work.
-  - **docker compose:** set `POSTGRES_PASSWORD`. The keeper is behind the `keeper` profile. Full CI builds every image, so the compliance-service image now installs vitest too; it passed on `c3a0e5a`.
-  - **Agave 4.x:** `ExtendProgram` needs at least 10,240 bytes (`MIN_EXTEND`).
-  - **Devnet CU ≠ localnet CU.** Quote devnet numbers as devnet.
-  - **Secrets:** never print `.env`. `solana` CLI errors contain the full RPC URL.
-  - **gh:** use `-R AryaSingh22/thawgate` and the full 40-character SHA.
-  - **Token-2022 errors:** `MintPaused` = 0x43, `AccountFrozen` = 0x11.
-  - **A refused tx on chain:** `sendLanded` (tests/gate/helpers.ts) sends without preflight, so the failure lands with an explorer link.
-  - **Keeper e2e:** `yarn test:keeper` (localnet, in-process). Devnet, with the keeper as its own process: `CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts` (case 6 is skipped there).
+- **New in S11:**
+  - **Yarn 1 `file:` dependencies are copies, not links.** Depend on a workspace package by its version (`"0.1.0"`). Docker builds then rewrite the dependency to a path or a tarball.
+  - **The workspace install needs Node ≥ 22.12**, but the published SDK and CLI run on Node 20. CI builds on 22 and then switches Node for the smoke.
+  - **Native ESM:** never import `BN` from `@coral-xyz/anchor` in the SDK (getter export); use `bn.js`. The pack smoke catches regressions.
+  - **CLI:**
+    - global options (`--keypair`, `--rpc-url`, `--json`) go **before** the subcommand;
+    - the CLI loads `.env` from the cwd through dotenv, so tests run it from a clean dir with a clean `HOME`;
+    - the binary is `thawgate`, the config dir `~/.thawgate`, and the env vars are still `SSS_*`.
+  - **Test helpers:** `@token-acl/sdk` 0.2.7's `*WithExtraMetas` builders `console.log` their inputs, and tests silence them. The SDK's own builders don't log.
+  - **`explain`'s simulation needs an existing, funded fee payer.** A missing ATA also needs its rent.
+  - **`.dockerignore`** keeps out only `sdk/dist` and `sdk/tests` (the images build the SDK).
+  - **Public devnet:**
+    - the faucet refused new wallets (rate limit);
+    - the RPC returns 429s, which web3.js retries (+2–6 s);
+    - funding by transfer: `solana transfer -u https://api.devnet.solana.com --keypair ~/.config/solana/sss-authority.json <addr> 0.2 --allow-unfunded-recipient`.
+  - **`yarn test:sdk`** builds the SDK and CLI, then runs 12 cases, including the README quickstart and the CLI README example.
+  - **Bash `tail -N` hides earlier lines:** S11 lost the Node 20 install time that way. Print key numbers on their own lines and grep for them.
+- **From S10 and earlier, still true:**
+  - `*.json` is gitignored repo-wide (keypairs). A new JSON data file needs a negation; IDLs named `idl.json` are already covered.
+  - **CLI env:** the RPC goes in the env (`SSS_RPC_URL`), never on the command line, when it carries a key.
+  - Read rent from the cluster, don't compute it.
+  - An Edit over `\\wsl.localhost` normalizes line endings and drops `+x`; check `git diff --summary`.
+  - Screener e2e on devnet: `CLUSTER=devnet SCREENER=external LIST_FILE=… RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/screener.ts`, with the keeper and screener running.
+  - clippy runs in CI with `-D warnings`; run it before pushing Rust.
+  - Acl mints need reserves to mint.
+  - `git rm` / `git mv` stage at once.
+  - `pkill -f` inside `bash -lc` kills its own shell.
+  - Keeper `/mints/:mint` returns 404 for a skipped mint.
+  - kit 5.5.1 fails native Node ESM.
+  - docker compose needs `POSTGRES_PASSWORD`; the keeper is behind a profile.
+  - Agave 4.x `ExtendProgram` minimum is 10,240 bytes.
+  - Devnet CU ≠ localnet CU.
+  - Never print `.env`.
+  - `gh` needs `-R AryaSingh22/thawgate` and full SHAs.
+  - Token-2022 errors: `MintPaused` 0x43, `AccountFrozen` 0x11.
+  - `sendLanded` lands a refused tx.
+  - **Keeper e2e:** `yarn test:keeper` (localnet, in-process). On devnet, with the keeper as its own process: `CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts`.
   - **Devnet story:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`.
-  - **SIGINT:** a background job in a non-interactive shell ignores SIGINT. Send SIGTERM.
-  - `transfer_authority` doesn't move the gate policy admin (S6a, for the S16 docs).
+  - **Screener on devnet:** `yarn workspace @thawgate/compliance-service build`; start the keeper first; then `SCREENER_KEYPAIR=~/.keys/thawgate/screener.json SCREENER_STATIC_LIST=<list> node services/compliance-service/dist/screener/main.js` (:3006).
+  - SIGINT is ignored in background jobs; use SIGTERM.
+  - `transfer_authority` doesn't move the policy admin.
 
 ## S0 · 2026-09-24 · Baseline, name, repo, CLAUDE.md
 - **Shipped:** pre-hackathon edits committed with their real dates (`c8f504c`, files dated 2026-03-13 → 2026-04-24) and tagged `pre-worlds-fair`. New repo holds the full history and is not a fork; the old fork is `upstream` with push disabled. Mechanical rebrand to `@thawgate/{sdk,cli,tui,console}` plus the 6 service packages (`c109982`). LICENSE adds "Copyright (c) 2026 Arya". README drops the Trident and "Anchor Integration: 10 passing" claims (neither ran; Anchor integration tests have not been run on 0.32 yet). CLAUDE.md added. Both upgrade authorities (`5BXg…`, `3YnV…`) are present, and program keypairs are backed up to `~/.keys/thawgate/` with pubkeys matching the program IDs. Fresh WSL clone: `yarn install --frozen-lockfile` + `yarn typecheck` green on 7 workspaces, after building sdk and shared (the cli and services type against their `dist/`). `anchor build` not run (toolchain migration is S1). No on-chain tx this session.
@@ -894,3 +912,116 @@ Gotchas:
   - `297b635` (.gitignore + attestor example), `c9cdc8a` (keeper `/mints`), `3ccf42e` (screener), `69f027c` (CLI fix), `ad408c1` (tests + CI), `c3a0e5a` (docs);
   - and this log, the S11 handoff and a SANCTIONS.md correction: the re-run's keeper freezes were all labelled `blacklist`.
 - **Next:** S11, SDK + CLI, per the handoff at the top of this file.
+
+## S11 · 2026-10-03 → 10-04 · SDK + CLI: `@thawgate/sdk`, the `thawgate` binary, a timed quickstart
+- **First:**
+  - CI for `2b4c3a0` is recorded in the S10 entry.
+  - PLAN.md gains S15 "blacklist re-add (remove closes or add reactivates), in one sss-token upgrade with the reserve-PDA bump fix" and S19 "Range: built, tested against mocks; the demo uses the labelled static list" unless a live probe passes first (user).
+- **`*.json` audit** (the root `.gitignore` ignores every `*.json`):
+  - **Method:** 233 references in tracked files, each resolved repo-relative and file-relative, then `git check-ignore -v`.
+  - **Result:** every referenced repo path that exists is tracked.
+  - **Ignored on purpose:**
+    - `test-keypair.json`, `target/` IDLs and deploy keypairs, `~/.config/solana` and `~/.keys` paths;
+    - runtime outputs;
+    - false positives (`res.json()`, `opts.json`).
+  - **Ignored on disk, not referenced by path:** `scripts/spikes/.{dex-pool,sas-credential}.<cluster>.json`. Their key names were checked: public keys and signatures only, and SPIKES.md quotes their values. Left untracked.
+  - Nothing needed tracking. The new gate IDL sits at `sdk/src/gate/idl.json`, which `!**/idl.json` already covers.
+- **Decisions (plan mode, approved):**
+  - The SDK stays on web3.js v1 + Anchor. Token ACL and SAS instructions are hand-built and pinned byte-for-byte against `@token-acl/sdk` / `sas-lib` (kit-based; kit 5.5.1 fails native ESM here, and `@solana/token-acl-sdk` 0.4 needs Node 24).
+  - One TG parser in the SDK, used by the keeper.
+  - The quickstart is SAS-first.
+  - mint-service switches to the SDK (user).
+- **Found while planning (both fixed in `9ab114f`):**
+  - **The SDK's ESM build crashed on import** on Node 20 and 22 ("Named export 'BN' not found": anchor exports BN through a getter). BN now comes from `bn.js`.
+  - **Yarn 1 copies `file:` dependencies:** `cli/node_modules/@thawgate/sdk` was an Oct 1 snapshot while `sdk/dist` was from Oct 3. The CLI and keeper now depend on `"0.1.0"`, which yarn links. The services' `@thawgate/shared` is still a `file:` copy (open, below).
+- **Shipped: SDK** (`9ab114f`, `204598e`, `30ce1fb`, `48db2e8`):
+  - **Packaging:** `fromConfig({ rpcUrl })` alone works (devnet IDs by default). `exports` lists types first, `engines` is `node >= 20`, and fastify, mocha and bs58 are no longer runtime dependencies.
+  - **`@thawgate/sdk/reasons`** (no imports): `parseGateLogs` reads TG lines only inside ThawGate's own frames. `classifyGateLogs` returns allowed / denied / skipped / failed with a sentence; `describe` depends on the action.
+    - The custom error number recovers a code from truncated logs.
+    - A drift test reads `decision.rs` and `errors.rs`.
+  - **Token ACL on web3.js:** MintConfig, set_gating_program (disc 2), toggle, and the permissionless thaw/freeze and their idempotent variants. Extra metas resolve with spl-token's resolver. Pinned against `@token-acl/sdk`, including an 18-account resolution over the gate's metas.rs layout.
+  - **SAS:** credential, schema, attestation, close, the PDAs, `KYC_SCHEMA` and `encodeKycData`, pinned against sas-lib.
+  - **`GateClient`** (and `SolanaStablecoin#gate`):
+    - `initPolicy` (refuses sss mints), `updatePolicy` (merges onto the stored policy), `setupExtraMetas`;
+    - `createAtaAndThaw` (idempotent thaw);
+    - `explain` (simulation: can_unlock / denied / compliant / freezable / …);
+    - `freezeIfInvalid` (sends only on TG:ALLOW);
+    - `swapGate`: policy, set_gating_program, toggles, and the mint's `token_acl` metadata field, which @token-acl/sdk's `*FromMint` builders read.
+  - **Issuer:**
+    - `createStablecoin` makes 3 transactions: initialize, enable_token_acl, then minter + reserve attestor + first post, with `as_of` from the Clock sysvar.
+    - `enableTokenAcl`.
+    - `addToBlacklist(..., { targetTokenAccount })`, `addToAllowlist` / `removeFromAllowlist`, `keypairWallet`, `send`, `clusterTime`.
+  - **Tests:** sdk vitest 128 (was 96). `tests/e2e/sdk.ts` (`yarn test:sdk`, localnet, through `sdk/dist` and `cli/dist`): 12 passing.
+- **Shipped: keeper on the shared parser** (`d55e99a`):
+  - `classifyLogs` maps `classifyGateLogs`, and `FreezeReason` is the SDK's `FlagCode`.
+  - `GET /mints/:mint` gives each owner a `reason`.
+  - The Docker image compiles only `reasons.ts` with tsc and checks `require('@thawgate/sdk/reasons')` in the final stage.
+  - Gate Tests builds the SDK first.
+- **Shipped: CLI** (`6d0e6f5`):
+  - The binary is **`thawgate`**. Config moves to `~/.thawgate`; `~/.sss-token/config.json` is still read.
+  - Commands:
+    - `create-stablecoin`, `enable-token-acl`;
+    - `policy show|init|update|setup-extra-metas`;
+    - `explain`, `unlock`, `freeze-if-invalid`;
+    - `swap-gate`;
+    - `sas create-credential|create-schema|attest|revoke`;
+    - `allowlist add|remove`;
+    - `blacklist --token-account`.
+  - **Bug fixed:** `--json` and `--verbose` never turned on (booleans compared to `"true"`). With `--json`, stdout now holds only the result.
+  - A refused transaction prints the gate's TG line.
+  - **Verified on localnet** (sdk e2e case 10): `freeze`, `thaw`, `grant-role` and `blacklist --token-account` work on an Acl mint; S10 had them unverified. cli vitest 42.
+- **Shipped: mint-service via the SDK** (`4437129`):
+  - Its hand-written IDL had 7 accounts where the real list has 12, and role seeds off by one, so every `/mint` and `/burn` failed.
+  - The Docker image packs the SDK and installs the tarball (shared stays a symlink for Prisma).
+  - `.dockerignore` now excludes only `sdk/dist` and `sdk/tests` instead of all of `sdk/`.
+- **Shipped: CI** (`a59f0cf`):
+  - `ci.yml` job `sdk-node` (matrix 20, 22) runs `scripts/sdk-pack-smoke.sh`: npm-packed SDK + CLI in an empty project; require, ESM import, `/reasons`, `thawgate --help`.
+  - Gate Tests `cmp`s the SDK's IDLs against `target/` after `anchor build`, and runs `yarn test:sdk`.
+- **Shipped: docs** (`8b233fc`):
+  - `sdk/README.md`: install, quickstart, measured table, API, reason codes. `cli/README.md` is new.
+  - `sdk/examples/quickstart.mjs`.
+  - CLI invocations → `thawgate` in README, OPERATIONS, SANCTIONS and ARCHITECTURE. The OPERATIONS examples didn't run before: `--keypair` after the subcommand, missing `--confirm`, the nonexistent `blacklist add`, preset `sss-2`.
+  - sdk e2e cases 11 and 12 run the quickstart and the CLI README's example on localnet.
+- **Measured: the quickstart on devnet, from a fresh wallet** (devnet slots 507101784–507102156). Setup for each run:
+  - the public RPC `api.devnet.solana.com` (no Helius);
+  - a new dir, `HOME` pointed at an empty folder (no `~/.config/solana`, no `~/.keys`, cold npm cache);
+  - the SDK installed from its `npm pack` tarball (0.1.0 isn't on npm until S17).
+  - **The public faucet refused both new wallets.** Each was funded with 0.2 SOL by a transfer from `5BXg…`, outside the timed run: [3jbNeegi…](https://explorer.solana.com/tx/3jbNeegi4x1uRtnqt9ZFMXjUw7bXYZT7pE7dCEh4RmBNd3RwveaAqjZddp8rwmZXnv5tSVFWoHtDyvWyF7GQW4DG?cluster=devnet) and [469g2Lvj…](https://explorer.solana.com/tx/469g2Lvj8PDmhp6o92eFhGeXd3HcqcEE7mc31qiafUqqBCVeMXQmf6erqbNrYMjEmCeyRfy18yuUMoN3Z2fUA2Hd?cluster=devnet).
+
+  | | Node 22.17 / npm 10.9 | Node 20.20 / npm 10.8 |
+  |---|---|---|
+  | `npm init` + `npm i` (tarball + web3.js), cold cache | 18.2 s | 17.7 s (re-timed in a second fresh dir: the first run's output was cut) |
+  | First run: new wallet, faucet refused, exit | 4.0 s | 10.2 s (4 public-RPC 429 retries) |
+  | Funded run: 9 txs, every expected outcome | 16.9 s (4 × 429) | 15.5 s (2 × 429) |
+  | **Total measured** | **39.1 s** | **43.4 s** |
+  | SOL spent by the run | 0.023509 | 0.023509 |
+
+  | Step | Node 22 run (wallet `G6bJyJsC…`, mint `FMitUU5r…`) | CU | Node 20 run (wallet `fraTVHfY…`, mint `6zGi5yAM…`) | CU |
+  |---|---|---|---|---|
+  | SAS credential + schema | [5XiudL2M…](https://explorer.solana.com/tx/5XiudL2MZTWypMjMpvM13MHSWrkeA7Uhy8S6AiLdjEFmyCXuZDKnj8hQdTCmGFZyi2uyBJdmEPHCYDUweV1KrWCf?cluster=devnet) | 10,294 | [3EsihWTb…](https://explorer.solana.com/tx/3EsihWTbCkwdyp8XoycVzM8j4ST17fyQgjMjRp6FYpEmiRd71psyqEvRMAwq9xmZzR3yAh2CachV65dcYwVznQ8S?cluster=devnet) | 11,794 |
+  | `initialize` (SSS-ACL) | [Cs6p9wzd…](https://explorer.solana.com/tx/Cs6p9wzd1fJoXeqXA2TbeUFycb7LRBzFWWuPuKrf96J2tuxwvrDq5VMLr7Jiod15MSLPWuhQNWszbixLTtTED8y?cluster=devnet) | 58,130 | [2LSdeMkh…](https://explorer.solana.com/tx/2LSdeMkhsKpH5TcKQ5fq9XsCuph3DWVBCK2N851Ar9DmrfezbphosFHTWde1a6ASGHDtSxfiQpApqiicaqYhT2sd?cluster=devnet) | 55,130 |
+  | `enable_token_acl` | [pa1mGadZ…](https://explorer.solana.com/tx/pa1mGadZ2kmCm7SoCS2ipT9LvVCHGLVaLpsHc6wVkVZHYkLiBbBLGCdsDPK9NopRS1uXkryQu1DhbXSt5d6ohbz?cluster=devnet) | 101,266 | [rvc8zAnF…](https://explorer.solana.com/tx/rvc8zAnF2GBecdzvoRGUDST6Q4sAhvknhu1rEDaJNcEvPkPRBKgGd2qunM4HnYmmxRUpcqCEZruoPjfNQhKcw87?cluster=devnet) | 83,266 |
+  | minter + reserve attestor + post | [8iLGgokB…](https://explorer.solana.com/tx/8iLGgokBE53uekjoqKu3DmLwPeyujpUqKPDVQngckMmGTkpXUZArNnBgxMvXG7MzYApkjqLTNbdAovqvBk5nsya?cluster=devnet) | 40,803 | [2Kwr7Wzd…](https://explorer.solana.com/tx/2Kwr7Wzd5fsdxoT5pxcwiM62s5HngoA7SDSgx29xn1xeh5yLBhsjs2YPiieUeV4Fq6uuxZVfedCePjZGC5JH7mWu?cluster=devnet) | 37,803 |
+  | attest alice | [2Q3RXELU…](https://explorer.solana.com/tx/2Q3RXELUyFymV3h2nTgWVXVzkMd9MtwZ5ZnbuxU4dZiAkrwP75kqpKFRwd2Rdx2guPvVphb4JRKJM9fezBT9DvqR?cluster=devnet) | 13,552 | [5ESFVUi8…](https://explorer.solana.com/tx/5ESFVUi8NcdCmbtMRJzbvrbbA3CX5aHTczJoMuraCCkCBP2GNghaEWK9s1fzQ3CUdWbDthFEuhDsuau6N9PLSyX8?cluster=devnet) | 6,052 |
+  | unlock (ATA + thaw), `TG:ALLOW:KYC` | [5MQSMPXC…](https://explorer.solana.com/tx/5MQSMPXCK6jWSbidgAZwTtJSyxEWRTPrGRuU2b6rWCqex4CCaeHg6MdYjuDKxno1umxssz2RKFPouu3AV5hMgG3f?cluster=devnet) | 69,867 | [2Uuea2Ea…](https://explorer.solana.com/tx/2Uuea2Eao4B8DFJKP6xnXFe35TtPLypghZLN8ss4uVcLUqKuYvnjLNeVzE2JqtZCbZ9XzMgaJvdgPewHUPvmMbFQ?cluster=devnet) | 66,867 |
+  | mint 100 | [2ETrt8GV…](https://explorer.solana.com/tx/2ETrt8GVe5RoSbGNP2cVuvzUY75K3gaRjnnrz7toEYidZhViVv9uhNcJ5B26PvJnojSjZECsz78FZo1brYTffyQV?cluster=devnet) | 26,212 | [4APvd6S2…](https://explorer.solana.com/tx/4APvd6S2QgYjrB3NzbHkgbhGQtEwmxDa1tarwS5EkC7aWFN3QmSyZDttdDhXBC3RutBjmbSSbA4YkwyoDuYxCMHQ?cluster=devnet) | 23,212 |
+  | revoke | [3nVZvWT1…](https://explorer.solana.com/tx/3nVZvWT1UNdaLtkRLkSDDfbuifcP7sX97YbSRT6z62CPvVyu7LQ6464gRTRh8wrHnqy7eUpCAKbLzcLpbPRat7jj?cluster=devnet) | 3,041 | [53o1G8Jg…](https://explorer.solana.com/tx/53o1G8JgxCq5fJi2Gs3Bcjea8NrxCv4d5ar75RCtDcSaTXic7qJwMUTsWTRnnSfoVhqbxzJcQjoCQbMhTxWdfNcL?cluster=devnet) | 3,041 |
+  | freezeIfInvalid, `TG:ALLOW:NO_CREDENTIAL` | [mMkDvYAh…](https://explorer.solana.com/tx/mMkDvYAh8E8BycnxRLB7BzTmCALnVwHnoMwQKi5BxmDF4UABkQ65NEfNU3r8j5bKPoHEb7XqvCrPC5D8qC66Vjc?cluster=devnet) | 50,143 | [22YMHvXt…](https://explorer.solana.com/tx/22YMHvXtcAtbLLzoPJ6QJsWLHRHoGSvyhAbvp2oxv3kdqSoGmc8pYt81ugywYADViP6DwwQwDQXtr3vedJBgE76N?cluster=devnet) | 45,643 |
+
+  - CU differs between runs through PDA bump searches; it's devnet CU, not localnet. The SDK gives `enable_token_acl` a 400,000 CU limit; it used 101,266 at most.
+  - The credential is self-issued test KYC (labelled in the script and the README).
+  - The quickstart wallets keep 0.17649056 SOL each. Their keys are in `/tmp/qs-node{22,20}/app/issuer.json`: scratch, devnet only.
+  - `5BXg…`: 30.769536493 → 30.369526493 SOL (the two transfers + fees).
+- **Measured, localnet** (Agave 3.0.14):
+  - **Suites:** `yarn test:sdk` 12; regression `yarn test:gate` 48, `test:story` 7, `test:keeper` 8 (revoke→freeze p50 816 ms, 3 runs), `test:screener` 5 (flag→frozen p50 660 ms, 3 runs).
+  - **vitest:** sdk 128, cli 42, keeper 36, compliance 45, attestor 9.
+  - The quickstart on localnet: 4.0 s, 0.032191 SOL.
+  - **Build checks:** `yarn typecheck` and the root `tsc` over `tests/` are clean. `anchor build` 21 s warm, verify-ids OK, the SDK's IDLs match `target/`.
+  - **Pack smoke:** passes on Node 22.17 and 20.20.
+  - No Rust changed, so cargo and clippy didn't run.
+- **Docker not run.** The daemon isn't up in WSL, and Docker Desktop's disk image lives on C:. So the keeper and mint-service image builds were replayed step by step without Docker:
+  - keeper on Node 22: link, tsc, prune, final-stage `require`, 39 MB;
+  - mint-service on Node 20.20 / npm 10.8: SDK pack, tarball install, final-stage `require`, `mint_tokens` with 12 accounts.
+  - Full CI's docker-health builds the real images.
+- **Links:** the devnet txs above. Commits: `35ff428`, `9ab114f`, `204598e`, `30ce1fb`, `48db2e8`, `d55e99a`, `6d0e6f5`, `4437129`, `a59f0cf`, `8b233fc`, and this log.
+- **Next:** S12 (S&A payments) and S13 (Console I), per the handoff at the top of this file.

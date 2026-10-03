@@ -17,7 +17,10 @@ yarn install                 # TS workspaces: sdk, cli, services/*
 yarn typecheck               # builds sdk + shared dist/, then tsc --noEmit in every workspace
 anchor localnet --skip-build # validator on :8899 with the 3 programs + tests/fixtures (Anchor.toml [[test.genesis]]); Enter stops it. In scripts keep stdin open (0.32.2 panics on EOF and orphans the validator)
 ANCHOR_WALLET=./test-keypair.json yarn test:unit   # ts-mocha tests/unit against that validator
+SKIP_BUILD=1 yarn test:sdk   # @thawgate/sdk + the `thawgate` CLI + sdk/examples/quickstart.mjs on a throwaway validator
+scripts/sdk-pack-smoke.sh    # npm-packed SDK + CLI in an empty project (run under Node 20 and 22)
 ```
+The workspace install needs Node ≥ 22.12; the published SDK and CLI support Node ≥ 20. Workspace packages depend on each other by version (`"@thawgate/sdk": "0.1.0"`): yarn 1 copies `file:` dependencies instead of linking them.
 `frontend/` (@thawgate/console) and `tui/` are not yarn workspaces: run `npm install` and build inside each one.
 
 Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for IDL builds), Solana CLI 3.0.14 (same as CI; there is no 3.0.15 release). The avm prebuilt 0.32.x binaries need glibc 2.39 and WSL Ubuntu 22.04 has 2.35, so install with `avm install 0.32.2 --from-source`. `tests/fixtures/` holds devnet dumps of Token ACL, the ABL gate, SAS and S&A (see `tests/fixtures/README.md`).
