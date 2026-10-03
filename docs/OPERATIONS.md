@@ -102,13 +102,22 @@ sss-token blacklist add \
 *Requires Seizer role. Target must be blacklisted and actively frozen.*
 
 ```bash
-sss-token seize \
+sss-token --keypair ~/.config/solana/seizer.json seize \
   --mint <MINT_ADDRESS> \
+  --source <TARGET_TOKEN_ACCOUNT> \
   --source-authority <TARGET_WALLET_PUBKEY> \
-  --source-token <TARGET_TOKEN_ACCOUNT> \
   --treasury <TREASURY_TOKEN_ACCOUNT> \
-  --keypair ~/.config/solana/seizer.json
+  --confirm
 ```
+
+### Automatic sanctions screening (ThawGate mints, S10)
+The screener (`services/compliance-service`, `dist/screener/main.js`) blacklists holders that a risk provider flags, and the keeper freezes their other accounts. Seizing stays the manual step above. Full description: [SANCTIONS.md](SANCTIONS.md).
+
+1. Grant the screener key the Blacklister role on the mint (MasterAuthority): `sss-token grant-role --mint <MINT> --holder <SCREENER_PUBKEY> --role blacklister`.
+2. Fund the key: fees, plus the rent of each entry (218 B: 1,757,680 lamports on devnet).
+3. Run the keeper (:3005), then `SCREENER_KEYPAIR=<path> node services/compliance-service/dist/screener/main.js` (:3006). Without `RANGE_API_KEY` it screens against `SCREENER_STATIC_LIST`, labelled as the fallback.
+4. Watch `thawgate_screener_provider_errors_total` (provider outage = screening gap) and `thawgate_screener_blacklist_failures_total`.
+5. To undo a screener blacklist: `sss-token unblacklist …`. The screener won't re-add that wallet. The holder can then thaw through the gate.
 
 ---
 
@@ -163,6 +172,8 @@ curl http://localhost:3003/health
 ```
 
 The oracle service (port 3004) was retired in S9. The reserve attestor (`services/attestor`) runs on its own, outside compose, and has no HTTP API ([RESERVES.md](RESERVES.md)).
+
+The sanctions screener (port 3006) also runs outside compose for now: `curl http://localhost:3006/health` ([SANCTIONS.md](SANCTIONS.md)).
 
 ### Stopping Services Gracefully
 

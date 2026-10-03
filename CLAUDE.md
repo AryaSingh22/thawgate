@@ -35,7 +35,7 @@ Don't change program IDs or `declare_id!` unless the session plan says so. `orac
 - `5BXg…` upgrades **sss_token + thawgate_gate** (and the retired oracle_module): `~/.config/solana/sss-authority.json`. It's a copy of Windows `C:\Users\ARYA\.config\solana\id.json`.
 - `3YnV…` upgrades **transfer_hook**: `~/.config/solana/id.json` (default CLI wallet).
 - Program keypairs, backed up: `~/.keys/thawgate/{sss_token,transfer_hook,oracle_module}-keypair.json`. The originals are in `~/.cargo/targets/solana-stablecoin-standard/deploy/`, the Cargo target dir that `scripts/deploy-localnet.sh` copies from. The devnet deploy is `scripts/deploy-devnet-acl.sh` (`DRY_RUN=1` first).
-- Service keys: `~/.keys/thawgate/keeper.json` (keeper fee payer, no role) and `~/.keys/thawgate/attestor.json` (devnet reserve attestor, created by the story on first run).
+- Service keys: `~/.keys/thawgate/keeper.json` (keeper fee payer, no role), `~/.keys/thawgate/attestor.json` (devnet reserve attestor, created by the story on first run) and `~/.keys/thawgate/screener.json` (`AUPc2FiA…`, sanctions screener: Blacklister role only, granted per mint; pays entry rent; S10).
 - `test-keypair.json` in the repo root is the localnet test wallet (gitignored).
 
 ## Conventions

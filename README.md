@@ -86,6 +86,8 @@ Layer 1 (Base SDK)   ┌────────────┴─────�
 | `mint-service` | 3001 | Mint/burn API with quota management |
 | `webhook-service` | 3002 | Webhook registration & delivery |
 | `compliance-service` | 3003 | Blacklisting and regulatory monitoring |
+| `compliance-service` screener | 3006 | Sanctions screening: flagged holders → `add_to_blacklist` → keeper freeze ([docs/SANCTIONS.md](docs/SANCTIONS.md)) |
+| `keeper` | 3005 | Freeze crank: freezes accounts the ThawGate gate lets anyone freeze ([services/keeper/README.md](services/keeper/README.md)) |
 | `attestor` | – | Posts a mint's reserves to `attest_reserves` from a JSON source ([docs/RESERVES.md](docs/RESERVES.md)) |
 
 ## Repository Structure
@@ -125,6 +127,7 @@ All test runs, logs, and screenshots are captured in the `evidence/` directory.
 1. **Terminal UI (TUI)**: A fully functional TUI application for operators tracking mints, roles, and blacklists.
 2. **React Dashboard**: A sleek, dark-themed dashboard frontend mapping all tokens and metrics in real-time.
 3. **Reserve-backed mint**: `mint_tokens` refuses to mint above the attested reserves or on a stale attestation ([docs/RESERVES.md](docs/RESERVES.md)). It replaced the oracle-module stub in S9.
+4. **Sanctions screening**: a risk provider's flag blacklists the wallet and the keeper freezes its accounts, with no manual step ([docs/SANCTIONS.md](docs/SANCTIONS.md)). Range is used when `RANGE_API_KEY` is set; otherwise a static list, labelled as the fallback.
 
 ## Documentation Reference
 

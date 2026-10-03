@@ -71,11 +71,21 @@ RBAC is strictly enforced at the program level.
 
 The `oracle-module` program it replaced was retired in S9. Its `oracle_gated_mint` never read a feed, and anyone could create a mint's oracle config first.
 
+## Sanctions screener (S10)
+
+The screener in `services/compliance-service` blacklists wallets a risk provider flags ([SANCTIONS.md](SANCTIONS.md)).
+- **Trust assumption: an operator key writes the blacklist.** The screener key holds the sss-token Blacklister role and nothing else. The gate trusts the `BlacklistEntry`; it can't verify the provider's verdict, which the reason string (`range:<score>`, `static:<list>`) only records. A compromised screener key can blacklist, and so freeze, any holder of the mints it holds the role on. Revoke the role and remove the entries.
+- **Fail-safe:** provider errors and timeouts never blacklist; they are counted in `/metrics`. An outage is a screening gap, not a freeze.
+- **No automatic seize.** Seizing stays a manual Seizer action through the CLI.
+- **Switchboard-verified quotes are cut.** The provider's score never reaches the chain.
+
 ## Known Limitations & Experimental Features
 
 1. **Confidential Transfers (SSS-3):** SSS-3 confidential transfer instructions validate feature flags but rely on the raw SPL Confidential Transfer CPI. Production deployment requires careful adherence to Solana's exact compute budget limits for ZK proofs.
 2. **Reserve sources:** reserves come from a signed attestation only. A Switchboard or Chainlink Proof of Reserve source is a TODO ([RESERVES.md](RESERVES.md)).
 3. **Extra Account Meta Lists:** The transfer hook program enforces blacklist/pause checks securely, but requires the `ExtraAccountMetaList` PDA to be explicitly initialized by the admin immediately after mint creation to function.
+4. **A wallet can't be blacklisted twice.** `add_to_blacklist` creates the `BlacklistEntry` with `init`, and `remove_from_blacklist` only sets `active = false`. So after a removal, a second `add_to_blacklist` for the same wallet and mint fails with "already in use". The screener treats an inactive entry as an operator override and leaves it alone. A re-activation path is open for S15.
+5. **Range adapter untested live.** The screener's Range provider is unit-tested against mocked responses only; no live call has been made (no API key). The devnet run used the static-list fallback.
 
 ## TODO
 

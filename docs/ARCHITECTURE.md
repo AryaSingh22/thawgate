@@ -115,4 +115,5 @@ SSS employs a strict Role-Based Access Control (RBAC) model.
 | **Audit Trails** | `RoleRecord` and `BlacklistEntry` accounts are **never deleted**. When a role is revoked or a blacklist lifted, an `active` boolean is flipped to `false`. This preserves historical on-chain evidence of all compliance actions. |
 | **Supply Protection** | Minting uses Rust checked math (`checked_add`) to prevent overflow exploits. Quota periods ensure compromised Minter keys have explicitly bounded impact. |
 | **Reserve check** | `mint_tokens` refuses `mint.supply + amount > reserves` (`ReserveInsufficient`) and an attestation older than `max_staleness` (`ReserveStale`). Acl/Both mints need an attestation ([RESERVES.md](RESERVES.md)). |
+| **Sanctions screening** | Off chain: the screener (`services/compliance-service`) sends `add_to_blacklist` for holders a risk provider flags, signed by a Blacklister-role key; the keeper freezes the rest. The gate trusts the entry, not the provider ([SANCTIONS.md](SANCTIONS.md)). |
 | **Fuzz Testing** | Business logic is verified with Trident fuzz harnesses running thousands of pseudo-random interaction sequences to prove invariant safety. |
