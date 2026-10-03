@@ -1,0 +1,5 @@
+{
+  "name": "demo",
+  "source": "ThawGate demo list. It holds no real sanctions data: add the addresses you want flagged, or point SCREENER_STATIC_LIST at your own list (same format). With RANGE_API_KEY set, the Range provider is used instead.",
+  "addresses": []
+}

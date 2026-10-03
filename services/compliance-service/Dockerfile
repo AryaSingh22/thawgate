@@ -14,6 +14,8 @@ COPY --from=builder /app/services/shared ./services/shared
 COPY --from=builder /app/services/compliance-service/dist ./services/compliance-service/dist
 COPY --from=builder /app/services/compliance-service/node_modules ./services/compliance-service/node_modules
 COPY --from=builder /app/services/compliance-service/package.json ./services/compliance-service/
+# The sanctions screener's default static list (CMD ["node", "dist/screener/main.js"] runs the screener instead).
+COPY --from=builder /app/services/compliance-service/lists ./services/compliance-service/lists
 RUN cd services/shared && npx prisma generate
 EXPOSE 3003
 WORKDIR /app/services/compliance-service
