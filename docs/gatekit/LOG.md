@@ -2,77 +2,76 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S10 handoff (read first; remove when S10 ends)
-S9 is done (S9 entry at the bottom):
-- sss-token `mint_tokens` checks attested reserves.
-- The "mint blocked" tx is on devnet.
-- Issuer wallets hold credentials, so the keeper runs on every ThawGate mint with no skip.
+## ▶ S11 handoff (read first; remove when S11 ends)
+S10 is done (S10 entry at the bottom). On devnet, a flagged wallet goes from the provider result to blacklisted to frozen by the keeper with no manual on-chain step: **flag→frozen p50 3,714.5 ms over 10 runs**. The provider was the static list (the fallback): there is no Range key.
 
-State on devnet (2026-10-01):
-- **Programs:** sss-token was upgraded in S9 (slot 506,320,264, 704,952 B, `b7ad86d3…`). The gate and the hook are unchanged since `c1-core`. DEPLOYMENT.md has both records. `oracle-module` is retired: out of the workspace, still deployed, unused.
+State on devnet (2026-10-03):
+- **Programs:** unchanged since S9. No program changed in S10.
 - **Keys:**
-  - **Keeper** `4auu6ttRQPrkewa3Umwer25W8ck7ERm73H1CmyYoDWH2` (`~/.keys/thawgate/keeper.json`): 0.04993 SOL, no role.
-    - It is **not running**.
-    - To start it: `yarn workspace @thawgate/keeper build`, then `KEEPER_KEYPAIR=~/.keys/thawgate/keeper.json node services/keeper/dist/main.js`. No `KEEPER_SKIP_MINTS`. HTTP on :3005; stop it with SIGTERM.
-  - **Reserve attestor** `2da6PGUxkJGKXwNP95FnxtCGKsqoV2q1kxRxX21CqtTW` (`~/.keys/thawgate/attestor.json`, mode 600): 0 SOL, because the story's payer pays its fees. `services/attestor` run on its own pays its own fees, so fund the key first.
-- **Issuer `5BXg…` holds a demo attestation** under `BYSdZK…` / `Fovh6z…`: `kyc_level` 2, expiry 1,822,405,001 (≈ 2027-10-01). It's self-issued demo KYC. It covers the issuer's accounts on every mint whose policy uses this credential.
-- **Mints:**
-  - **S7b `5632jF…`:** bob and the treasury `9GezLRfY…` are thawed, both `compliant:KYC` in the keeper; alice and carol are frozen. It has no ReserveAttestation, so it can't mint (Acl rule).
-  - **S8 `4234DQ…`:** everything is frozen except quinn (level 3, min 3). No ReserveAttestation.
-  - **S9 story `D6Q5PA7xzxbrZaRoiXGfMcbGsLCH35cneRweEMysXEoq`:** reserves of 1,000 tokens, posted by `2da6PG…` as of 15:37:10 UTC, with a 1-day window (86,400 s). From 2026-10-02 15:37:10 UTC it is stale, and minting needs a new post.
-- **Balances:** `5BXg…` 31.0642, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
+  - **Keeper** `4auu6t…` (`~/.keys/thawgate/keeper.json`): 0.049865 SOL, no role. **Not running.**
+  - **Screener** `AUPc2FiAYMe6jcXBvoyRuckypNq8gNAGftKPoacbLsRv` (`~/.keys/thawgate/screener.json`, mode 600, new in S10): 0.0235598 SOL. It holds the Blacklister role on the two S10 mints only. **Not running.**
+    - Start: build with `yarn workspace @thawgate/compliance-service build`, start the keeper first, then `SCREENER_KEYPAIR=~/.keys/thawgate/screener.json SCREENER_STATIC_LIST=<list> node services/compliance-service/dist/screener/main.js` (:3006).
+    - The S10 list `/tmp/s10-devnet-list.json` is scratch. Without `SCREENER_STATIC_LIST` it uses the empty `lists/demo.json`.
+  - **Reserve attestor** `2da6PG…`: 0 SOL (unchanged).
+- **Mints added in S10** (Acl, SAS + blacklist; issuer `5BXg…`):
+  - **`34GiwSEd…` (run A):** 10 holders blacklisted by the screener, plus frank. Run 1's wallet `27RoMe1p…` had its entry removed in case 4 (inactive), with 100 tokens frozen in place.
+  - **`ABtEsA6h…` (run B):** 3 holders, plus frank (removed in case 4). Run 1's wallet `CosvnnUN…` had its 60 ATA tokens seized by the CLI to the treasury `9yC4iKdy…`; 40 stay frozen in its second account.
+  - S7b, S8 and S9 mints are unchanged. The screener has no role on them, so it skips them.
+- **S9 story mint `D6Q5PA…`:** its reserves went stale on 2026-10-02 15:37 UTC. It needs a new post before it can mint (PLAN.md S17/S18).
+- **Balances:** `5BXg…` 30.769536493, `3YnV…` 1.9381, `5avMn…` 0.9948 SOL.
 
-S10, in order (PLAN.md S10, sanctions policy):
-1. **CI:** check S9's last push (log, keeper verdict, clippy fix) with `gh run list -R AryaSingh22/thawgate --commit <full sha>`, and record it in the S9 entry.
-2. **compliance-service:**
-   - Build a `RiskProvider` with a Range adapter (API key?) and a clearly labelled `StaticListProvider`.
-   - Score ≥ threshold → `add_to_blacklist(reason = "range:<score>")`.
-   - Since S9, `add_to_blacklist` needs a token account **owned by the target**, otherwise `TargetAccountOwnerMismatch`. Pass the wallet's ATA. The keeper's blacklist trigger freezes the wallet's other thawed accounts.
-   - A flagged wallet with no token account on the mint can't be passed to `add_to_blacklist` (it needs one). Decide: create the ATA first, or wait until the wallet holds one.
-3. **Done when:** a flagged wallet goes from API result to blacklisted to frozen on devnet, with no manual on-chain step.
+S11, in order (PLAN.md S11, SDK + CLI):
+1. **CI:** check the S10 log commit with `gh run list -R AryaSingh22/thawgate --commit <full sha>`, and record it in the S10 entry. `c3a0e5a`'s result is already there.
+2. **Gate client:** `initPolicy`, `updatePolicy`, `setupExtraMetas`, `createAtaAndThaw`, `freezeIfInvalid`; `explain(mint, wallet)`; the issuer preset + `enableTokenAcl`; the swap-gate helper; CLI commands mirroring them; the timed quickstart.
+3. **From S10:**
+   - SDK `addToBlacklist` always passes the target's ATA. Since S9 the account must be owned by the target, so add an optional `targetTokenAccount`, and `sss-token blacklist --token-account`.
+   - The CLI's `seize` works on an Acl mint (devnet, S10) after the `SSS_RPC_URL` fix. Its other commands (freeze, thaw, blacklist, grant-role) are unverified on Acl mints.
+4. **From S9:** `services/mint-service` builds `mint_tokens` from a hand-written IDL that is wrong (`index.ts:162`). Switch it to the SDK or drop it.
 
-Open (for S15/S16):
-- **`mint_tokens` CU depends on the reserve PDA's bump.** `seeds + bump` on an `UncheckedAccount` makes Anchor search for the bump on every mint.
-  - On the S9 devnet mint (bump 248), `mint_tokens` cost 12,979 CU more than S7b's. That equals the localnet +2,479 (bump 255) plus 7 × 1,500.
-  - Fix: when the account exists, check its address with `create_program_address` and the stored `bump`.
-- **mint-service** (`services/mint-service/src/index.ts:162`) builds `mint_tokens` from a hand-written IDL. It was already wrong before S9 (no `pause_state`, wrong account names) and now also lacks `reserve_attestation`. No test uses it. Switch it to the SDK in S11, or drop it.
-- **Treasury held by a PDA + `BypassForPdas` for mainnet** (PLAN.md S16 TODO).
-- **Attestor service:** no HTTP health or metrics, and no compose entry. The Switchboard/Chainlink adapter is a TODO.
-- **History:** commit `e2cc307` also carries the oracle deletions and the ORACLE.md → RESERVES.md rename (they were already staged), and `f860a2c` says so. CLAUDE.md rules out rewriting history, so it stays.
-- **`cargo fmt --all -- --check` fails across the whole workspace.** It's older than S9 and CI doesn't run it. Keep any reformat out of feature commits.
-
-Carried, unchanged since S7:
-- **Legacy e2e** (`anchor test`, 5–8 failing per run, all known classes):
-  - read-after-write races: `.rpc({ commitment: "confirmed", preflightCommitment: "confirmed" })`;
-  - `transfer_authority` "already in use": a program fix, `new_master_role` is `init`.
-- **Fixtures and tests:** the gate/sas fixture conversion and the Both-mode test (PLAN.md S7 carry list).
-- **Build-in-public thread** with the devnet links (user, C1).
+Open (for S15/S16/S17):
+- **Range is untested live.** `RangeProvider` follows Range's docs (`GET /v1/risk/address`, Bearer key, `riskScore` 1–10) and passes the mocked tests. When a key arrives, put `RANGE_API_KEY` in `.env` (never print it) and run `node services/compliance-service/dist/screener/main.js probe 42RLPACwZPx3vYYmxSueqsogfynBDqXK298EDsNoyoHi` (Range's test address, expected 10) and `… probe 6AwuGoRLd54NTjAWeYZBVHnK4reK78FYpsqe6Z2PvU27` (expected 1).
+- **No second blacklist after a removal.** `add_to_blacklist` creates the entry with `init`, and `remove_from_blacklist` only deactivates it, so the same wallet and mint can't be blacklisted again ("already in use"). The screener treats an inactive entry as an operator override. A re-activation path is S15 work (SECURITY.md known limitation 4).
+- **Keeper self-trigger:** each keeper freeze on a SAS mint mentions SAS, because Token ACL resolves the attestation and the SAS program as extra metas. So the freeze comes back through the keeper's own `sas_logs` stream as a `getTransaction` and a no-op re-check (seen on `5u78kBRe…` and `5F1BpQDr…`). It's harmless but wastes 2 RPC calls per freeze. Skip transactions whose fee payer is the keeper.
+- **Trigger label race:** when the 15 s sweep checks an account at the moment an event arrives, the freezer makes one attempt and the first caller's label wins (1 in 10 on devnet was labelled `sweep`). Cosmetic: the freeze and its reason are right.
+- **Screener ops:**
+  - no docker-compose entry; it has to run through judging, along with the keeper and the attestor (PLAN.md S17);
+  - state is in memory, so a restart re-screens every holder (one Range call each);
+  - one provider only, no static list and Range together.
+- **Carried from S9, unchanged:**
+  - `mint_tokens` CU depends on the reserve PDA's bump. Fix: check the address with `create_program_address` and the stored bump.
+  - Treasury held by a PDA + `BypassForPdas` for mainnet (PLAN.md S16).
+  - The attestor has no HTTP health or metrics. The Switchboard/Chainlink adapter is a TODO.
+  - `cargo fmt --all -- --check` fails workspace-wide. Keep any reformat out of feature commits.
+- **Carried, unchanged since S7:**
+  - legacy e2e: `anchor test` 68 passing / 7 failing on CI, all known classes;
+  - the gate/sas fixture conversion and the Both-mode test;
+  - the build-in-public thread (user).
 
 Gotchas:
-- **New in S9:**
-  - **clippy:** the "CI" workflow runs `cargo clippy --workspace --all-targets -- -D warnings`. Run it before pushing Rust. S9's first push failed on `needless_borrow`.
-  - **Acl mints need reserves to mint.** Suites call `reservesForTestsIxs(mint, await chainNow())` (tests/gate/issuer.ts): the payer is the attestor, with a 1-year window.
+- **New in S10:**
+  - **`*.json` is gitignored repo-wide** (keypairs). A new JSON data file needs a negation in `.gitignore`, or it silently stays out of git. S9's `services/attestor/examples/reserves.example.json` was missed this way, though the S9 story wrote its URL on chain as the `report_uri`; committed in S10.
+  - **CLI env:** `SSS_RPC_URL`, `SSS_PROGRAM_ID` and `SSS_HOOK_PROGRAM_ID` are needed, and the RPC goes in the env, never on the command line. `/tmp/s10-seize.sh` (scratch) shows the masked pattern.
+  - **Devnet rent:** a 218 B BlacklistEntry holds 1,757,680 lamports, less than the classic 2-year formula (2,408,160). Read rent from the cluster; don't compute it.
+  - **Edit over `\\wsl.localhost` normalizes line endings:** it turned `.gitignore`'s three LF lines into CRLF like the rest (whitespace only).
+  - **Screener e2e on devnet:** `CLUSTER=devnet SCREENER=external LIST_FILE=<the screener's SCREENER_STATIC_LIST> RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/screener.ts`, with the keeper (:3005) and the screener (:3006) already running. Case 3 (fault injection) is in-process only.
+- **From S9 and earlier, still true:**
+  - **clippy:** CI runs `cargo clippy --workspace --all-targets -- -D warnings`. Run it before pushing Rust.
+  - **Acl mints need reserves to mint:** `reservesForTestsIxs(mint, await chainNow())`.
+  - **Staged changes ride along:** `git rm` and `git mv` stage at once.
+  - **`pkill -f` inside `bash -lc '…'` kills its own shell.** Use the pid file and SIGTERM.
+  - **Keeper `/mints/:mint`:** a skipped mint returns 404. `GET /mints` (S10) lists the tracked mints.
+  - **@solana/kit 5.5.1 fails native Node ESM.** CommonJS and vitest's inlining work.
+  - **docker compose:** set `POSTGRES_PASSWORD`. The keeper is behind the `keeper` profile. Full CI builds every image, so the compliance-service image now installs vitest too; it passed on `c3a0e5a`.
+  - **Agave 4.x:** `ExtendProgram` needs at least 10,240 bytes (`MIN_EXTEND`).
+  - **Devnet CU ≠ localnet CU.** Quote devnet numbers as devnet.
+  - **Secrets:** never print `.env`. `solana` CLI errors contain the full RPC URL.
+  - **gh:** use `-R AryaSingh22/thawgate` and the full 40-character SHA.
+  - **Token-2022 errors:** `MintPaused` = 0x43, `AccountFrozen` = 0x11.
   - **A refused tx on chain:** `sendLanded` (tests/gate/helpers.ts) sends without preflight, so the failure lands with an explorer link.
-  - **Staged changes ride along.** `git rm` and `git mv` stage at once; check `git status` before splitting commits.
-  - **`pkill -f <pattern>` inside `bash -lc '…'` matches its own shell** and ends the call (exit 15). Use the pid file.
-  - **Keeper `/mints/:mint`:** a skipped mint returns 404. Each owner has a `verdict`: `compliant:<CODE>`, `freezable:<REASON>` or `unknown`.
-- **Keeper tests:**
-  - `yarn test:keeper` runs on localnet with an in-process keeper.
-  - On devnet, start the keeper as its own process, then run `CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts`.
-  - Case 6 (the no-ops) needs the in-process keeper, so it is skipped on devnet.
-- **@solana/kit 5.5.1 in this node_modules fails native Node ESM.** Its nested `offchain-messages` imports an error code that the `@solana/errors` beside it lacks. CommonJS (ts-node, the keeper's build) loads it fine, and vitest inlines `@solana/*` (`vitest.config.mts` in the keeper and the attestor).
-- **docker compose:**
-  - Every compose command needs `POSTGRES_PASSWORD` set (the existing file).
-  - The keeper is behind the `keeper` profile, and its image installs with `--legacy-peer-deps` (npm 10's arborist crashes without it).
-  - Full CI's `docker-health` job runs `docker compose up --build` over the whole file, so a new service's Dockerfile gets built in CI even if you never build it locally.
-- **Agave 4.x:** `ExtendProgram` needs at least 10,240 bytes, or an extension to the maximum size. `deploy-devnet-acl.sh` handles it (`MIN_EXTEND`).
-- **Devnet CU ≠ localnet CU** for the same story (Agave 4.3.0 vs 3.0.14, fresh keys, different PDA bumps), but the gate frames are identical. Quote devnet numbers as devnet.
-- **Devnet story command:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`. It reuses `~/.keys/thawgate/attestor.json` and the issuer's live attestation. `yarn test:story` is localnet only.
-- **Secrets:** never print `.env`. `solana` CLI errors contain the full RPC URL; mask them.
-- **SIGINT:** a background job in a non-interactive shell starts with SIGINT ignored. Send SIGTERM.
-- **gh:** in WSL, `gh` resolves to the upstream fork. Use `-R AryaSingh22/thawgate` and the full 40-character SHA.
-- **Token-2022 errors** as logged: `MintPaused` = 0x43, `AccountFrozen` = 0x11.
-- `transfer_authority` doesn't move the gate policy admin (S6a, for the S16 docs).
+  - **Keeper e2e:** `yarn test:keeper` (localnet, in-process). Devnet, with the keeper as its own process: `CLUSTER=devnet KEEPER=external RUNS=10 npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/keeper.ts` (case 6 is skipped there).
+  - **Devnet story:** `CLUSTER=devnet ANCHOR_WALLET=~/.config/solana/sss-authority.json npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/acl-story.ts`.
+  - **SIGINT:** a background job in a non-interactive shell ignores SIGINT. Send SIGTERM.
+  - `transfer_authority` doesn't move the gate policy admin (S6a, for the S16 docs).
 
 ## S0 · 2026-09-24 · Baseline, name, repo, CLAUDE.md
 - **Shipped:** pre-hackathon edits committed with their real dates (`c8f504c`, files dated 2026-03-13 → 2026-04-24) and tagged `pre-worlds-fair`. New repo holds the full history and is not a fork; the old fork is `upstream` with push disabled. Mechanical rebrand to `@thawgate/{sdk,cli,tui,console}` plus the 6 service packages (`c109982`). LICENSE adds "Copyright (c) 2026 Arya". README drops the Trident and "Anchor Integration: 10 passing" claims (neither ran; Anchor integration tests have not been run on 0.32 yet). CLAUDE.md added. Both upgrade authorities (`5BXg…`, `3YnV…`) are present, and program keypairs are backed up to `~/.keys/thawgate/` with pubkeys matching the program IDs. Fresh WSL clone: `yarn install --frozen-lockfile` + `yarn typecheck` green on 7 workspaces, after building sdk and shared (the cli and services type against their `dist/`). `anchor build` not run (toolchain migration is S1). No on-chain tx this session.
@@ -760,5 +759,132 @@ Gotchas:
     - races: SSS-1 Steps 04/08/09, SSS-2 Step 06
     - "already in use": SSS-1 Step 16, SSS-2 Step 15
     - SSS-2 Step 16, downstream
+- **CI on `a677043` (this log, the keeper verdict `534ae3b` and the clippy fix `a92c521`; read in S10):**
+  - **Green:** Full CI, CI (clippy now passes), TypeScript Tests, and Gate Tests (run 36887181904: gate 48, story 7, keeper vitest 3/3 files, keeper e2e 8 passing, revoke→freeze p50 810 ms over 3, slots p50 2).
+  - **Anchor Integration** (run 36887182169): 68 / 7, known classes:
+    - races: SSS-1 Steps 02/04/09, SSS-2 Step 04
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
 - **Links:** the devnet txs above. Commits `e2cc307` (sss-token), `5e84baa` (attestor), `a4ad516` (SDK), `99e99b3` (tests), `f860a2c` (oracle retirement), `1ef417f` (docs), and this log, the keeper verdict and the clippy fix.
 - **Next:** S10, sanctions policy, per the handoff at the top of this file.
+
+## S10 · 2026-10-03 · Sanctions screener: provider result → blacklisted → frozen by the keeper
+- **First:**
+  - the CI result for `a677043` is recorded in the S9 entry;
+  - PLAN.md gains S17 "the attestor runs on a schedule through judging" and S18 "demo mint = the S9 mint or a fresh console mint; re-post reserves before recording" (user).
+- **Decisions (plan mode, approved):**
+  - **Where:** a second entry point in compliance-service (`dist/screener/main.js`, :3006), with no Postgres. The Prisma REST API (`src/index.ts`) is untouched.
+  - **Holders:** read from the keeper's index over HTTP. The keeper gains `GET /mints`; there is no second indexer.
+  - **Threshold:** default 8. Range's screening guide maps 8–10 to reject and 6–7 to flag or reject.
+  - **Encoding:** `add_to_blacklist` is hand-built on @solana/web3.js v1, already a dependency, so there is no new runtime dependency.
+  - **Devnet e2e:** a fresh mint per run, with the screener key granted Blacklister in setup.
+- **No `RANGE_API_KEY` in `.env`** (checked by variable name only). `RangeProvider` follows Range's docs: `GET https://api.range.org/v1/risk/address?address=&network=solana`, Bearer key, `riskScore` 1–10. **It is tested against mocked responses only and has never made a live call. Every devnet number below comes from `StaticListProvider`, the labelled fallback.**
+- **Shipped: keeper `GET /mints`** (`c9cdc8a`): every tracked mint with its decoded policy and account counts.
+- **Shipped: the screener** (`3ccf42e`, `services/compliance-service/src/screener`):
+  - **Eligible mint:** the keeper tracks it, its policy has `checkBlacklist` with sss-token as issuer, and the screener key holds an active Blacklister `RoleRecord` (read on chain, re-checked every 60 s).
+  - **Due wallets:** new holders on the next poll (5 s); a re-screen after `SCREENER_RESCREEN_MS` (1 day); every holder after a static list edit; retries with backoff (30 s, doubling). A wallet with an entry (active or inactive) on every mint it holds is skipped before the provider call.
+  - **Score ≥ threshold:** `add_to_blacklist(reason = "range:<score>" | "static:<list>")`, passing a thawed account of the wallet if it has one (sss-token freezes it in the same tx), otherwise a frozen one. That answers the S10 handoff question: only index holders are screened, so a token account always exists and no ATA is created.
+  - **Fail-safe:** a provider error or timeout never reaches the blacklist branch. It is counted (`thawgate_screener_provider_errors_total{provider,kind}`) and retried. An inactive entry counts as an operator override and is never re-added.
+  - **Also:** `SCREENER_EXEMPT`, `SCREENER_DRY_RUN`, `/health`, `/metrics`, `/screenings?wallet=`, and `main.js probe <address>`. Logs mask the RPC URL and the Range key. `lists/demo.json` is empty.
+  - **Fallback label:** the startup warning, `/health` `provider.fallback: true`, and `thawgate_screener_provider_info{fallback="1"}`.
+  - No automatic seize.
+- **Shipped: CLI fix** (`69f027c`):
+  - **Bug:** `loadConfig` spread `overrides` last, and `createClient` always passes `rpcUrl`. With no `--rpc-url` flag, `undefined` erased `SSS_RPC_URL`, so every command failed with "Endpoint URL must start with http".
+  - **How it was found:** the first manual seize on devnet.
+  - **Fix:** undefined overrides are dropped. One test added; CLI vitest 37/37.
+- **Shipped: S9's attestor example is committed** (`297b635`):
+  - **Why it was missing:** the root `.gitignore` ignores every `*.json`, so `services/attestor/examples/reserves.example.json` never reached git. RESERVES.md, the attestor README and the S9 devnet story's on-chain `report_uri` all point at that URL.
+  - **Fix:** negations for `services/attestor/examples/*.json` and `services/compliance-service/lists/*.json`. The edit also turned the file's last three LF lines into CRLF like the rest (whitespace only).
+- **Tests** (`ad408c1`):
+  - **compliance-service vitest, 45:**
+    - `add_to_blacklist` pinned against the SDK IDL: discriminator, 11 accounts with flags, fixed addresses and PDA seeds, data;
+    - the BlacklistEntry and RoleRecord readers;
+    - Range mocked: request shape, HTTP 400/401/404/429/500/503, timeout, network failure, malformed or out-of-range scores, key never in an error;
+    - the static list: reload, bad edits keep the last good list;
+    - the loop against a fake keeper and chain.
+  - **`tests/e2e/screener.ts`** (`yarn test:screener`), 5 cases:
+    1. a list edit gets a thawed holder blacklisted, and the keeper freezes its other account, RUNS times;
+    2. a listed new holder is blacklisted through its frozen ATA, and its thaw is denied `TG:DENY:BLACKLISTED`;
+    3. fault injection (in-process only);
+    4. an operator removal is not undone;
+    5. `/health` and `/metrics`.
+  - **Helpers:** `sendFast`, `waitFor`, `latestTx`, `counter` and `median` moved to `tests/e2e/util.ts`, shared with keeper.ts.
+  - **CI:** Gate Tests runs both new suites.
+- **Docs** (`c3a0e5a`):
+  - `docs/SANCTIONS.md`: flow, providers, threshold, scope, fail-safe, the trust assumption, manual seize, measurements;
+  - SECURITY.md: the trust assumption, plus known limitations 4 (no second blacklist after a removal) and 5 (Range untested live);
+  - OPERATIONS.md: screener runbook; the seize example's flags corrected to the CLI's;
+  - README, ARCHITECTURE, the compliance-service README, and CLAUDE.md (screener key).
+- **Measured, localnet** (Agave 3.0.14):
+  - `yarn test:screener` 5 passing in 3 runs; flag→frozen p50 728, 675 and 797 ms (3 runs each, 1 slot).
+  - Fail-safe case: an injected HTTP 503 and a timeout left both wallets unblacklisted and thawed for 2+ polls. The errors were counted, the backoff went 3 s → 6 s, and after recovery the retry blacklisted both.
+  - Regression: `yarn test:gate` 48, `yarn test:story` 7, `yarn test:keeper` 8 (with the moved helpers), keeper vitest 35.
+  - `yarn typecheck` and the root `tsc` over `tests/` are clean. `anchor build` 53 s warm and verify-ids OK. No Rust changed, so neither cargo nor clippy ran.
+- **Devnet** (2026-10-03 14:26–14:43 UTC, Helius):
+  - **Screener key:** `AUPc2FiAYMe6jcXBvoyRuckypNq8gNAGftKPoacbLsRv`, new, mode 600, funded with 0.05 SOL from `5BXg…` ([5aJZJk9y…](https://explorer.solana.com/tx/5aJZJk9yR2T3vjLzpoR5pdDjJJbmDqnUmMYFkWDbTHVVjfsNBJiRQ5937MPDPnAGSzrHuCMNvNYb1Vu2Z8dVqfrJ?cluster=devnet)).
+  - **Processes:** the keeper (no skip, sweep 15 s) and the screener (poll 5 s, list `static:s10-devnet` in `/tmp`) ran on their own. At start the screener found the S7b, S8 and S9 mints ineligible (no Blacklister role).
+  - **Run A:** `CLUSTER=devnet SCREENER=external LIST_FILE=… RUNS=10`, mint `34GiwSEdvgTY3X5GHTxL9gtWPZfefvJQyBb9LpS87Mdf`. Blacklister grant: [49H9wJvS…](https://explorer.solana.com/tx/49H9wJvSJpPQMZQafpeWaFo9uavZA5jUWmF2MjpT6v6b2MH4VMEwRHLDnUpbQyNPDvpNsuA26w3fvrU7oGuXzhj?cluster=devnet) (setup, not in the flag path).
+    - Cases 1, 2 and 4 passed.
+    - **Case 5 failed on my assertion.** It required 10 keeper freezes with `trigger="blacklist"`; there were 9, plus 1 with `trigger="sweep"`, all with reason `BLACKLISTED`.
+    - **Why:** in run 7 the keeper logged the `AddedToBlacklist` event at 14:31:46.862. The 15 s sweep's check reached the freezer at 47.185, before the event-triggered check (47.622). The freezer makes one attempt per account, and the first caller's label wins.
+    - **Fix:** the test now counts reason `BLACKLISTED` whatever the trigger. Case 5's other checks, read from the live `/metrics`: `provider_info{fallback="1"}` 1, 11 blacklists, 0 failures, 0 provider errors.
+
+    | Run | flag→frozen ms | flag→blacklist confirmed ms | slots | screener `add_to_blacklist` | keeper freeze |
+    |---|---|---|---|---|---|
+    | 1 | 4,260 | 1,961 | 10 | [RP5DfZ8Y…](https://explorer.solana.com/tx/RP5DfZ8YtDyhtP5orU7YL8RB1QHg4GbeWGX5YZzoDt1C6fnq2qSgmDwDdQejR6b7WSBaqT567iqeKuyxvbczwsC?cluster=devnet) | [4SiLyXqq…](https://explorer.solana.com/tx/4SiLyXqqAkTk1i9enVqeY1Rat7EN3G3KhxABFytSuJRV5iTtXinrTZ5sRmi7ZryzGSWSwp9o8jBaSx7iWkVW6kWD?cluster=devnet) |
+    | 2 | 3,574 | 1,945 | 8 | [LEq7k1tf…](https://explorer.solana.com/tx/LEq7k1tfGDBQnjM5zqU3ZNacKkQ8bvfk8pHMfujEh4pUH31EV8hLvkk3UiDKk1bVpkiabocGy5SjzfC7EkHfSRC?cluster=devnet) | [19tETdMU…](https://explorer.solana.com/tx/19tETdMUVRVmKp5G3PcXaeG8XukSSMXb5GqYbGd5xPSknQBg2A3eHemABtLs52y7MzEN7U4WJU1EzcwhiSX4MEA?cluster=devnet) |
+    | 3 | 3,653 | 1,871 | 8 | [4d1nPC9d…](https://explorer.solana.com/tx/4d1nPC9dAd7Y49ZzrTuUHxhpv6wWztQt4BtdSQii3FUDjQYR5WYvfZ3gtsmzNicZf75afsn7CJDztnBZE8PD5V4E?cluster=devnet) | [5u78kBRe…](https://explorer.solana.com/tx/5u78kBReZ2mJwo6Tt7UcTEv4HDGQ7zpBs4S73XbUTKz1L2n9roYRWU7Erms95tps24prspF6XdjJncsy51f4zPco?cluster=devnet) |
+    | 4 | 4,056 | 1,908 | 9 | [T99SXCXB…](https://explorer.solana.com/tx/T99SXCXBo2tYH3JHoCYruFfw7QvLdDcDDAtoT4YuUENuSY9ywda6W4YDtsRGExWX6ndfauYo93KpkXqFxW7r62r?cluster=devnet) | [5NPxdWeK…](https://explorer.solana.com/tx/5NPxdWeKaQXH1eGqEFpyrer1j8YikUY4GzhLsKLxLbnGFTD8zru67iucEz8V7FoovpemhrhBDzvWHeNmAaxUbEmX?cluster=devnet) |
+    | 5 | 3,685 | 2,121 | 8 | [yd14WhkM…](https://explorer.solana.com/tx/yd14WhkM9HSEyWzZ2RQNgW97SzgXdqN16QEANtH3bKTkA4vzAVdvpH8wCJwt848rqTefaXSXALQNnJCshJ6zqZx?cluster=devnet) | [52vd7nN9…](https://explorer.solana.com/tx/52vd7nN9b2Df3hrjASbTK1UE3FjEVsEcu5dkniSsV9Ygib31udgzF2biF7ers2TReSX6Tmd9eqtpStsyyYTQzuwX?cluster=devnet) |
+    | 6 | 3,744 | 1,945 | 8 | [3eLcHPFm…](https://explorer.solana.com/tx/3eLcHPFmhW5sXvYf9pkQfzUGxRe7hJRPnMhRzhh5F1zLxzu2xaEwHnRwcL6i271QXEWYckavjqCCwEMt5yzVaF3F?cluster=devnet) | [5UFX4Gdt…](https://explorer.solana.com/tx/5UFX4Gdt4MR1zd3fBJ7doTprLuF17WKKKuHBPSLDWoUCyoVGBBs7QDb2cW9bzJYLHbmevjyB5CdNSEzADregRXUd?cluster=devnet) |
+    | 7 | 5,470 | 2,642 | 12 | [3QKZe3JF…](https://explorer.solana.com/tx/3QKZe3JFEqitH5JhCUqcZ5F3yHVULjs9eQB76HSTSv9WUnoabgtM8mDRpsYh6v58gEBRLAyQUCVCWB97pNPACgkA?cluster=devnet) | [5F1BpQDr…](https://explorer.solana.com/tx/5F1BpQDrYB8RDNp3N9mmoDELDZrfCCp6e2bnf93YCBtDVKrgRHY4jyC2EzFWcboAm75BjqYfQ3U6uyRzgvQkN2yW?cluster=devnet) (labelled `sweep`) |
+    | 8 | 3,513 | 1,978 | 8 | [28j8BUDR…](https://explorer.solana.com/tx/28j8BUDRYvwRKCsVzWE3uiF4ocfK4fgcXL2ZARfDr4MNoRPUAVEu1iBKmnrxsbcr8ma1pFRoHEFpyonkDQZj4JX6?cluster=devnet) | [5193ysih…](https://explorer.solana.com/tx/5193ysihiJbSvYLyeRptQhdLN75p4QBkvTxesAyJ8UwkDaGbn1qUTryJ28iurZVnpepzA91wW7fChLioME3cHDrA?cluster=devnet) |
+    | 9 | 4,003 | 2,349 | 9 | [SNWg6nwK…](https://explorer.solana.com/tx/SNWg6nwKj5JSRjBCwqk7tmkgAPgorq2vX2GzduWxkj77XX5iLcCvx9g38BJ4bafokhtcu7dbFtLShxAcVE5jQwU?cluster=devnet) | [2bRnVXaC…](https://explorer.solana.com/tx/2bRnVXaCcSWK5MAEcPboy4EkffrxGcF8sWoYAgP1Jo4NZYk9VCw9vE13mWZXvFEpTNHiEE2pRr7PuQ3St4FMRxQG?cluster=devnet) |
+    | 10 | 3,500 | 1,911 | 7 | [4U3j5gY5…](https://explorer.solana.com/tx/4U3j5gY5TVPGjuM5iD9hUQbuarb1KYYxrgXD7CvXReXTatZhYnATFjJBmCmuZzvdRzPgKeTm6HJLTuog7AXLhHnc?cluster=devnet) | [EDJg4P3C…](https://explorer.solana.com/tx/EDJg4P3CXoUzWsqWrRfCytGHqvSsDT8HZP2EV6ZtdqVnQzq8i8yFPCfKJuXmG34mK1oEEM7zRJP9zyNV9GQGFuS?cluster=devnet) |
+
+    - **flag→frozen p50 = 3,714.5 ms** (the mean of the 5th and 6th of 10 sorted values, 3,685 and 3,744). Min 3,500, max 5,470.
+    - **The other spans:**
+      - flag→blacklist confirmed: p50 1,953 ms (1,871–2,642);
+      - blacklist→keeper freeze: p50 8 slots (7–12);
+      - list edit→flag (detection, bounded by the 5 s poll): p50 2,650 ms (602–3,007).
+    - **Method:**
+      - `flaggedAt` is the screener's wall clock when the provider returned a score ≥ 8, read from `/screenings`.
+      - The test polls both of the wallet's accounts every 100 ms from the moment it edits the list. "Frozen" is the first `confirmed` read of the keeper-frozen account as frozen.
+      - Both processes run on the same machine and share one clock.
+    - **Every run was checked for:**
+      - the blacklist tx: fee payer = the screener key, Token ACL invoked (it froze the passed account);
+      - the entry: `reason` = `static:s10-devnet`, `added_by` = the screener key;
+      - the keeper's freeze: fee payer = the keeper, `TG:ALLOW:BLACKLISTED`.
+    - Run 1's 40 tokens stay frozen in place.
+    - **CU:** `add_to_blacklist` 25,230–35,730 (the entry PDA's bump search); the keeper's freeze 38,928–55,428.
+    - **Case 2, a listed new holder:** blacklisted 5,542 ms after it opened its ATA, through the frozen ATA with no freeze CPI (19,915 CU, [4sAx4Uav…](https://explorer.solana.com/tx/4sAx4Uavz4K2fmjpGSB5jfWSjXw9zYVEt6rRS1pXXQwy1FQe3p2PcyH7BirL3Ko4JzM5ZQzRWsVH9p8CrKuTyADo?cluster=devnet)). Its `thaw_permissionless` was refused in simulation: `TG:DENY:BLACKLISTED`.
+    - **Case 4:** `remove_from_blacklist` on run 1's wallet ([4keJtpeS…](https://explorer.solana.com/tx/4keJtpeSjTRxPTrKmek42BoLvxgiwj4MAL6FkZRMaeqR79UHAPjpKWifFgh7SaTsGM1c5fFMTpU9mrsokEiBJSuK?cluster=devnet)). The re-screen skipped it as `operator_cleared`.
+      - That left the only wallet with tokens unseizable (`seize` needs an active entry), so case 4 now uses case 2's wallet.
+  - **Run B** (the fixed test, `RUNS=3`, mint `ABtEsA6hs6s7kAqRwCkLnTjpaGA7KnjH8DLFpQWiz72f`): **4 passing, 1 pending** (case 3 is in-process only).
+    - Blacklister grant: [22nYnbUS…](https://explorer.solana.com/tx/22nYnbUSwdraHExP57CaA9iYeLiRu9KKRQyUvHgk5xh3ytRfrCQF3sxcP1rQmHremoQefQfGhNNXNfw7RDxeRSYK?cluster=devnet).
+    - flag→frozen 4,117 / 4,028 / 3,846 ms (p50 4,028), 9–10 slots, all 3 keeper freezes labelled `blacklist`. Blacklists: [3cwTKbwV…](https://explorer.solana.com/tx/3cwTKbwVuCqnqEwSyrtqKv5s9bpo4yG1LKBDpRkfcWBTSkYPMFNpGUsnW5RHSLfjXtJf5eFmxM3homdcW1ACGwQH?cluster=devnet) · [3gGMYqWi…](https://explorer.solana.com/tx/3gGMYqWiSKvhLrziexKX19KcupqX5iSB6R8UdyiYfQp7qKX8ZTLBD3SjxF4DcULrAQ5jvzKNtaZyjEDP4RJS2uuH?cluster=devnet) · [5CMTUcoj…](https://explorer.solana.com/tx/5CMTUcojNS16MoLzq9ewt7uEhXTAa44Tbi8rmF2anzGFErhp6sJCHtb8wFzWPAXPb5boeUaa2BRbTdcP5KeSUtoA?cluster=devnet). Keeper freezes: [45sRLGK3…](https://explorer.solana.com/tx/45sRLGK3Hz95rXyi1oRXPmttSZKMVUCt7MnDGGM52wYwugj2v7Hy2Bg6sdq2BS6uPLccPY6qt8BFm5LtHYN39Um5?cluster=devnet) · [4m6AAMBf…](https://explorer.solana.com/tx/4m6AAMBf5LCRXno8erB8pNDxrJnX4eA8ccvkYVTZ8CXeYBzQn45rGGeJoSzV9f215XPewQWrSihGaKnX3t5fbv8H?cluster=devnet) · [7rq3Wtoe…](https://explorer.solana.com/tx/7rq3WtoemfXdKD7Mfypxng3EKvnSLpijgedUbS86TRFPE6TU7ubDTWz3nXLuyGUHjEh9iuSB8LYNExHy8Hwc4cV?cluster=devnet).
+    - Case 2: blacklisted 2,816 ms after the ATA opened ([4wdEo7WX…](https://explorer.solana.com/tx/4wdEo7WXVdeB77f24fCBb3JiwD3jRWDom2ymR7jp8f141BWCqBLTbPiDHThAxmRoRMHbjvQjvHd3Y2WCCf2voUL?cluster=devnet)). Case 4: [HTFr2DCf…](https://explorer.solana.com/tx/HTFr2DCfrRK4tfMR4Q8sS4oPArKYNJ71MrSTh4dh1s1MaKHZZCqru5vMZpsPXFnRLMLR3uetuKpHU72cCs8NGWX?cluster=devnet).
+  - **Manual seize (CLI):** `sss-token seize` on run B's wallet 1 (`CosvnnUN…`, ATA `AEK946EX…`, blacklisted by the screener) into the issuer treasury `9yC4iKdy…` (issuer-thawed; the issuer holds a demo credential).
+    - Result: [2tPoV5qZ…](https://explorer.solana.com/tx/2tPoV5qZ7wGKuJd2Dvt4bYBe7cEMQHJEv9vpMUURjatcggE3XduRf1GZSwH1Ld89mEfZ1jJyuU2FeRvo5kLkXDFj?cluster=devnet), 35,525 CU (Seize → ThawAccount → TransferChecked → FreezeAccount). The source has 0 and is frozen; the treasury has 60 tokens.
+    - The first attempt failed on the CLI bug above.
+  - **Logs:** the keeper, screener and test logs contain neither the RPC URL nor its key (counted against `.env`, not printed). The screener's only warning is the fallback label. On SIGTERM the screener stopped in 6 ms, the keeper in 1.3 s.
+  - **Rent and cost:**
+    - A BlacklistEntry (218 B) holds 1,757,680 lamports on devnet, the cluster's rent-exempt minimum read 2026-10-03; my docs draft had guessed 0.0024 SOL. Screener key: 0.05 → 0.0235598 SOL, i.e. 15 × (1,757,680 + 5,000).
+    - Keeper: 0.04993 → 0.049865 SOL (13 freezes).
+    - `5BXg…`: 31.064245653 → 30.769536493 SOL (−0.294709160). Of that, 0.05 funded the screener; the rest paid for two mints with policies and reserves, 15 wallets at 0.01, 15 attestations, 13 second accounts, two treasury ATAs and fees.
+- **Found:**
+  - **The keeper's own freezes on SAS mints come back through its `sas_logs` stream** (the freeze tx resolves the SAS program as an extra meta), seen on `5u78kBRe…` and `5F1BpQDr…`. Each costs a `getTransaction` and a no-op re-check (S11 handoff, open).
+  - **sss-token can't blacklist a wallet twice** (`init`); SECURITY.md known limitation 4.
+- **CI on `c3a0e5a`** (the six S10 commits):
+  - **Green:** Full CI (run 37130929908; it builds the compliance-service image with vitest now), CI, TypeScript Tests, and Gate Tests (run 37130929916):
+    - gate 48, story 7;
+    - keeper vitest 35, keeper e2e 8 (revoke→freeze p50 713 ms);
+    - screener vitest 45, screener e2e 5 passing (flag→frozen p50 737 ms over 3, 1 slot).
+  - **Anchor Integration** (run 37130929816): 68 / 7, known classes:
+    - races: SSS-1 Steps 02/08/09, SSS-2 Step 04
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
+- **Links:** the devnet txs above. Commits:
+  - `297b635` (.gitignore + attestor example), `c9cdc8a` (keeper `/mints`), `3ccf42e` (screener), `69f027c` (CLI fix), `ad408c1` (tests + CI), `c3a0e5a` (docs);
+  - and this log, the S11 handoff and a SANCTIONS.md correction: the re-run's keeper freezes were all labelled `blacklist`.
+- **Next:** S11, SDK + CLI, per the handoff at the top of this file.

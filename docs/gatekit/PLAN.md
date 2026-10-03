@@ -250,6 +250,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
 - [ ] `npm publish` `@thawgate/sdk` + `@thawgate/cli` 0.1.0 with provenance. Optional: a crate for the gate's Rust client.
 - [ ] Landing page (GitHub Pages or Vercel) on your domain: pitch, live devnet counter ("mints using ThawGate" = the RESEARCH.md §1.4 query), docs link.
 - [ ] GitHub release notes.
+- [ ] The attestor runs on a schedule through judging, so the demo mint's reserves never go stale (S9: 1-day window).
 - **Done when:** `npm i @thawgate/sdk` works; the program IDs show as verified; the site is live. Tag `v0.1.0`.
 
 ## Phase 5: demo and submit (Sat 10 → Sun 11)
@@ -261,6 +262,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
   3. revoke → keeper freeze
   4. trade fails
   5. mint blocked by reserves
+- [ ] Demo mint = the S9 mint (`D6Q5PA…`) or a fresh console mint. Re-post reserves before recording (step 5 needs a fresh attestation).
 - [ ] Rehearse twice; note the timings.
 - **Done when:** two clean runs in a row, each under 3 minutes.
 
