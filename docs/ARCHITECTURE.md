@@ -73,7 +73,7 @@ Is Transfer Hook enabled for this Mint? ──YES──► Call TransferHook.exe
 
 ### Minting Flow
 
-1. **Operator** uses CLI/SDK: `sss-token mint <recipient> <amount>`
+1. **Operator** uses CLI/SDK: `thawgate mint --mint <MINT> --recipient <WALLET> --amount <BASE_UNITS>`
 2. **SDK** automatically derives necessary PDAs (`config`, `pause_state`, `minter_quota`).
 3. **Anchor** CPIs into `sss-token` program -> `mint_tokens` instruction.
 4. **On-Chain checks**:
@@ -87,7 +87,7 @@ Is Transfer Hook enabled for this Mint? ──YES──► Call TransferHook.exe
 
 ### Compliance Seize Flow
 
-1. **Law Enforcement/Admin** uses CLI/SDK: `sss-token seize <frozen_account> <amount>`
+1. **Law Enforcement/Admin** uses CLI/SDK: `thawgate seize --mint <MINT> --source <FROZEN_ACCOUNT> --source-authority <WALLET> --treasury <TREASURY> --confirm`
 2. **On-Chain checks**:
    - Does sender have `Seizer` role?
    - Is the target `<frozen_account>` actually frozen? (Required)

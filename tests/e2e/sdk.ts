@@ -14,6 +14,9 @@
  *   9. swapGate moves an ABL-gated Token ACL mint to ThawGate in one transaction, metadata included
  *  10. the `thawgate` CLI (cli/dist) on the same Acl mint: policy show, explain, sas attest, unlock, freeze-if-invalid,
  *      and the older issuer commands freeze, thaw, grant-role, blacklist --token-account (unverified on Acl mints in S10)
+ *  11. the README quickstart, sdk/examples/quickstart.mjs, from a fresh wallet (native ESM import of the SDK)
+ *  12. cli/README.md's example with a new issuer key: sas create-credential / create-schema, create-stablecoin, explain,
+ *      sas attest, unlock, policy update --min-kyc, freeze-if-invalid
  */
 import { CLUSTER } from "./cluster"; // first: sets the RPC and payer before the helpers load
 import assert from "node:assert/strict";
@@ -324,7 +327,53 @@ describe("@thawgate/sdk on localnet", () => {
     assert.deepEqual(pick(json("explain", "--mint", m, "--wallet", erin), "account", "status", "code"), { account: "frozen", status: "denied", code: "BLACKLISTED" });
     fs.rmSync(home, { recursive: true, force: true });
   });
+
+  it("11. the README quickstart (sdk/examples/quickstart.mjs) runs from a fresh wallet", () => {
+    // Its own directory and HOME: a new issuer.json, funded by the local faucet, and no repo keys or .env.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "thawgate-quickstart-"));
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("SSS_") && !k.startsWith("ANCHOR_")));
+    const out = execFileSync("node", [QUICKSTART], { cwd: dir, env: { ...env, HOME: dir, RPC_URL }, encoding: "utf8" });
+    console.log(out.replace(/^/gm, "      "));
+    assert.match(out, /explain\(alice\): denied NO_CREDENTIAL/);
+    assert.match(out, /explain\(alice\): compliant/);
+    assert.match(out, /freezeIfInvalid: frozen=true NO_CREDENTIAL/);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("12. the CLI README example: a new issuer key, sas create-*, create-stablecoin, policy update, freeze-if-invalid", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "thawgate-cli-issuer-"));
+    const issuer2 = Keypair.generate();
+    const keyfile = path.join(home, "issuer.json");
+    fs.writeFileSync(keyfile, JSON.stringify([...issuer2.secretKey]));
+    await connection.confirmTransaction(await connection.requestAirdrop(issuer2.publicKey, 1e9), "confirmed");
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("SSS_")));
+    const json = (...args: string[]) =>
+      JSON.parse(execFileSync("node", [CLI, "--json", "--rpc-url", RPC_URL, "--keypair", keyfile, ...args], { cwd: home, env: { ...env, HOME: home }, encoding: "utf8" }));
+
+    const cred = json("sas", "create-credential", "--name", "My KYC").credential;
+    const sch = json("sas", "create-schema", "--credential", cred, "--name", "my-kyc").schema;
+    const created = json(
+      "create-stablecoin", "--name", "My USD", "--symbol", "MUSD", "--blacklist", "on",
+      "--sas-credential", cred, "--sas-schema", sch, "--min-kyc", "1",
+      "--reserves", "1000000000000", "--report-uri", "https://example.com/reserves.json",
+    );
+    assert.equal(Object.keys(created).sort().join(), "enableTokenAcl,initialize,mint,setup");
+    const holder = Keypair.generate().publicKey.toBase58();
+    assert.equal(json("explain", "--mint", created.mint, "--wallet", holder).code, "NO_CREDENTIAL");
+    json("sas", "attest", "--credential", cred, "--schema", sch, "--wallet", holder, "--kyc-level", "1");
+    const { tokenAccount, status } = json("unlock", "--mint", created.mint, "--owner", holder);
+    assert.equal(status, "unlocked");
+
+    const updated = json("policy", "update", "--mint", created.mint, "--min-kyc", "2");
+    assert.deepEqual([updated.minKycLevel, updated.sasCredential, updated.checkBlacklist], [2, cred, true], "--min-kyc alone kept the credential");
+    assert.deepEqual(pick(json("explain", "--mint", created.mint, "--wallet", holder), "status", "code"), { status: "freezable", code: "KYC_LEVEL_TOO_LOW" });
+    assert.deepEqual(pick(json("freeze-if-invalid", "--token-account", tokenAccount), "frozen", "code"), { frozen: true, code: "KYC_LEVEL_TOO_LOW" });
+    assert.equal(await frozen(new PublicKey(tokenAccount)), true);
+    fs.rmSync(home, { recursive: true, force: true });
+  });
 });
+
+const QUICKSTART = path.join(__dirname, "../../sdk/examples/quickstart.mjs");
 
 const CLI = path.join(__dirname, "../../cli/dist/index.js");
 const KEYPAIR = path.resolve(process.env.ANCHOR_WALLET ?? "test-keypair.json");

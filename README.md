@@ -26,32 +26,32 @@ SSS provides tiered stablecoin configurations with built-in compliance, role-bas
 
 ## Quick Start
 
-### 1. CLI Usage
-```bash
-npm install -g @thawgate/cli
+**[sdk/README.md](sdk/README.md) has a timed quickstart:** a fresh devnet wallet creates its own SAS KYC credential and a stablecoin gated by it, then a holder is refused, gets attested, unlocks, is minted to, loses the credential and is frozen. 39–43 s measured on Node 22 and 20, plus funding the wallet.
 
-# Initialize an SSS-2 compliant stablecoin
-sss-token init --preset sss-2
-
-# Mint tokens
-sss-token mint <recipient> <amount>
-
-# Check status
-sss-token status <mint-address>
-```
-
-### 2. SDK Usage
+### 1. SDK Usage
 ```typescript
-import { SolanaStablecoin, Presets } from "@thawgate/sdk";
+import { SolanaStablecoin } from "@thawgate/sdk";
 
-const stable = await SolanaStablecoin.create(connection, {
-  preset: Presets.SSS_2,
-  name: "My Stablecoin",
-  symbol: "MYUSD",
-  decimals: 6,
-  authority: adminKeypair,
+const tg = SolanaStablecoin.fromConfig({ rpcUrl: "https://api.devnet.solana.com" }, issuerKeypair);
+const { mint } = await tg.createStablecoin({
+  name: "My Stablecoin", symbol: "MYUSD",
+  policy: { checkBlacklist: true, sas: { credential, schema, minKycLevel: 1 } },
+  reserves: { amount: 1_000_000n * 10n ** 6n, reportUri: "https://…/reserves.json" },
 });
+const why = await tg.gate.explain(mint, holder);            // { status: "denied", code: "NO_CREDENTIAL", reason: "…" }
+await tg.send(await tg.gate.createAtaAndThaw(mint, holder)); // once the holder is attested
 ```
+
+### 2. CLI Usage
+```bash
+# npm publish is planned for v0.1.0 (S17); until then: yarn install && yarn workspace @thawgate/cli build, then node cli/dist/index.js
+thawgate --keypair issuer.json create-stablecoin --name "My Stablecoin" --symbol MYUSD --blacklist on \
+  --sas-credential <CREDENTIAL> --sas-schema <SCHEMA> --min-kyc 1 --reserves 1000000000000 --report-uri https://…
+thawgate explain --mint <MINT> --wallet <HOLDER>
+thawgate unlock --mint <MINT> --owner <HOLDER>
+thawgate status --mint <MINT>
+```
+Commands and environment: [cli/README.md](cli/README.md).
 
 ### 3. Docker (Backend Services)
 ```bash
@@ -99,7 +99,7 @@ thawgate/
 │   ├── transfer-hook/       # Compliance enforcement hook
 │   └── thawgate-gate/       # Token ACL gate (ThawGate)
 ├── sdk/                     # TypeScript SDK (@thawgate/sdk)
-├── cli/                     # CLI tool (sss-token)
+├── cli/                     # CLI (@thawgate/cli, binary `thawgate`)
 ├── services/
 │   ├── mint-service/        # Mint/burn API (Fastify)
 │   ├── webhook-service/     # Webhook delivery service

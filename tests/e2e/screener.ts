@@ -335,7 +335,7 @@ describe(`S10 screener: provider result -> blacklisted -> frozen by the keeper, 
     assert.notEqual(onChain.authority.toBase58(), screenerAddress);
 
     if (CLUSTER === "devnet") {
-      // A thawed issuer treasury, for the manual `sss-token seize` afterwards (the issuer wallet holds a demo credential).
+      // A thawed issuer treasury, for the manual `thawgate seize` afterwards (the issuer wallet holds a demo credential).
       treasury = await createAta(mint, issuer);
       await sendWeb3([await issuerFreezeIx("thaw", mint, treasury)]);
     }
@@ -348,7 +348,7 @@ describe(`S10 screener: provider result -> blacklisted -> frozen by the keeper, 
     for (const row of rows) console.log(row);
     if (treasury && runOne.wallet && runOne.ata) {
       console.log(
-        `\n  Optional manual seize (Seizer role; RPC from SSS_RPC_URL):\n    sss-token seize --mint ${mint.toBase58()} --source ${runOne.ata.toBase58()} --source-authority ${runOne.wallet.toBase58()} --treasury ${treasury.toBase58()} --confirm`,
+        `\n  Optional manual seize (Seizer role; RPC from SSS_RPC_URL):\n    thawgate seize --mint ${mint.toBase58()} --source ${runOne.ata.toBase58()} --source-authority ${runOne.wallet.toBase58()} --treasury ${treasury.toBase58()} --confirm`,
       );
     }
     for (const s of servers.reverse()) await s.close();

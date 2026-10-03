@@ -57,16 +57,16 @@ The screener has no index of its own. Every `SCREENER_POLL_MS` (5 s) it reads th
 
 ## Trust assumption
 - **An operator key writes the blacklist.** The screener's key holds the sss-token Blacklister role, granted by the mint's MasterAuthority. It is never the MasterAuthority, and it can't mint, seize, pause or change roles. The key pays the entry rent (218 B: 1,757,680 lamports on devnet) and fees.
-- **The gate trusts the entry, not the provider.** The chain sees a Blacklister-signed `BlacklistEntry` with a reason string. It can't verify the provider's verdict: `range:9` records what the operator's process was told. A compromised screener key can blacklist (and so freeze) any holder of the mints it holds the role on. Revoke the role with `sss-token revoke-role --role blacklister`, then remove the entries.
+- **The gate trusts the entry, not the provider.** The chain sees a Blacklister-signed `BlacklistEntry` with a reason string. It can't verify the provider's verdict: `range:9` records what the operator's process was told. A compromised screener key can blacklist (and so freeze) any holder of the mints it holds the role on. Revoke the role with `thawgate revoke-role --mint <MINT> --holder <SCREENER_PUBKEY> --role blacklister`, then remove the entries.
 - **Switchboard-verified quotes are cut** (PLAN.md cut ladder, item 1). The gate doesn't read the provider's score on chain.
 - The keeper holds no role (S8). Anyone can run a keeper, and the gate decides every freeze.
 
 ## Seize stays manual
-Nothing in the screener seizes. After a blacklist, a Seizer moves the balance with the CLI (`sss-token seize` uses the permanent delegate; the source must be blacklisted and frozen):
+Nothing in the screener seizes. After a blacklist, a Seizer moves the balance with the CLI (`thawgate seize` uses the permanent delegate; the source must be blacklisted and frozen):
 
 ```bash
 SSS_RPC_URL=<rpc> SSS_PROGRAM_ID=HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ SSS_HOOK_PROGRAM_ID=2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv \
-  sss-token --keypair ~/.config/solana/seizer.json seize \
+  thawgate --keypair ~/.config/solana/seizer.json seize \
     --mint <MINT> --source <FROZEN_TOKEN_ACCOUNT> --source-authority <BLACKLISTED_WALLET> --treasury <TREASURY_TOKEN_ACCOUNT> --confirm
 ```
 
@@ -79,7 +79,7 @@ yarn workspace @thawgate/compliance-service build
 SCREENER_KEYPAIR=~/.keys/thawgate/screener.json node services/compliance-service/dist/screener/main.js   # the keeper must be running (:3005)
 ```
 
-Grant the role once per mint, as the MasterAuthority: `sss-token grant-role --mint <MINT> --holder <SCREENER_PUBKEY> --role blacklister`. The environment is in [services/compliance-service/README.md](../services/compliance-service/README.md).
+Grant the role once per mint, as the MasterAuthority: `thawgate grant-role --mint <MINT> --holder <SCREENER_PUBKEY> --role blacklister`. The environment is in [services/compliance-service/README.md](../services/compliance-service/README.md).
 
 **HTTP (:3006):**
 - `GET /health`: 200 while keeper polls are on time; names the provider and whether it is the fallback.
@@ -107,6 +107,6 @@ Grant the role once per mint, as the MasterAuthority: `sss-token grant-role --mi
   - 19,915 when the passed account is already frozen (no freeze CPI);
   - the keeper's `BLACKLISTED` freeze 35,928–55,428.
 - **Rent:** an entry (218 B) holds 1,757,680 lamports on devnet, the cluster's rent-exempt minimum read on 2026-10-03. Over 15 entries the screener key spent 0.0264402 SOL, entry rent plus 5,000-lamport fees.
-- **Manual seize:** `sss-token seize` on a screener-blacklisted wallet moved 60 tokens to the issuer treasury and refroze the source: 35,525 CU, [2tPoV5qZ…](https://explorer.solana.com/tx/2tPoV5qZ7wGKuJd2Dvt4bYBe7cEMQHJEv9vpMUURjatcggE3XduRf1GZSwH1Ld89mEfZ1jJyuU2FeRvo5kLkXDFj?cluster=devnet).
+- **Manual seize:** `sss-token seize` (the CLI's name before S11) on a screener-blacklisted wallet moved 60 tokens to the issuer treasury and refroze the source: 35,525 CU, [2tPoV5qZ…](https://explorer.solana.com/tx/2tPoV5qZ7wGKuJd2Dvt4bYBe7cEMQHJEv9vpMUURjatcggE3XduRf1GZSwH1Ld89mEfZ1jJyuU2FeRvo5kLkXDFj?cluster=devnet).
 
 **Localnet** (Agave 3.0.14, in-process keeper and screener, poll 1 s): flag → frozen p50 728, 675 and 797 ms over 3 runs each; blacklist → keeper freeze 1 slot. The fail-safe case (in-process only) injects an HTTP 503 and a timeout. Both wallets stayed unblacklisted and thawed for 2+ polls, the errors were counted, and after recovery the retry blacklisted both.
