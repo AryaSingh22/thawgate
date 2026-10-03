@@ -29,7 +29,7 @@ State on devnet (2026-10-04):
 - **`/decisions` (S14):** `explain()` plus the keeper's `GET /mints/:mint`, which now carries a `reason` per owner from the same table.
 
 Open:
-- **Docker images not built locally** (no daemon in WSL). The keeper and mint-service Dockerfiles changed and were only replayed by hand. **Check that S11's Full CI docker-health is green.**
+- **Docker images aren't built locally** (no daemon in WSL). On `2e4dbbb` Full CI built every image but mint-service didn't start; `7c2820c` fixes it (S11 entry). **Check that the next Full CI's docker-health is green** before relying on the images.
 - **`@thawgate/shared` is still a `file:` dependency** in mint-service, indexer, compliance-service and webhook-service. Yarn 1 copies it, the bug S11 fixed for the SDK. Switch them to `"0.1.0"` and rewrite the dependency in each Dockerfile as mint-service does for the SDK (S16/S17).
 - **npm publish (S17):**
   - Both packages are publish-ready: the CLI depends on `@thawgate/sdk` `0.1.0`, and both have READMEs and `engines >=20`.
@@ -1023,5 +1023,17 @@ Gotchas:
   - keeper on Node 22: link, tsc, prune, final-stage `require`, 39 MB;
   - mint-service on Node 20.20 / npm 10.8: SDK pack, tarball install, final-stage `require`, `mint_tokens` with 12 accounts.
   - Full CI's docker-health builds the real images.
-- **Links:** the devnet txs above. Commits: `35ff428`, `9ab114f`, `204598e`, `30ce1fb`, `48db2e8`, `d55e99a`, `6d0e6f5`, `4437129`, `a59f0cf`, `8b233fc`, and this log.
+- **CI on `2e4dbbb`** (the ten S11 commits):
+  - **Green:**
+    - CI, including the new `sdk-node` jobs: the pack smoke on Node 22.23 and 20.20 (cjs, esm, `/reasons`, `thawgate --help`);
+    - TypeScript Tests;
+    - Gate Tests (run 37148811157): the IDL `cmp` against CI's own `anchor build`, gate 48, story 7, keeper 8 (p50 816 ms), screener 5 (p50 600 ms), **`test:sdk` 12**.
+  - **Full CI failed in docker-health** (run 37148811136). Every image built, keeper and mint-service included, but mint-service never answered on :3001.
+    - **Cause:** the job sets `SSS_PROGRAM_ID=SSS111…1`, which isn't a valid public key. `4437129` built the SDK client at module load, so `new PublicKey` threw before the service listened; the old code parsed the ID inside the handlers only.
+    - **Fix** (`7c2820c`): build the client on first use. Checked locally with that job's environment: `/health` 200; `/mint` with a valid minter key returns 500 "Invalid public key input" and the process stays up.
+  - **Anchor Integration** (run 37148811149): 69 / 6, known classes:
+    - races: SSS-1 Steps 08/09, SSS-2 Step 06
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
+- **Links:** the devnet txs above. Commits: `35ff428`, `9ab114f`, `204598e`, `30ce1fb`, `48db2e8`, `d55e99a`, `6d0e6f5`, `4437129`, `a59f0cf`, `8b233fc`, `2e4dbbb` (this log), `7c2820c` (the docker-health fix), and the CI record.
 - **Next:** S12 (S&A payments) and S13 (Console I), per the handoff at the top of this file.
