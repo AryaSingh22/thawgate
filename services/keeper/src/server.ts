@@ -1,6 +1,7 @@
 /**
  * GET /health        JSON; 200 while sweeps are on time, else 503.
  * GET /metrics       Prometheus text.
+ * GET /mints         every tracked mint: policy and account counts (the sanctions screener discovers mints here).
  * GET /mints/:mint   the holder index for one mint (token accounts, owners, last reads); 404 if not tracked.
  */
 import Fastify, { FastifyInstance } from "fastify";
@@ -16,6 +17,7 @@ export async function startServer(keeper: Keeper, port: number, host = "0.0.0.0"
   app.get("/metrics", async (_req, reply) =>
     reply.header("content-type", "text/plain; version=0.0.4; charset=utf-8").send(keeper.metrics.render()),
   );
+  app.get("/mints", async (_req, reply) => reply.send(keeper.listMints()));
   app.get<{ Params: { mint: string } }>("/mints/:mint", async (req, reply) => {
     const view = keeper.describeMint(req.params.mint as Address);
     return view ? reply.send(view) : reply.code(404).send({ error: "mint not tracked" });

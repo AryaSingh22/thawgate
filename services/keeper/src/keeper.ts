@@ -161,6 +161,19 @@ export class Keeper {
     };
   }
 
+  /** Every tracked mint with its policy and account counts, JSON-safe (GET /mints). */
+  listMints() {
+    return [...this.index.mints.values()].map((entry) => {
+      const accounts = [...entry.accounts.values()];
+      return {
+        mint: entry.mint,
+        policy: entry.policy,
+        accounts: accounts.length,
+        thawed: accounts.filter((a) => a.state === "initialized").length,
+      };
+    });
+  }
+
   /** One mint's slice of the index, JSON-safe (GET /mints/:mint). */
   describeMint(mint: Address) {
     const entry = this.index.mints.get(mint);
