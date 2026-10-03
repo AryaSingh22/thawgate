@@ -1,0 +1,7 @@
+{
+  "_note": "DEMO VALUES, not audited reserves. ThawGate's devnet story attests 1,000 tokens (6 decimals) with its own attestor key. The attestor ignores fields it doesn't know.",
+  "mint": "5632jFw8mU2hAjP2p8jNcCG9CW2MdeikDkbpd4Knr2G6",
+  "reserves": "1000000000",
+  "asOf": "2026-10-01T00:00:00Z",
+  "reportUri": "https://github.com/AryaSingh22/thawgate/blob/main/services/attestor/examples/reserves.example.json"
+}

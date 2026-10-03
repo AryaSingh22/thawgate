@@ -61,3 +61,6 @@ CACHEDIR.TAG
 target/
 /target
 !**/idl.json
+# JSON data that is not a keypair (*.json above ignores everything else)
+!services/compliance-service/lists/*.json
+!services/attestor/examples/*.json
