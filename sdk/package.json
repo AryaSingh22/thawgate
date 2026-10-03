@@ -26,7 +26,24 @@
                 "default": "./dist/index.js"
             }
         },
+        "./reasons": {
+            "import": {
+                "types": "./dist/reasons.d.mts",
+                "default": "./dist/reasons.mjs"
+            },
+            "require": {
+                "types": "./dist/reasons.d.ts",
+                "default": "./dist/reasons.js"
+            }
+        },
         "./package.json": "./package.json"
+    },
+    "typesVersions": {
+        "*": {
+            "reasons": [
+                "./dist/reasons.d.ts"
+            ]
+        }
     },
     "engines": {
         "node": ">=20"

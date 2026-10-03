@@ -30,6 +30,28 @@ export { SolanaStablecoin } from "./client";
 // Node ESM can't name-import ("Named export 'BN' not found").
 export { default as BN } from "bn.js";
 
+// Gate reason codes (also published dependency-free as "@thawgate/sdk/reasons")
+export {
+    THAWGATE_GATE_ID,
+    THAW_ALLOW_CODES,
+    FLAG_CODES,
+    STRUCTURAL_DENY_CODES,
+    GATE_DENY_ERRORS,
+    isTgCode,
+    describe as describeGateCode,
+    parseGateLogs,
+    classifyGateLogs,
+} from "./gate/reasons";
+export type {
+    GateAction,
+    TgCode,
+    ThawAllowCode,
+    FlagCode,
+    StructuralDenyCode,
+    GateLogs,
+    GateVerdict,
+} from "./gate/reasons";
+
 // Program IDs (devnet deployments + upstream Token ACL / SAS / ABL)
 export {
     SSS_TOKEN_PROGRAM_ID,
