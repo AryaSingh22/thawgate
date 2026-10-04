@@ -71,7 +71,7 @@ jobs:
           solana-keygen new --no-bip39-passphrase --outfile ./test-keypair.json
 
       - name: Build all programs
-        run: anchor build  # the localnet suite loads the gate, sss-token and the transfer hook
+        run: anchor build  # the localnet suite loads the gate, sss-token, the transfer hook and the demo pool
 
       - name: Verify program IDs
         run: scripts/verify-ids.sh
@@ -83,7 +83,7 @@ jobs:
           cmp target/types/thawgate_gate.ts sdk/src/gate/idl-type.ts
 
       - name: Rust unit tests
-        run: cargo test -p thawgate-gate -p sss-token -p transfer-hook
+        run: cargo test -p thawgate-gate -p sss-token -p transfer-hook -p demo-pool
 
       - name: Localnet gate suite
         run: SKIP_BUILD=1 yarn test:gate
@@ -105,6 +105,9 @@ jobs:
 
       - name: Localnet SDK + CLI e2e (tests/e2e/sdk.ts, through sdk/dist and cli/dist; includes the README quickstart)
         run: SKIP_BUILD=1 yarn test:sdk
+
+      - name: Localnet demo venue (tests/e2e/venue.ts; programs/demo-pool, in-process keeper)
+        run: SKIP_BUILD=1 yarn test:venue
 
       - name: Upload validator log
         if: failure()

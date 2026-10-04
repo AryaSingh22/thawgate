@@ -1,6 +1,7 @@
 #!/bin/bash
 # Runs the gate suite (tests/gate) on a throwaway local validator (Agave 3.0.14) that has:
-#   - the ThawGate gate, sss-token and the transfer hook (target/deploy/*.so) at their declare_id! addresses
+#   - the ThawGate gate, sss-token, the transfer hook and the demo pool (target/deploy/*.so) at their declare_id!
+#     addresses
 #   - Token ACL from tests/fixtures
 #   - devnet Token-2022 from tests/fixtures (the bundled one fails TokenMetadata initialize on 3.x)
 #   - the Solana Attestation Service (SAS) from tests/fixtures
@@ -20,6 +21,7 @@ program_id() { grep 'declare_id!' "programs/$1/src/lib.rs" | grep -oP '"[^"]+"' 
 GATE_ID=$(program_id thawgate-gate)
 SSS_ID=$(program_id sss-token)
 HOOK_ID=$(program_id transfer-hook)
+POOL_ID=$(program_id demo-pool)
 
 [ -n "${SKIP_BUILD:-}" ] || anchor build
 scripts/verify-ids.sh
@@ -36,6 +38,7 @@ solana-test-validator --reset --ledger "$LEDGER" --quiet \
   --bpf-program "$GATE_ID" target/deploy/thawgate_gate.so \
   --bpf-program "$SSS_ID" target/deploy/sss_token.so \
   --bpf-program "$HOOK_ID" target/deploy/transfer_hook.so \
+  --bpf-program "$POOL_ID" target/deploy/demo_pool.so \
   --bpf-program TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP tests/fixtures/token_acl.so \
   --bpf-program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tests/fixtures/token_2022.so \
   --bpf-program 22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG tests/fixtures/sas.so \
