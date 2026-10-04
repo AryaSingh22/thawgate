@@ -237,7 +237,7 @@ Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fal
   - ImmutableOwner enforced
   - reserve check uses `mint.supply`
 - [ ] Try the Trident fuzz target on the gate. If it still won't run, **say so in the docs**; don't claim it.
-- [ ] **Blacklist re-add** (user, S11): either `remove_from_blacklist` closes the entry or `add_to_blacklist` reactivates an inactive one. Ship it in **one sss-token upgrade** together with the reserve-PDA bump fix (`mint_tokens` CU depends on the bump; check the address with `create_program_address` and the stored bump; LOG.md S9). Today an inactive entry blocks a second blacklist ("already in use"; SECURITY.md known limitation 4).
+- [x] **Blacklist re-add** (user, S11): either `remove_from_blacklist` closes the entry or `add_to_blacklist` reactivates an inactive one. Ship it in **one sss-token upgrade** together with the reserve-PDA bump fix (`mint_tokens` CU depends on the bump; check the address with `create_program_address` and the stored bump; LOG.md S9). Today an inactive entry blocks a second blacklist ("already in use"; SECURITY.md known limitation 4). **Done in S15a** (2026-10-04, devnet slot 507431803): `add_to_blacklist` reactivates. The same upgrade covers the allowlist re-add, `transfer_authority` back to a previous holder, and the stored bumps in `mint_tokens`. S15 is split; the items above are S15b.
 - **Done when:** the findings are closed or listed in `SECURITY.md` "Known limitations". Tag `c2-freeze`.
 
 ## Phase 4: publish (Thu 8 → Fri 9)

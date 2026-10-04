@@ -2,25 +2,18 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S15 handoff (read first; remove when S15 ends)
-S14 is done (entry at the bottom). The console has:
-- `/issuer`: the wizard plus **Mint tokens**, which refuses past reserves in plain words and can record the refusal on chain;
-- `/holders`;
-- `/decisions` and `/reserves`, public with no wallet.
+## ▶ S15b handoff (read first; remove when S15b ends)
+S15a is done (entry at the bottom):
+- **One sss-token upgrade on devnet** (slot 507431803):
+  - blacklist and allowlist re-add, and `transfer_authority` back to a previous holder;
+  - `mint_tokens` uses the stored bumps: about 21.5k CU whatever the mint's address.
+- **`thawgate reserves post`.**
+- **Legacy e2e:** 75 / 0 locally (3 runs).
 
-The screenshots are `docs/thawgate/screenshots/s14-*`. `scripts/screenshots/console.mjs` retakes them.
+**CI on the S15a push:** see the S15a entry.
 
-**CI on `4b321ec`** (the S14 push, `034df6b..4b321ec`; checked 2026-10-04):
-- **Full CI green** (37214264255), including the console build.
-- **Gate Tests green** (37214264197): gate 48, story 7, keeper 8, screener 5, **sdk 13** (case 10 now runs `minters add`/`remove`), venue 3.
-- **Also green:** CI (37214264211), TypeScript Tests (37214264215).
-- **Anchor Integration** (37214264243): 68 / 7. Every failure is in a known class. These tests call `program.methods….rpc()` directly, not the SDK `send` that S14 changed.
-  - races (a read right after a write): SSS-1 Steps 02, 08, 09 and SSS-2 Step 06. Last run had SSS-2 Step 04 instead of SSS-1 Step 02 and SSS-2 Step 06; which steps lose the race varies by run.
-  - "already in use": SSS-1 Step 16, SSS-2 Step 15;
-  - SSS-2 Step 16, downstream.
-
-**S15, Security + test hardening** (PLAN.md S15; **C2 feature freeze** at the start, tag `c2-freeze` when done):
-- Run `/security-review` and `/code-review high` on the gate and sss-token diffs. Fix or document every finding (SECURITY.md "Known limitations").
+**S15b, the rest of S15** (PLAN.md S15; C2 feature freeze; tag `c2-freeze` when done):
+- Run `/security-review` and `/code-review high` on the gate and sss-token diffs, S15a's included (`444d65f..HEAD`). Fix or document every finding (SECURITY.md "Known limitations").
 - Work through the PLAN checklist:
   - the gate never trusts accounts it doesn't derive;
   - the flag-account check happens only where state is written;
@@ -29,33 +22,50 @@ The screenshots are `docs/thawgate/screenshots/s14-*`. `scripts/screenshots/cons
   - ImmutableOwner is enforced;
   - the reserve check uses `mint.supply`.
 - Try the Trident fuzz target on the gate. If it still won't run, say so in the docs.
-- **One sss-token upgrade** with two fixes:
-  - **blacklist re-add:** `remove_from_blacklist` closes the entry, or `add_to_blacklist` reactivates an inactive one;
-  - **the reserve-PDA bump fix:** `mint_tokens` CU depends on the bump. Check the address with `create_program_address` and the stored bump (LOG S9).
+- **Review surfaces:**
+  - **From S14:**
+    - the keeper's `access-control-allow-origin: *` (read-only endpoints);
+    - the Mint card's "Send anyway" (skips preflight on purpose, one fee);
+    - the CLI's other string-to-enum options, which were like `minters add`'s `--period` before `554716a`.
+  - **New in S15a:**
+    - **`sdk/src/errors.ts` `ERROR_CODE_MAP` has the old SSS numbering.** 6005 (`TokensPaused`) becomes a `QuotaExceededError`, 6007 (`MinterQuotaExceeded`) "Role not found", and nothing past 6024 is mapped. `client.send` doesn't call `parseError`, so only instruction-building errors reach it. Generate the map from the IDL's `errors`. Found in S15a, not fixed.
+    - The S15a program changes:
+      - `reserve_bump` / `stored_bump` (`state/reserve_attestation.rs`);
+      - the three `init_if_needed` accounts with an `!active` constraint (blacklist entry, allowlist entry, `new_master_role`).
+- **A program fix in S15b needs another sss-token upgrade.**
+  - S15a's cost: 746 txs and 0.0038 SOL in fees.
+  - No extend while the `.so` stays ≤ 715,192 bytes; today it's 712,768.
+- **Phantom and Solflare still haven't been run** (user). Run the wizard once with Phantom on devnet and note whether it warns on `initialize`.
 
-  Deploy with `scripts/deploy-devnet-acl.sh` (`DRY_RUN=1` first), then update DEPLOYMENT.md.
-- **Also worth a look in the review** (S14 surfaces):
-  - the keeper's `access-control-allow-origin: *` (read-only endpoints);
-  - the Mint card's "Send anyway" (skips preflight on purpose, one fee);
-  - the CLI's other string-to-enum options, which were like `minters add`'s `--period` before `554716a`.
-
-State on devnet (2026-10-04, after S14):
-- **Programs:** unchanged (all four `.so` sha256 equal DEPLOYMENT.md). `5BXg…` has 27.824678509 SOL.
+State on devnet (2026-10-04, after S15a):
+- **Programs:** sss-token upgraded (`dd61933b…`, slot 507431803); the gate, the hook and demo-pool are unchanged. All four `.so` sha256 equal DEPLOYMENT.md. `5BXg…` has 27.568158312 SOL.
 - **vUSD** `AsePwCcV…`:
-  - Supply is 104,000 and reserves 1,000,000, **as of 2026-10-04 10:31 UTC, stale after 2026-10-05 10:31 UTC**.
-  - Re-post before any vUSD mint or screenshot. No CLI command posts reserves: use a node script as `5BXg…` with `reserves(mint).attestReserves(attestor, amount, await sdk.clusterTime(), reportUri)`, or the attestor service.
+  - Supply is 104,001 and reserves 1,000,000, **as of 2026-10-04 16:54 UTC, stale after 2026-10-05 16:54 UTC**.
+  - Re-post before any vUSD mint or screenshot, from a dir without the repo's `.env` (the CLI loads `.env` from its cwd), as S15a did:
+
+    `HOME=/tmp/s15a-cli node ~/thawgate/cli/dist/index.js --json --rpc-url https://api.devnet.solana.com --keypair ~/.config/solana/sss-authority.json reserves post --mint AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw --amount 1000000000000`
   - Its reserve account holds 4 landed `ReserveInsufficient` refusals (the `/reserves` history).
   - Its 4 burner Minter roles are deactivated.
-- **S14 wizard mints:**
-  - `7B7FWJfARr7buP3K7u88XdkrZhG7VZAUjWgvfi8tBNTN`: complete. Holder `64CZUvqU…` is unlocked and holds 1,000.
-  - `3e5Mgs6H…`: abandoned.
-  - Both issuers were burners whose keys are gone.
-- **Unchanged:** the S13 console mints, the S11 quickstart mints, and the S9 story mint.
+- **S9 story mint** `D6Q5PA…` (reserve bump 248):
+  - reserves 2,000 tokens (supply 1,000), fresh until 2026-10-05 16:51 UTC;
+  - its attestor `2da6…` (`~/.keys/thawgate/attestor.json`) has 0.009995 SOL.
+- **New mints from the S15a devnet e2e:**
+  - story `4K4t2Cnun4Wondgbfot6zVJsDZp5qs4jwWaNeRXaCWmB`;
+  - venue `22WkGAfayHstgPWetoGcJ8eUdbFTH5MgZQwb25dxam2m` (quote `CCeUk65Y…`, pool `DcMJWkaF…`);
+  - keeper `BSLZ8pPzJJLjLCLrYpGEUymDmztBkqQGFk8aoBvHKZsd`.
+
+  The keeper key `4auu6ttR…` has 0.04978 SOL.
+- **Unchanged:**
+  - the S14 wizard mints: `7B7FWJfA…` (complete, holder `64CZUvqU…` unlocked with 1,000) and `3e5Mgs6H…` (abandoned);
+  - the S13 console mints and the S11 quickstart mints.
 
 Open:
+- **New in S15a:**
+  - **Not run on devnet:** a blacklist or allowlist re-add and a transfer back (localnet only, `tests/gate/issuer.test.ts`).
+  - **The screener still never re-adds** a wallet an operator removed. That's by design (SANCTIONS.md); sss-token could now reactivate the entry.
+  - **The deploy script prints no signature for `extend`.** Read it from the ProgramData account's history.
 - **New in S14:**
-  - **Phantom and Solflare still haven't been run** (user). The SDK now signs wallet-first. Run the wizard once with Phantom on devnet and note whether it warns on `initialize`.
-  - **No CLI command posts reserves** (`thawgate reserves attest` would; S16 if wanted).
+  - **Phantom and Solflare:** see the handoff above.
   - **The console still can't add allowlist entries** (`compliance(mint).addToAllowlist`).
   - **The Mint card's refusal texts** other than `ReserveInsufficient` haven't run.
   - **The keeper indexes facts only for owners of thawed accounts.** `/decisions` fills frozen rows from chain reads and a live `explain`. A keeper endpoint for frozen owners would save the browser reads.
@@ -74,18 +84,25 @@ Open:
   - The quickstart README says "until 0.1.0 is on npm"; update it after publishing.
 - **Carried from S10:**
   - Range is untested live; the S19 wording is in PLAN.md.
-  - No second blacklist after a removal (S15, above).
   - Keeper self-trigger on SAS logs; the trigger-label race.
   - Screener ops: no compose entry, state in memory, one provider.
 - **Carried from S9 and earlier:**
   - Treasury PDA + BypassForPdas for mainnet (S16).
   - Attestor health and metrics.
   - `cargo fmt` fails workspace-wide.
-  - Legacy e2e 68/7.
   - The gate/sas fixture conversion and the Both-mode test.
   - The build-in-public thread (user).
 
 Gotchas:
+- **New in S15a:**
+  - **`anchor.workspace.X` is cached.** The Program keeps the provider of the first test file that loaded it (`tests/unit`, at "processed"). To use another provider, build `new Program(anchor.workspace.X.idl, provider)`, as `tests/integration` now does.
+  - **Back-to-back `anchor test` runs** can fail with "rpc port 8899 is already in use" while the last validator shuts down. Wait a few seconds.
+  - **`pgrep -f <pattern>` inside `bash -lc`** matches its own command line, like `pkill -f`. Check the pid file instead: `kill -0 $(cat /tmp/x.pid)`.
+  - **Keep `seeds` on an `UncheckedAccount` PDA when changing its bump.** `reserve_attestation` is `seeds = […], bump = reserve_bump(…)`, so the IDL keeps the PDA and Anchor's account resolution still fills it; the legacy e2e leave it out.
+  - **Devnet:**
+    - a simulated `mint_tokens` costs the same CU as the landed one (21,591 both on vUSD);
+    - `/tmp/s15a-probe.js [simulate]` is read-only: each mint's reserve attestation and bumps, `5BXg…`'s minter quota and ATA, and with `simulate` a 1-token mint's CU, for vUSD and the S9 mint.
+  - **Transfer to yourself:** with `init_if_needed` it reaches the `!active` constraint (`RoleAlreadyActive`). Anchor 0.32 raised no duplicate-account error for `old_master_role` = `new_master_role`.
 - **New in S14:**
   - **Public devnet `getTransaction`:** the per-method limit is low. A batch of 5 passed and the next batch was refused, because each item counts. After bursts, the whole IP gets "Connection rate limits exceeded" for a while.
   - **web3.js's `getTransactions` (batch)** returns results **out of order**. Read one at a time (`readTransaction` in `frontend/src/chainLogs.ts`) or match by signature.
@@ -1327,3 +1344,99 @@ Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" 
   - The devnet txs above.
   - Commits `ca668d9` (sdk), `554716a` (cli), `f6b72ed` (keeper), `7e0c72b` (console), `1466f0d` (scripts), and this log.
 - **Next:** S15 (security + test hardening, C2 feature freeze), per the handoff at the top of this file.
+
+## S15a · 2026-10-04 · sss-token fixes in one devnet upgrade; `thawgate reserves post`; legacy e2e green
+S15 is split: S15a does the program fixes and the upgrade, S15b the security review (handoff at the top).
+- **Decisions (plan mode, approved):**
+  - **Phantom:** the prompt had its placeholder again. The user hasn't run it yet, so it's skipped and stays open for S15b.
+  - **Blacklist re-add: `add_to_blacklist` reactivates the inactive entry. `remove_from_blacklist` doesn't close it.**
+    - The screener's operator override is an inactive entry. After a close it would read "none" and re-blacklist the wallet on the next list edit, breaking `tests/e2e/screener.ts` case 4 and SANCTIONS.md.
+    - The audit trail and the layout stay as they were, and so does every reader: gate, hook, keeper, screener and SDK all read `active`.
+    - No rent-refund question: the screener pays the rent, and another operator may remove the entry.
+  - **`transfer_authority` "already in use" was a program bug**, not a test bug. It's the same `init` pattern: `new_master_role` was `init`, so authority could never return to a previous holder. Fixed in the same upgrade.
+  - **Allowlist re-add included** (user): the same pattern in `add_to_allowlist_v3`.
+  - **Push when green** without asking again (user; the session prompt said to commit, push and watch CI).
+- **Shipped:**
+  - **sss-token** (`f4830cc`, deployed):
+    - `add_to_blacklist` and `add_to_allowlist_v3` use `init_if_needed` + `!active`. They refuse an active entry with `AccountAlreadyBlacklisted` (6011) or the new `AllowlistEntryAlreadyActive` (6041, appended).
+    - `transfer_authority` uses `init_if_needed` + `!active` on `new_master_role`. A transfer to yourself is refused with `RoleAlreadyActive` (6017).
+    - **`mint_tokens`:**
+      - It checks the reserve PDA with `bump = reserve_bump(&reserve_attestation, &mint.key())`, the bump stored in the attestation (one `create_program_address`).
+      - A Hook mint without an attestation still searches.
+      - The `seeds` stay, so the IDL is unchanged: docs and error 6041 only.
+      - It signs with `config.bump` instead of a second `find_program_address`.
+    - `tests/test_reserves.rs` pins `stored_bump` and the codes 6011, 6017 and 6041.
+  - **Tests** (`df728c2`):
+    - **`tests/gate/issuer.test.ts`, 5 cases:**
+      - blacklist re-add: frozen again, the gate denies `BLACKLISTED`, and the re-add pays only the fee;
+      - an add while active → `AccountAlreadyBlacklisted`; a remove while inactive → `AccountNotBlacklisted`;
+      - `transfer_authority` A → B → A → B; after each step, the key that handed over is refused (`NotAuthorized`);
+      - a transfer to yourself → `RoleAlreadyActive`;
+      - allowlist re-add and its two refusals.
+    - **`tests/gate/reserves.test.ts`, 2 cases:**
+      - CU at bumps 255/255 vs 253/246;
+      - a swapped reserve account is refused with `ConstraintSeeds` (another mint's attestation, the config, a system account, an empty address on a Hook mint).
+    - **`tests/integration/sss{1,2}`:**
+      - one provider at "confirmed" (connection, preflight, confirmation) and Programs built on it;
+      - SSS-2's per-call `CONFIRMED` is gone.
+  - **Screener** (`a768826`): `AccountAlreadyBlacklisted` reads as `already_blacklisted`.
+  - **CLI** (`cd522dc`): `thawgate reserves post --mint --amount <base units> [--report-uri] [--as-of]`.
+    - **Checks before sending:**
+      - an attestation exists;
+      - `--keypair` is its attestor;
+      - `--as-of` is not older than the stored one;
+      - the numbers are whole u64s.
+    - **Defaults:** the report URI is the last one posted, and as-of is the cluster's time. The output prints `freshUntil`.
+    - **Tests:** `tests/e2e/sdk.ts` case 14, and `u64Arg` unit tests.
+  - **Docs:**
+    - `4104e8b`: SECURITY.md (limitation 4 fixed), SANCTIONS.md, RESERVES.md (the address check, CU, the CLI), CLI README;
+    - DEPLOYMENT.md (this upgrade).
+- **`mint_tokens` CU, before → after:**
+  - **localnet** (Agave 3.0.14, 1 token, Acl; case 9, run first on the old build). The gap between the two mints went from 16,522 to 22.
+
+    | Config / reserve bump | Before | After |
+    |---|---|---|
+    | 255 / 255 | 22,851 | 21,410 |
+    | 253 / 246 | 39,373 | 21,432 |
+  - **devnet** (1 token by `5BXg…` to its existing account, simulated a minute before and after the upgrade):
+
+    | Mint | Config / reserve bump | Before | After |
+    |---|---|---|---|
+    | vUSD | 254 / 255 | 24,532 | 21,591 |
+    | S9 story mint `D6Q5PA…` | 255 / 248 | 33,446 | 21,505 |
+
+    - The landed vUSD mint: 21,591.
+    - The new devnet story mint: `mint_tokens` 1,000 at 21,686 (S9's story mint: 33,627).
+- **Devnet:**
+  - **Before the upgrade:**
+    - 0.01 SOL to the S9 attestor `2da6…`, which had 0 ([`42FGvoto…`](https://explorer.solana.com/tx/42FGvotovnbZ8Mqz9VZBt9xupvxrvmUPmCkaUpEfxNuPX5ACq5rvhoT5KnNitdQUu1tVBpNTGdiTBR8oh5KLm5d4?cluster=devnet));
+    - **its reserves re-posted with the new CLI**: 2,000 tokens ([`5dMX2EMC…`](https://explorer.solana.com/tx/5dMX2EMCWCZ9iwebti8XdFGZFaWB6hP6hY6rEEEzvTTzX5aBPVsnr7c2Tcc1VtgbDrCBmmeCcgQRZRMshHR1amCz?cluster=devnet)), so the bump-248 mint could be measured.
+  - **Dry run** (Helius): sss-token "different", the other three "same". It predicted an extend of 10,240 B (7,816 needed) and ~746 txs.
+  - **Upgrade** (DEPLOYMENT.md):
+    - extend [`2rnnYxz1…`](https://explorer.solana.com/tx/2rnnYxz13FhmAwRqkvWwa9Gm5m9iUEZCE3CaMQM3suVX9ejbV4FY4HqV3V9tiAHdXgFQQNMP25XgAUWnhyrW8m6r?cluster=devnet), upgrade [`5zU6dpBe…`](https://explorer.solana.com/tx/5zU6dpBeq7McawYPgKXBEDPReagxyybnrHQnE1mSPq9V6wuRPLTAv4X4iZBwBHMrQSXX6CEMcrVzJNbeTEAeTWti?cluster=devnet), slot 507431803;
+    - 746 txs, 0 failed, in 25 s.
+  - **Hash check:** the first 712,768 bytes of `solana program dump` hash to `dd61933b…`, and the rest is zero. `verify-ids.sh` OK.
+  - **After:**
+    - a 1 vUSD mint ([`4EBieZPZ…`](https://explorer.solana.com/tx/4EBieZPZSRmiSK6hyttfQKryVLjedi6rjW8j6qNrRM295xeFTaCZLNvKTyqFXX9uxD87Mjg1bkPJXCn4RMfKSydu?cluster=devnet));
+    - **vUSD reserves re-posted with `thawgate reserves post`**: 1,000,000 vUSD, fresh until 2026-10-05 16:54 UTC ([`4g58miNU…`](https://explorer.solana.com/tx/4g58miNUG8CpuZxSGoaCQ8bKtbkXkAJg3hyBhdThywyDMbUKMSHRHQdZBUDS8mn4Jt6uCsQQLVje6cxeY8mpTBNR?cluster=devnet)).
+  - **Devnet e2e after the upgrade, all green:**
+    - story 7/7 (mint `4K4t2Cnu…`);
+    - venue 3/3 (mint `22WkGAfa…`, pool `DcMJWkaF…`);
+    - keeper 7/7 (`KEEPER=external RUNS=10`, mint `BSLZ8pPz…`): revoke → freeze p50 2,042 ms (min 1,599, max 4,993), 8.5 slots; policy tightening froze the level-2 holder in 2,920 ms.
+  - **Cost:** `5BXg…` went from 27.824678509 to 27.568158312 SOL (−0.256520197):
+    - the upgrade, 0.055854037 (extend rent 0.052019200 + fees);
+    - the attestor funding, 0.010005;
+    - the rest, 0.190661160: the vUSD mint and reserve-post fees and the three e2e runs (wallet funding, rents, fees).
+- **Checks:**
+  - **Rust:** `cargo test --workspace` 144 passed; `cargo clippy --workspace --all-targets -- -D warnings` clean.
+  - **TypeScript:** `yarn typecheck` clean; vitest: SDK 128, CLI 44, compliance-service 45.
+  - **Localnet** (`SKIP_BUILD=1`): gate 55 (48 + 7), story 7, keeper 8, screener 5, venue 3, sdk 14.
+  - **`anchor test --skip-build`** (the Anchor Integration suite): **75 passing, 0 failing, 3 runs** (S14 CI: 68 / 7).
+- **Not exercised (honesty):**
+  - a re-add or a transfer back on devnet (localnet only);
+  - Phantom and Solflare;
+  - the console with the upgraded program (no console change).
+- **Links:**
+  - the devnet txs above;
+  - commits `f4830cc` (sss-token), `df728c2` (tests), `a768826` (screener), `cd522dc` (cli), `4104e8b` (docs), and this log with DEPLOYMENT.md.
+- **Next:** S15b, per the handoff at the top of this file.

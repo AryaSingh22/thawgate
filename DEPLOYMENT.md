@@ -1,5 +1,41 @@
 # Deployment Record
 
+## Devnet, 2026-10-04 16:52 UTC: sss-token upgrade (S15a: re-add, transfer back, stored bumps)
+
+**Anchor:** 0.32.2 · **Solana CLI:** 3.0.14 · **Cluster:** devnet, Agave 4.3.0 · **Script:** `scripts/deploy-devnet-acl.sh` (dry run first) · **Source:** `f4830cc`
+
+What changed:
+- `add_to_blacklist` and `add_to_allowlist_v3` reactivate an inactive entry instead of failing "already in use". An active entry is refused with `AccountAlreadyBlacklisted` (6011) or the new `AllowlistEntryAlreadyActive` (6041).
+- `transfer_authority` reactivates a previous holder's MasterAuthority record, so authority can go back. A transfer to yourself is refused with `RoleAlreadyActive` (6017).
+- `mint_tokens` checks the reserve PDA with the bump stored in the attestation and signs with `config.bump`, instead of searching for both bumps.
+
+The gate, the transfer hook and demo-pool already matched the build, so they were skipped.
+
+| Program | Address | Upgrade authority | Program bytes (sha256 of the `.so`) | Slot |
+|---------|---------|-------------------|-------------------------------------|------|
+| `sss-token` | `HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` | 712,768 (`dd61933b4c866e54…`) | 507431803 |
+
+| Step | Signature |
+|------|-----------|
+| `sss-token` extend, +10,240 B (7,816 needed; 10,240 is devnet's minimum; rent 0.052019200 SOL) | [`2rnnYxz13FhmAwRqkvWwa9Gm5m9iUEZCE3CaMQM3suVX9ejbV4FY4HqV3V9tiAHdXgFQQNMP25XgAUWnhyrW8m6r`](https://explorer.solana.com/tx/2rnnYxz13FhmAwRqkvWwa9Gm5m9iUEZCE3CaMQM3suVX9ejbV4FY4HqV3V9tiAHdXgFQQNMP25XgAUWnhyrW8m6r?cluster=devnet) |
+| `sss-token` upgrade | [`5zU6dpBeq7McawYPgKXBEDPReagxyybnrHQnE1mSPq9V6wuRPLTAv4X4iZBwBHMrQSXX6CEMcrVzJNbeTEAeTWti`](https://explorer.solana.com/tx/5zU6dpBeq7McawYPgKXBEDPReagxyybnrHQnE1mSPq9V6wuRPLTAv4X4iZBwBHMrQSXX6CEMcrVzJNbeTEAeTWti?cluster=devnet) |
+
+**Check:**
+- `solana program dump`: the first 712,768 bytes hash to `dd61933b…`, and the other 2,424 bytes are zero.
+- `scripts/verify-ids.sh`: OK.
+
+**Cost:**
+- 746 transactions (the dry run predicted ~746), all paid by `5BXg…`, none failed, sent in 25 s (16:52:20 → 16:52:45 UTC).
+- `5BXg…` went from 27.814673509 to 27.758819472 SOL (−0.055854037): the extend's rent plus 0.003834837 SOL in fees.
+- ProgramData now holds 3.6340542 SOL for 715,237 bytes.
+
+**`mint_tokens` CU on devnet:** a 1-token mint by `5BXg…` to its existing account, simulated (nothing sent) a minute before and a minute after the upgrade.
+
+| Mint | Config / reserve bump | Before | After |
+|---|---|---|---|
+| vUSD `AsePwCcV…` | 254 / 255 | 24,532 | 21,591 (landed: [`4EBieZPZ…`](https://explorer.solana.com/tx/4EBieZPZSRmiSK6hyttfQKryVLjedi6rjW8j6qNrRM295xeFTaCZLNvKTyqFXX9uxD87Mjg1bkPJXCn4RMfKSydu?cluster=devnet), 21,591) |
+| S9 story mint `D6Q5PA…` | 255 / 248 | 33,446 | 21,505 |
+
 ## Devnet, 2026-10-04 10:30 UTC: demo-pool (S12-venue, the demo venue)
 
 > **Demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2).** See [programs/demo-pool/README.md](programs/demo-pool/README.md).
