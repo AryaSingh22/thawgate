@@ -6,7 +6,7 @@
 Program ID: `9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS` (devnet; upgrade authority `5BXg…`).
 
 ## Why it exists
-A Token ACL mint (DefaultAccountState = Frozen) starts every token account frozen, a pool's vaults included. Orca Whirlpools can host such a mint: its `initialize_pool_v2` creates the vaults and its deposit is a separate step, so the vault can be thawed in between. The Orca path needs a Token Badge from Orca, though, and we don't have one for a devnet mint. Raydium CPMM refuses the mint outright. Both results are in [SPIKES.md S2](../../docs/gatekit/SPIKES.md). This program is the PLAN.md fallback: the same three steps in about 200 lines.
+A Token ACL mint (DefaultAccountState = Frozen) starts every token account frozen, a pool's vaults included. Orca Whirlpools can host such a mint: its `initialize_pool_v2` creates the vaults and its deposit is a separate step, so the vault can be thawed in between. The Orca path needs a Token Badge from Orca, though, and we don't have one for a devnet mint. Raydium CPMM refuses the mint outright. Both results are in [SPIKES.md S2](../../docs/gatekit/SPIKES.md). This program is the PLAN.md fallback: the same three steps in one 268-line file, tests included.
 
 ## Opening a pool on a ThawGate mint
 1. `init_pool(fee_bps)`: the pool PDA `["pool", mint_a, mint_b]` and two vaults, created the Whirlpool way: keypair accounts with ImmutableOwner, owner = the pool PDA. No tokens move, so the gated vault stays frozen.

@@ -2,22 +2,26 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S12 / S13 handoff (read first; remove when S13 ends)
-S11 is done (S11 entry at the bottom). `@thawgate/sdk` now has the gate client, the issuer preset, the SAS helpers and the shared TG parser, and the CLI is `thawgate`. **The quickstart passed on devnet from fresh wallets: 39.1 s on Node 22, 43.4 s on Node 20,** plus funding the wallet. The public faucet refused both wallets, so each was funded by a transfer.
+## ▶ S13 handoff (read first; remove when S13 ends)
+S12-venue is done (entry at the bottom). The demo venue `programs/demo-pool` is on devnet, and its three cases passed there. Always show it with the label: **"demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)"**. S12 (S&A payments) is cut to "if time allows on the Wed buffer" (PLAN.md S12).
 
 State on devnet (2026-10-04):
-- **Programs:** unchanged since S9; no Rust changed in S11.
+- **Programs:**
+  - The gate, sss-token and the hook are unchanged since S9.
+  - **New: `demo_pool` `9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS`**: deployed in slot 507,334,176 by `scripts/deploy-devnet-acl.sh` step [4], upgrade authority `5BXg…` (DEPLOYMENT.md).
 - **Keys:**
-  - Keeper `4auu6t…` (0.049865 SOL), screener `AUPc2FiA…` (0.0235598 SOL) and attestor `2da6PG…` (0 SOL) are unchanged and **not running**.
-  - `5BXg…` 30.369526493 SOL.
-  - The two quickstart wallets (`G6bJyJsC…`, `fraTVHfY…`, 0.1765 SOL each) have scratch keys in `/tmp/qs-node{22,20}/app/`.
-- **New mints (S11 quickstart; issuers = the quickstart wallets):** `FMitUU5r…` and `6zGi5yAM…`, each with a self-issued "Quickstart KYC" credential. Alice's account is frozen (NO_CREDENTIAL) and holds 100 QUSD.
-- **S9 story mint `D6Q5PA…`:** reserves stale since 2026-10-02 (S17/S18).
+  - Keeper `4auu6t…` has 0.04986 SOL. It ran in-process during the venue run and is **not running** now.
+  - Screener `AUPc2FiA…` and attestor `2da6PG…` are unchanged and not running.
+  - `5BXg…` has 28.863500789 SOL.
+  - The program keypair is backed up at `~/.keys/thawgate/demo_pool-keypair.json`.
+- **The S12-venue devnet pool** (issuer/LP `5BXg…`; credential = the S3 "ThawGate Demo KYC", self-issued):
+  - gated mint `AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw` (vUSD), quote mint `7WNLjKCooS98wJi4T7CssL1hUgAP5sFCRFAyvSF1HEUo` (plain SPL Token, demo);
+  - pool `CrkVVB2gnPuWZkKQbp9tjdRvWeoeXVghi1YHyeupK4Xv`, vaults `yrmMusxB…` (gated, thawed through PDA_ALLOWLISTED) and `NUimQ682…`;
+  - the vaults hold 99,012.841966 vUSD and 101,000 quote; Alice's and Bob's vUSD accounts are frozen.
+  - vUSD's reserves go stale a day after the post (default `maxStalenessSeconds`). Swaps don't need fresh reserves; minting does.
+- **S11 quickstart mints** `FMitUU5r…`, `6zGi5yAM…`: unchanged. **S9 story mint `D6Q5PA…`:** reserves stale since 2026-10-02 (S17/S18).
 
-**S12, Payments with Subscriptions & Allowances** (PLAN.md S12): `examples/agent-budget.ts`, then "after revoke + freeze, the agent's pull fails"; answer the RESEARCH.md §3 TODOs.
-- **Use the SDK:** `createStablecoin`, `sas.*`, `createAtaAndThaw`, `freezeIfInvalid` and `explain` replace the test helpers. The quickstart is the template: it already does revoke → freeze.
-- **The S&A program `De1egAFMkMWZSN5rYXRj9CAdheBamobVNubTsi9avR44`** is in `tests/fixtures/` and Anchor.toml's genesis, but **not loaded by `scripts/test-gate.sh`**. Add a `--bpf-program` line, as S11 did for the ABL gate.
-- **No S&A client is installed** (`@solana/subscriptions`: TODO(verify) the package name and whether it is kit-based). If it is kit-based, mind the native-ESM gotcha below; the keeper and tests run kit as CommonJS.
+**S18 note (demo script):** the venue flow to adapt is `tests/e2e/venue.ts`. Each devnet run makes a fresh mint and pool for about 0.036 SOL and takes about 1 min. Its after-hook prints every explorer link. Put the label on screen.
 
 **S13, Console I** (PLAN.md S13): split `frontend/src/App.tsx`; routes `/issuer`, `/holders`, `/decisions`, `/reserves`; an issuer wizard and an "Unlock my wallet" button, all through `@thawgate/sdk`.
 - **Mint wizard:** `SolanaStablecoin.fromConfig({ rpcUrl }, walletAdapter)` then `createStablecoin`. `send` uses AnchorProvider, so the adapter signs after the mint keypair's partial signature.
@@ -29,7 +33,11 @@ State on devnet (2026-10-04):
 - **`/decisions` (S14):** `explain()` plus the keeper's `GET /mints/:mint`, which now carries a `reason` per owner from the same table.
 
 Open:
-- **Docker images aren't built locally** (no daemon in WSL). On `2e4dbbb` Full CI built every image but mint-service didn't start; `7c2820c` fixes it (S11 entry). **Check that the next Full CI's docker-health is green** before relying on the images.
+- **Docker images aren't built locally** (no daemon in WSL). Full CI's docker-health builds them, and it was green on `44d85a1` (run 37149607979; the `7c2820c` mint-service fix holds).
+- **New in S12-venue:**
+  - **Orca Token Badge:** still not issued. If one arrives, the S2 Orca steps (SPIKES.md) run on devnet unchanged, and S18 can trade there.
+  - **demo-pool has no withdraw and no LP shares** (single LP, devnet test liquidity). Each venue run's liquidity stays in its pool.
+  - `scripts/rehearse-deploy-devnet-acl.sh` wasn't re-run. With step [4], it now also deploys demo_pool on its rehearsal validator.
 - **`@thawgate/shared` is still a `file:` dependency** in mint-service, indexer, compliance-service and webhook-service. Yarn 1 copies it, the bug S11 fixed for the SDK. Switch them to `"0.1.0"` and rewrite the dependency in each Dockerfile as mint-service does for the SDK (S16/S17).
 - **npm publish (S17):**
   - Both packages are publish-ready: the CLI depends on `@thawgate/sdk` `0.1.0`, and both have READMEs and `engines >=20`.
@@ -49,6 +57,12 @@ Open:
   - The build-in-public thread (user).
 
 Gotchas:
+- **New in S12-venue:**
+  - **Size a Token-2022 vault from its mint's extensions.** A Pausable mint (every SSS-ACL mint) needs `PausableAccount` on each token account. demo-pool sizes a vault the way Orca does: `get_required_init_account_extensions(mint extensions)` plus ImmutableOwner.
+  - **`explain(mint, owner, { tokenAccount, payer })`** explains any token account, not just the ATA. The venue test uses it on the pool's vault.
+  - **No TS-only AMM on devnet for Token-2022:** the devnet SPL Token Swap (`SwapsVeCi…`, slot 139,567,548) doesn't contain the Token-2022 program ID.
+  - **The deploy script skips matching programs.** After any `anchor build`, compare the `.so` sha256 with DEPLOYMENT.md; the dry run reports `same` / `different` per program.
+  - **Venue tests:** `SKIP_BUILD=1 yarn test:venue` (localnet, ~20 s, in CI) and `CLUSTER=devnet npx ts-mocha -p ./tsconfig.json -t 1000000 tests/e2e/venue.ts` (keeper in-process with the real keeper key, watching only the new mint).
 - **New in S11:**
   - **Yarn 1 `file:` dependencies are copies, not links.** Depend on a workspace package by its version (`"0.1.0"`). Docker builds then rewrite the dependency to a path or a tarball.
   - **The workspace install needs Node ≥ 22.12**, but the published SDK and CLI run on Node 20. CI builds on 22 and then switches Node for the smoke.
@@ -674,6 +688,13 @@ Gotchas:
     - races: SSS-1 Steps 02/04 and SSS-2 Step 04 (`TokenAccountNotFoundError`), SSS-1 Steps 08/09 (`isFrozen`)
     - "already in use": SSS-1 Step 16, SSS-2 Step 15
     - SSS-2 Step 16, downstream
+- **CI on `44d85a1`** (`7c2820c` + the CI record; checked in S12-venue, 2026-10-04):
+  - **Full CI green, docker-health included** (run 37149607979: docker-health, sdk-tests, rust-tests, typescript-check). The `7c2820c` mint-service fix holds.
+  - **Also green:** CI (37149608004), TypeScript Tests (37149608056), Gate Tests (37149608040).
+  - **Anchor Integration** (run 37149607998): 69 / 6, the known classes:
+    - races: SSS-1 Steps 04/09, SSS-2 Step 04 (SSS-1 Step 04: `TokenAccountNotFoundError` reading the recipient's account right after the mint)
+    - "already in use": SSS-1 Step 16, SSS-2 Step 15
+    - SSS-2 Step 16, downstream
 - **Links:** the devnet txs above. Commits `b861418` (keeper), `25dc202` (e2e + CI), `f1a0a91` (Docker fix), and this log + handoff.
 - **Next:** S9, reserve-backed mint, per the handoff at the top of this file.
 
@@ -1037,3 +1058,60 @@ Gotchas:
     - SSS-2 Step 16, downstream
 - **Links:** the devnet txs above. Commits: `35ff428`, `9ab114f`, `204598e`, `30ce1fb`, `48db2e8`, `d55e99a`, `6d0e6f5`, `4437129`, `a59f0cf`, `8b233fc`, `2e4dbbb` (this log), `7c2820c` (the docker-health fix), and the CI record.
 - **Next:** S12 (S&A payments) and S13 (Console I), per the handoff at the top of this file.
+
+## S12-venue · 2026-10-04 · The demo venue: a gated token trading in a pool on devnet
+Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" (user; PLAN.md). The CI result for `44d85a1` is recorded in the S11 entry.
+
+**Label, everywhere this pool appears: demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2).**
+
+- **Decision (plan mode, approved): a small Anchor program; TS-only isn't possible.**
+  - The vault owner must be an off-curve PDA for `BypassForPdas`, so a program has to sign the vault's transfers out.
+  - The only deployed AMM that creates its vaults before `initialize`, SPL Token Swap on devnet (`SwapsVeCi…`), was last deployed in slot 139,567,548. Its dumped binary doesn't contain the Token-2022 program ID.
+- **Shipped:**
+  - **`programs/demo-pool`** (`341b2ae`), 268 lines with 4 math tests:
+    - `init_pool` creates the vaults the Whirlpool way: keypair accounts with ImmutableOwner, owner = the pool PDA. Each is sized from the mint's required account extensions; SSS-ACL mints are Pausable, so every account needs `PausableAccount`.
+    - `init_pool` moves no tokens, so the gated vault stays frozen.
+    - Then `deposit` (admin, single LP, no shares, no withdraw) and a constant-product `swap` (30 bps fee off the input).
+  - **`tests/e2e/venue.ts`** (`784e276`): `yarn test:venue` on localnet, or `CLUSTER=devnet`. It's also a new Gate Tests CI step.
+    - The SDK does every issuer, gate and SAS step.
+    - The keeper is services/keeper's `Keeper` class, in the test process, with `mints: [the new mint]`.
+  - **`scripts/deploy-devnet-acl.sh` step [4]** (`59d96f2`): the gate's fresh-deploy block is now shared (`plan_fresh` / `do_fresh`).
+- **Deploy** (DEPLOYMENT.md):
+  - Dry run first: the gate, sss-token and the hook read `same` (their rebuilt `.so` sha256s equal the deployed ones) and were skipped.
+  - `demo_pool` `9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS`, 288,808 bytes, slot 507,334,176: [2ufPiNjB…](https://explorer.solana.com/tx/2ufPiNjBGTJ5kvV129v2uJwtJUk5tUyMsMgQNF8TdVF1WDcwBYn24avLHQG3fNXLCLimMFqiYB11xaBeP2DudAEy?cluster=devnet).
+  - `5BXg…` −1.470422224 SOL (the dry-run bound was 1.473401600); about 35 s.
+- **Devnet run: all three cases pass** (1 min; `5BXg…` −0.03560348 SOL for rent + fees; the keeper −0.000005 SOL, one freeze fee).
+  - **Accounts:** issuer/LP `5BXg…`; credential = the S3 "ThawGate Demo KYC" (self-issued demo KYC; `5BXg…`'s attestation reused); gated mint `AsePwCcV…` (vUSD); quote mint `7WNLjKCo…` (plain SPL Token, demo); pool `CrkVVB2g…`; alice `Bczu96EZ…`; bob `9KbQMngJ…`; keeper `4auu6t…`.
+
+  | Step | Tx | CU |
+  |---|---|---|
+  | `createStablecoin`: initialize / enable_token_acl / setup (policy: SAS + blacklist + `bypassForPdas`) | [2WyLoNu3…](https://explorer.solana.com/tx/2WyLoNu3gUMndd445aBYf2Z7iaRW85jPcfK2nAJJ7bEd5iLHwD35G7gLSATxZ7oQycjHaBKGdG8Q8pEF2xFgXyzd?cluster=devnet) / [297FEPoj…](https://explorer.solana.com/tx/297FEPojMu4CvDZgCmJtaj4QyJnCf1hKvTijWZHUGPfQ7ZfLX17EeCi7VGeE6aFRLVwLMrqMrDFTPWumeafPeDS7?cluster=devnet) / [4LbGPpkz…](https://explorer.solana.com/tx/4LbGPpkzZNRXUWFuA7VvMvYUutet5PaZfnEPBLrszudeSXehSHN9WQdG4y536KBE21FTg6hAVdRyniEp2w77SLUu?cluster=devnet) | 56,632 / 77,621 / 40,805 |
+  | LP: ATA + thaw, `TG:ALLOW:KYC` | [4X7ex3H9…](https://explorer.solana.com/tx/4X7ex3H9shRucnDdKeTsocn4qVfo4YQvbqLEGF1fpaGWFcRSLE61nCyEqpwFLHscvZimbBj8fttQx54zeGgQedmc?cluster=devnet) | 68,252 |
+  | LP: mint 100,000 vUSD | [2xyohtdi…](https://explorer.solana.com/tx/2xyohtdidUHzCArWZWDjhuJ1NECiMdHADcsm7mp9ohG928gKSNBWKzMYJ9LVmVUPsxWTrxqj5sQfZMMgYK7FmKcM?cluster=devnet) | 24,532 |
+  | Quote mint + 100,000 to the LP | [2G7wT9N3…](https://explorer.solana.com/tx/2G7wT9N3wWWVeQCvzpwFjZGoKzf5mJNdCjyELYJEepKpv73vM64KfifPvk6LokYn2qsdDePhhUkdd9G47fqe7Cjx?cluster=devnet) | 13,883 |
+  | **`init_pool`**: vaults created; the gated one is frozen, has ImmutableOwner, owner = pool PDA (asserted) | [XFQgNi1z…](https://explorer.solana.com/tx/XFQgNi1zvq4MY3BofKMbn7p2MqxDPcDFjpXESpMA38niXbxHf8SD1vmtAURafia2tjET5gRtgzDYiTnfBTnUQux?cluster=devnet) | 27,881 |
+  | Vault thaw before the allowlist: `TG:DENY:NO_CREDENTIAL` (`explain`, simulated) | — | — |
+  | Issuer allowlists the pool PDA (`add_to_allowlist_v3`) | [p84rK7e5…](https://explorer.solana.com/tx/p84rK7e586vmg2v4vndgjNpYuwp2DRwccm48BM54s4XKBoQiV9p3mfyVAW8hWDeznhWpPXiAyDQPnjiz7rFH85c?cluster=devnet) | 14,434 |
+  | **`thaw_permissionless(gated vault)`, `TG:ALLOW:PDA_ALLOWLISTED`** | [2f1fF5k6…](https://explorer.solana.com/tx/2f1fF5k6qMWd69kudgPo4iAVeCo44RFRZvJmzLbbuz1RUQKXkmcjojxh9ubV4NQpYgPCRjquKxphff6VTTni5ELM?cluster=devnet) | 46,537 |
+  | **`deposit`** 100,000 vUSD + 100,000 quote (after the thaw) | [2b2jR5v2…](https://explorer.solana.com/tx/2b2jR5v2NxFQWSi2ezAbH2sj5nXWNVPn6KXWXPudKZY3eB7B5axuKUcSG48LNqXETAJK1heioQjQbzaPezURPpg2?cluster=devnet) | 14,399 |
+  | **Case 1 ✅** alice: attest (kyc_level 1) | [fHyDbrJT…](https://explorer.solana.com/tx/fHyDbrJTSZfHHjagXVJBYJJ4996fcFiCy8zh5eRTYMGBVtMAqvwAoy3EbvUDfvPqizWUTasFUkKPA6b2cPsVLuS?cluster=devnet) | 7,377 |
+  | alice: ATA + thaw, `TG:ALLOW:KYC` | [3XYKWGsV…](https://explorer.solana.com/tx/3XYKWGsVyCgXAfnEQuwTZGd97VUyZ7yxMZ6KuTLFmVCzkDLs8A59jfCfHBdxggKcUvsY1N88LpEZeqNUYz6rdcRS?cluster=devnet) | 64,187 |
+  | alice gets 1,000 quote | [2LQuqoXC…](https://explorer.solana.com/tx/2LQuqoXC23z3dcwnJiNkyuestS4VQtBgpCtRaTJtewnSfEuZ8KfqPT3oiubebvoxSd3QwGuc2HVVaSwyvT9tyErf?cluster=devnet) | 13,635 |
+  | **alice swaps 1,000 quote → 987.158034 vUSD** (balances asserted) | [443r1ucq…](https://explorer.solana.com/tx/443r1ucqQhhE4w1UxJJryaydSEYKQFAS6FchTqDcagmVuNX9LfM8g2tJcXny7zrZNaT6mxRsjn5GaQeXed1quvz9?cluster=devnet) | 15,755 |
+  | **Case 2 ✅** revoke alice (SAS `close_attestation`) | [3RtpdySB…](https://explorer.solana.com/tx/3RtpdySB22vV81mybQMVMDRADHFkYnJcg5Lv7WCd4QArsiwPbofg6hZ1qaytB3h9pAcFKPU94ovfjRYmVe3cCoPm?cluster=devnet) | 3,009 |
+  | **Keeper** `freeze_permissionless(alice)`, `TG:ALLOW:NO_CREDENTIAL`; fee payer = keeper (asserted); seen frozen 1,477 ms after the revoke confirmed (one run) | [3N8zvh2j…](https://explorer.solana.com/tx/3N8zvh2j3WXJ3zgafYCtt47zNseJ7fWsM5kefns2B78Xs4Q1jsXunMYYXcYo3bqrUH7J7JfDeJj8vmGPAyTKsQzj?cluster=devnet) | 44,613 |
+  | **alice's sell, refused**: landed failed tx, Token-2022 `AccountFrozen` (0x11); vaults unchanged (asserted) | [59dd4R7o…](https://explorer.solana.com/tx/59dd4R7onZzpxsBEGdwg3oxSyLYhSGsaZTr7p93dqVVT4fB9oVyRtcActJh5pbW6sPUJNvKkGRkUB3eELNRHZfTJ?cluster=devnet) | 10,281 |
+  | **Case 3 ✅** bob (never KYC'd): `explain` says `NO_CREDENTIAL`; **ATA + thaw, refused**: landed failed tx, `TG:DENY:NO_CREDENTIAL` | [4PUF6qeS…](https://explorer.solana.com/tx/4PUF6qeSmyXLCnTmAtSbzUnozigU4ofKGKvJhtNVRUehfcb22XLmLwMRx1qQQ1fvtL88F9UnGkzZpJAnUEFgt1Pk?cluster=devnet) | 60,602 |
+  | bob: ATA alone (created frozen) + 1,000 quote | [4cV6RDwa…](https://explorer.solana.com/tx/4cV6RDwaJyWqGirsyfjjBCfbEBcU22rE2hPyEaA8psA9FBqqrJGwgvVu6xQNRdbqxn7hSwpq7mSAAf3vFdZyLUfh?cluster=devnet) | 35,801 |
+  | **bob's buy, refused**: landed failed tx, `AccountFrozen` (0x11) on the pool's payout; vaults unchanged (asserted) | [5ZEY7qFB…](https://explorer.solana.com/tx/5ZEY7qFBSa3ZKa2vFkD8M7Yox943GV46KAq6U3oMBkRyG4RU232LgJJjMoyfs6H8fk8RwPgZH65Cdj4ULENiYxv2?cluster=devnet) | 14,445 |
+
+  - The vaults hold 99,012.841966 vUSD and 101,000 quote after the run (read back with `spl-token display`).
+  - Devnet CU varies with PDA bump searches; these are one run's samples.
+- **Measured, localnet** (Agave 3.0.14):
+  - `yarn test:venue` passes 3/3 in 20 s. The keeper saw alice frozen 511 ms after the revoke; `init_pool` 30,686 CU; vault thaw 43,748 CU; swap 21,930 CU.
+  - **Regression** (test-gate.sh now loads demo_pool): `test:gate` 48, `test:keeper` 8, `test:sdk` 12.
+  - `cargo test -p demo-pool` 4; `cargo clippy --workspace --all-targets -- -D warnings` clean.
+  - `yarn typecheck` and the root `tsc` are clean. `anchor build` (4 programs) 78 s; verify-ids OK.
+- **Not done:** `scripts/rehearse-deploy-devnet-acl.sh` wasn't re-run (the real deploy went through the dry run, and the script's final check confirms all four programs match).
+- **Links:** the devnet txs above. Commits: `341b2ae`, `784e276`, `59d96f2`, and this log.
+- **Next:** S13 (Console I), per the handoff at the top of this file.

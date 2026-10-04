@@ -70,6 +70,7 @@ So a Token ACL mint can trade in an Orca pool, and the gate holds inside the swa
 - **Raydium CPMM:** needs Raydium's per-mint approval (`mint_associated`). Not in our control.
 - **Orca Whirlpools:** needs a Token Badge from Orca for our devnet mint. That's an outreach ask to Orca. Everything after the badge is proven above, and mainnet `aclOrca` ("Issuer-gated Orca") suggests Orca does grant badges for Token ACL mints.
 - **If no badge arrives in time:** the PLAN.md fallback (a minimal self-deployed pool/vault that separates init and deposit). The Orca localnet run above is honest evidence that the same gate pattern works in a real DEX program.
+- **Built in S12-venue (2026-10-04):** [`programs/demo-pool`](../../programs/demo-pool/README.md), the **demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)**. Its vaults are created the Whirlpool way: keypair accounts with ImmutableOwner, owner = the pool PDA. The issuer allowlists the pool PDA, and a permissionless thaw (`TG:ALLOW:PDA_ALLOWLISTED`) happens before the deposit. Runs and tx links are in LOG.md (S12-venue). A TS-only venue wasn't possible: the devnet SPL Token Swap (`SwapsVeCi…`, last deployed at slot 139,567,548) has no Token-2022 support.
 
 ### Still open
 - Devnet run of the Token ACL + ABL steps (`CLUSTER=devnet`), waiting on faucet SOL for the spike payer.

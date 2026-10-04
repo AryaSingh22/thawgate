@@ -31,13 +31,16 @@ Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for
 | sss_token | `HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` |
 | transfer_hook | `2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv` | `3YnVTN8gWWnvgn4AFmtZu4vFDpMAn4vu27uF5ppKS1EM` |
 | thawgate_gate | `THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` |
+| demo_pool | `9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` |
+
+`demo_pool` is the **demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)**. Always present it with that label (`programs/demo-pool/README.md`, S12-venue). Test: `SKIP_BUILD=1 yarn test:venue`.
 
 Don't change program IDs or `declare_id!` unless the session plan says so. `oracle_module` (`HEuTBAak…`, authority `5BXg…`) was retired in S9: it's out of the workspace and still deployed on devnet, unused. The reserve check is in sss-token (`docs/RESERVES.md`).
 
 ## Keypairs (WSL paths; never print, cat or commit their contents)
 - `5BXg…` upgrades **sss_token + thawgate_gate** (and the retired oracle_module): `~/.config/solana/sss-authority.json`. It's a copy of Windows `C:\Users\ARYA\.config\solana\id.json`.
 - `3YnV…` upgrades **transfer_hook**: `~/.config/solana/id.json` (default CLI wallet).
-- Program keypairs, backed up: `~/.keys/thawgate/{sss_token,transfer_hook,oracle_module}-keypair.json`. The originals are in `~/.cargo/targets/solana-stablecoin-standard/deploy/`, the Cargo target dir that `scripts/deploy-localnet.sh` copies from. The devnet deploy is `scripts/deploy-devnet-acl.sh` (`DRY_RUN=1` first).
+- Program keypairs, backed up: `~/.keys/thawgate/{sss_token,transfer_hook,oracle_module,thawgate_gate,demo_pool}-keypair.json`. The originals are in `~/.cargo/targets/solana-stablecoin-standard/deploy/`, the Cargo target dir that `scripts/deploy-localnet.sh` copies from. The devnet deploy is `scripts/deploy-devnet-acl.sh` (`DRY_RUN=1` first). It skips any program whose on-chain bytes already match.
 - Service keys: `~/.keys/thawgate/keeper.json` (keeper fee payer, no role), `~/.keys/thawgate/attestor.json` (devnet reserve attestor, created by the story on first run) and `~/.keys/thawgate/screener.json` (`AUPc2FiA…`, sanctions screener: Blacklister role only, granted per mint; pays entry rent; S10).
 - `test-keypair.json` in the repo root is the localnet test wallet (gitignored).
 

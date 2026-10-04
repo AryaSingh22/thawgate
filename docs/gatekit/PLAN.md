@@ -31,8 +31,8 @@ Research this plan relies on: [RESEARCH.md](RESEARCH.md), [MARKET.md](MARKET.md)
 | Thu 1 | S8 Keeper | — |
 | Fri 2 | S9 Reserve-backed mint | — |
 | Sat 3 | S10 Sanctions policy | — |
-| Sun 4 | S11 SDK + CLI | — |
-| Mon 5 | S12 Payments (S&A), S13 Console I | — |
+| Sun 4 | S11 SDK + CLI, S12-venue demo pool | — |
+| Mon 5 | S13 Console I (S12 Payments: cut, see S12) | — |
 | Tue 6 | S14 Console II + decision dashboard + reserves page | — |
 | **Wed 7** | S15 Security + test hardening | **C2: feature freeze** → tag `c2-freeze` |
 | Thu 8 | S16 Rebrand polish + docs | — |
@@ -202,9 +202,18 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
 - **Done when:** the quickstart runs clean on a fresh devnet wallet in ≤5 min (time it and put it in the README).
 
 ### S12 · Payments: Subscriptions & Allowances (small)
+**Cut (user, 2026-10-04): "if time allows on the Wed buffer".** S12-venue (below) took its slot.
 - [ ] `examples/agent-budget.ts`: the holder creates a fixed delegation (cap + expiry) for an agent key via `@solana/subscriptions`. The agent pays a KYC'd merchant.
 - [ ] After revoke + freeze, the agent's pull fails. Answer the RESEARCH.md §3 TODOs (approve-on-frozen, hook forwarding in strict mode).
 - **Done when:** the example runs on devnet; tx links are in LOG.md. Merchant plans = cut if late.
+
+### S12-venue · The demo venue: a gated token trading in a pool on devnet (replaces S12)
+Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fallback. Label it everywhere: **"demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)"**.
+- [x] `programs/demo-pool`: `init_pool` creates the vaults the Whirlpool way (keypair accounts + ImmutableOwner, owner = the pool PDA) and moves no tokens. Then `deposit` (admin, single LP) and a constant-product `swap`. A TS-only flow wasn't possible: a PDA-owned vault needs a program to sign, and the devnet SPL Token Swap (2022 build) has no Token-2022 support.
+- [x] The issuer allowlists the pool PDA, and a permissionless thaw of the vault logs `TG:ALLOW:PDA_ALLOWLISTED` before any liquidity goes in.
+- [x] `tests/e2e/venue.ts` (`yarn test:venue`, `CLUSTER=devnet`): a KYC'd wallet swaps; after revoke + keeper freeze, its swap fails; a never-KYC'd wallet's thaw is refused.
+- [x] Deploy with `scripts/deploy-devnet-acl.sh` (dry run first), then run the three cases on devnet.
+- **Done when:** the three cases pass on devnet with tx links in LOG.md. **Done 2026-10-04** (LOG.md S12-venue).
 
 ### S13 · Console I: split the single `App.tsx`
 - [ ] Vite + React 18 + Tailwind (already set up). Add a router, and routes `/issuer`, `/holders`, `/decisions`, `/reserves`.
@@ -259,7 +268,7 @@ Finish what slipped. Tag `c1-core`. Post a build-in-public thread with the devne
 ### S18 · Demo script + rehearsal
 - [ ] `scripts/demo.ts` runs the whole storyline against devnet with pauses and prints explorer links:
   1. KYC unlock
-  2. trade in the S2 venue
+  2. trade in the S12-venue demo pool (labelled as the demo venue), or on Orca if a Token Badge arrives
   3. revoke → keeper freeze
   4. trade fails
   5. mint blocked by reserves
@@ -297,7 +306,7 @@ Target by Oct 11: 2–3 integrator mints on the ThawGate gate (on-chain count), 
 
 1. Switchboard-verified Range quote (already cut by default)
 2. Civic nonce mode in the SAS policy (`SasNoncePda`; every Civic attestation has expired, SPIKES.md S3)
-3. S&A merchant plans (keep the agent fixed-delegation example)
+3. S&A merchant plans (keep the agent fixed-delegation example). Since 2026-10-04 all of S12 is "if time allows on the Wed buffer"
 4. Confidential-transfer payroll (not planned)
 5. TUI and old services' polish
 6. Console wizard polish: fall back to CLI + dashboard only
