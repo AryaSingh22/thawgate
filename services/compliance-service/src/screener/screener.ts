@@ -14,8 +14,8 @@
  * AddedToBlacklist event is the keeper's trigger to freeze the wallet's other thawed accounts.
  *
  * Fail-safe: a provider error or timeout never blacklists. It is counted and the wallet is retried. An inactive
- * BlacklistEntry means an operator removed the wallet; the screener leaves it alone (sss-token's entry is `init`, so it
- * couldn't re-add it anyway). Seizing stays a manual step (the CLI's `seize`).
+ * BlacklistEntry means an operator removed the wallet; the screener leaves it alone. sss-token can reactivate the entry
+ * since S15, but re-adding is the operator's call. Seizing stays a manual step (the CLI's `seize`).
  */
 import { Chain, EntryRead, SSS_TOKEN_ID } from "./chain";
 import { Logger, ScreenerConfig } from "./config";

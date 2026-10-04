@@ -122,6 +122,7 @@ describe("readers", () => {
 describe("classifyFailure", () => {
   it("maps the refusals the screener expects", () => {
     expect(classifyFailure("Allocate: account Address { address: X, base: None } already in use")).toEqual({ kind: "already_blacklisted" });
+    expect(classifyFailure("Program log: AnchorError caused by account: blacklist_entry. Error Code: AccountAlreadyBlacklisted. Error Number: 6011.")).toEqual({ kind: "already_blacklisted" });
     expect(classifyFailure("Program log: AnchorError caused by account: operator_role. Error Code: AccountNotInitialized.").kind).toBe("no_role");
     expect(classifyFailure("Program log: AnchorError caused by account: operator_role. Error Code: BlacklisterNotFound.").kind).toBe("no_role");
     expect(classifyFailure("Program log: AnchorError caused by account: target_token_account. Error Code: TargetAccountOwnerMismatch.").kind).toBe("account_gone");

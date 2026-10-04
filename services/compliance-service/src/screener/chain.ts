@@ -5,8 +5,9 @@
  *
  * add_to_blacklist(reason) accounts, in IDL order:
  *   operator (signer, writable: pays the entry's rent), config, operator_role (Blacklister), blacklist_entry (writable,
- *   `init`), target, mint, target_token_account (writable; must be owned by target since S9), token_program,
- *   system_program, token_acl_program, mint_config (Token ACL's PDA for the mint).
+ *   `init_if_needed` since S15: an inactive entry is reactivated, an active one refused with AccountAlreadyBlacklisted),
+ *   target, mint, target_token_account (writable; must be owned by target since S9), token_program, system_program,
+ *   token_acl_program, mint_config (Token ACL's PDA for the mint).
  * sss-token freezes target_token_account itself if it is thawed, through Token ACL, then emits AddedToBlacklist; the
  * keeper freezes the wallet's other thawed accounts.
  */
@@ -87,7 +88,8 @@ export type SendOutcome =
 
 /** Maps a refused add_to_blacklist (simulation or landed) to an outcome. Exported for the tests. */
 export function classifyFailure(text: string): SendOutcome {
-  if (/already in use/.test(text)) return { kind: "already_blacklisted" };
+  // "already in use": sss-token before S15 (the entry was `init`); AccountAlreadyBlacklisted: since S15.
+  if (/already in use|AccountAlreadyBlacklisted/.test(text)) return { kind: "already_blacklisted" };
   if (/caused by account: operator_role/.test(text) || /BlacklisterNotFound/.test(text)) return { kind: "no_role" };
   if (/caused by account: target_token_account/.test(text) || /TargetAccountOwnerMismatch/.test(text)) return { kind: "account_gone", detail: firstErrorLine(text) };
   return { kind: "failed", detail: firstErrorLine(text) };
@@ -142,7 +144,7 @@ export class SolanaChain implements Chain {
   /**
    * Sends add_to_blacklist with preflight at "confirmed" and polls its status every 400 ms. A blockhash that expires
    * before confirmation, or an RPC error, is retried with a fresh blockhash (3 attempts); a resend after the first one
-   * landed fails "already in use", which reads as already_blacklisted.
+   * landed fails AccountAlreadyBlacklisted, which reads as already_blacklisted.
    */
   async addToBlacklist(p: { mint: string; wallet: string; tokenAccount: string; reason: string }): Promise<SendOutcome> {
     const ix = addToBlacklistIx({
