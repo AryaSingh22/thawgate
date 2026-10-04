@@ -10,7 +10,14 @@ S14 is done (entry at the bottom). The console has:
 
 The screenshots are `docs/thawgate/screenshots/s14-*`. `scripts/screenshots/console.mjs` retakes them.
 
-**CI on the S14 push:** pending, recorded by the follow-up commit.
+**CI on `4b321ec`** (the S14 push, `034df6b..4b321ec`; checked 2026-10-04):
+- **Full CI green** (37214264255), including the console build.
+- **Gate Tests green** (37214264197): gate 48, story 7, keeper 8, screener 5, **sdk 13** (case 10 now runs `minters add`/`remove`), venue 3.
+- **Also green:** CI (37214264211), TypeScript Tests (37214264215).
+- **Anchor Integration** (37214264243): 68 / 7. Every failure is in a known class. These tests call `program.methods….rpc()` directly, not the SDK `send` that S14 changed.
+  - races (a read right after a write): SSS-1 Steps 02, 08, 09 and SSS-2 Step 06. Last run had SSS-2 Step 04 instead of SSS-1 Step 02 and SSS-2 Step 06; which steps lose the race varies by run.
+  - "already in use": SSS-1 Step 16, SSS-2 Step 15;
+  - SSS-2 Step 16, downstream.
 
 **S15, Security + test hardening** (PLAN.md S15; **C2 feature freeze** at the start, tag `c2-freeze` when done):
 - Run `/security-review` and `/code-review high` on the gate and sss-token diffs. Fix or document every finding (SECURITY.md "Known limitations").
@@ -1214,7 +1221,7 @@ Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" 
   - `yarn typecheck`: clean.
   - Console `npm ci && npm run build`: clean. The bundle is 1.28 MB in one chunk.
   - `anchor build`: 23 s, all four `.so` sha256 equal DEPLOYMENT.md (no program change).
-- **CI on `034df6b`:** Full CI (with the new console build step), Gate Tests (sdk 13 passing), CI and TypeScript Tests green. Anchor Integration 69 / 6, all in the known classes (run IDs in the S14 handoff).
+- **CI on `034df6b`:** Full CI (with the new console build step), Gate Tests (sdk 13 passing), CI and TypeScript Tests green. Anchor Integration 69 / 6, all in the known classes. Runs: Full CI 37199231825, Gate Tests 37199231834, CI 37199231840, TypeScript Tests 37199231837, Anchor Integration 37199231824 (moved here from the S14 handoff).
 - **Links:** the devnet txs above. Commits `55a55c8` (sdk), `f9b4c03` (console), `f24b7aa` (ci), `034df6b` (this log).
 - **Next:** S14 (Console II), per the handoff at the top of this file.
 
