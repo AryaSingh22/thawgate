@@ -2,48 +2,53 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S13 handoff (read first; remove when S13 ends)
-S12-venue is done (entry at the bottom). The demo venue `programs/demo-pool` is on devnet, and its three cases passed there. Always show it with the label: **"demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)"**. S12 (S&A payments) is cut to "if time allows on the Wed buffer" (PLAN.md S12).
+## ▶ S14 handoff (read first; remove when S14 ends)
+S13 is done (entry at the bottom). The console (`frontend/`) has `/issuer`, the wizard, and `/holders`, "Unlock my wallet", both through `@thawgate/sdk` and signed in the browser. `/decisions` and `/reserves` are stubs for S14. The old SSS panels are at `/ops`.
 
-**Start of S13: CI on `075e0e7`** (the S12-venue push; checked 2026-10-04):
-- **Gate Tests green** (run 37196348432), including the new step **"Localnet demo venue": 3 passing (22 s)**. In that run the keeper froze alice 508 ms after the revoke.
-  - The Rust unit-tests step ran demo-pool's tests.
-  - Also: gate 48, story 7, keeper 8, screener 5, sdk 12.
-- **Also green:** Full CI (37196348380: rust-tests, docker-health, typescript-check, sdk-tests), CI (37196348392), TypeScript Tests (37196348504).
-- **Anchor Integration** (37196348388): 67 / 8, the known classes:
-  - races: SSS-1 Steps 02/08/09, SSS-2 Steps 04/06
-  - "already in use": SSS-1 Step 16, SSS-2 Step 15
-  - SSS-2 Step 16, downstream
-  - (69/6 on `44d85a1`: which races fail varies run to run.)
+**CI for the S13 push:** see the S13 entry (recorded after the push).
 
-State on devnet (2026-10-04):
-- **Programs:**
-  - The gate, sss-token and the hook are unchanged since S9.
-  - **New: `demo_pool` `9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS`**: deployed in slot 507,334,176 by `scripts/deploy-devnet-acl.sh` step [4], upgrade authority `5BXg…` (DEPLOYMENT.md).
-- **Keys:**
-  - Keeper `4auu6t…` has 0.04986 SOL. It ran in-process during the venue run and is **not running** now.
-  - Screener `AUPc2FiA…` and attestor `2da6PG…` are unchanged and not running.
-  - `5BXg…` has 28.863500789 SOL.
-  - The program keypair is backed up at `~/.keys/thawgate/demo_pool-keypair.json`.
-- **The S12-venue devnet pool** (issuer/LP `5BXg…`; credential = the S3 "ThawGate Demo KYC", self-issued):
-  - gated mint `AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw` (vUSD), quote mint `7WNLjKCooS98wJi4T7CssL1hUgAP5sFCRFAyvSF1HEUo` (plain SPL Token, demo);
-  - pool `CrkVVB2gnPuWZkKQbp9tjdRvWeoeXVghi1YHyeupK4Xv`, vaults `yrmMusxB…` (gated, thawed through PDA_ALLOWLISTED) and `NUimQ682…`;
-  - the vaults hold 99,012.841966 vUSD and 101,000 quote; Alice's and Bob's vUSD accounts are frozen.
-  - vUSD's reserves go stale a day after the post (default `maxStalenessSeconds`). Swaps don't need fresh reserves; minting does.
-- **S11 quickstart mints** `FMitUU5r…`, `6zGi5yAM…`: unchanged. **S9 story mint `D6Q5PA…`:** reserves stale since 2026-10-02 (S17/S18).
+**Running the console:**
+- `yarn workspace @thawgate/sdk build`, then `cd frontend && npm install && npm run dev` (:3000; `localhost:3000` from Windows reaches the WSL server).
+- **After an SDK change:** `rm -rf node_modules/@thawgate/sdk && npm install`. `frontend/.npmrc` `install-links=true` installs a packed copy, not a link.
+- **RPC:** public devnet by default. A keyed `VITE_RPC_URL` only in `frontend/.env.local`; `npm run build` refuses one (README §4, CLAUDE.md "Console").
+- **Screenshots without a human wallet** (how S13 did it):
+  - Run the dev server with `VITE_BURNER_WALLET=1`.
+  - playwright-core 1.63 on Windows Node 22.15 drives the installed Edge (`chromium.launch({ channel: "msedge" })`), with no browser download.
+  - Use one browser context per wallet. Fund each burner after it connects (`solana transfer` from `5BXg…`, called through `wsl`).
+  - The S13 script lived in the session scratchpad and is **not in the repo**. Selectors that worked:
+    - `.wallet-adapter-button-trigger`;
+    - the modal's `li` "Burner Wallet" (behind `.wallet-adapter-modal-list-more` when hidden);
+    - `.step-row` badges `done` / `failed`;
+    - `getByLabel(/^Name/)`: a field's label includes its hint text, so match by prefix.
 
-**S18 note (demo script):** the venue flow to adapt is `tests/e2e/venue.ts`. Each devnet run makes a fresh mint and pool for about 0.036 SOL and takes about 1 min. Its after-hook prints every explorer link. Put the label on screen.
+State on devnet (2026-10-04, after S13):
+- **Programs:** unchanged since S12-venue (all four `.so` sha256 equal DEPLOYMENT.md). `5BXg…` has 28.163480789 SOL.
+- **S13 console mints:** `5XvJiVJ8g8L9rCqUKXQMutYFKErfaP73k5zCZ57v9Dn9` (run 2) and `4NHxzLnbxLdtVgYrqxFAmzUyWLPsfr6c2HSAHLEuuqsQ` (run 1).
+  - Their issuers were in-page burner wallets whose keys are gone, so **nobody can mint, change the policy or post reserves on them**.
+  - What they're still good for: showing a holder's state (holders `5pFyxWEL…` and `FBw39N82…` are unlocked by `TG:ALLOW:KYC`). Their reserves of 1,000,000 were posted on 2026-10-04 and go stale after a day.
+- Unchanged: vUSD `AsePwCcV…` (S12-venue, issuer `5BXg…`, frozen alice/bob), the S11 quickstart mints, and the S9 story mint.
 
-**S13, Console I** (PLAN.md S13): split `frontend/src/App.tsx`; routes `/issuer`, `/holders`, `/decisions`, `/reserves`; an issuer wizard and an "Unlock my wallet" button, all through `@thawgate/sdk`.
-- **Mint wizard:** `SolanaStablecoin.fromConfig({ rpcUrl }, walletAdapter)` then `createStablecoin`. `send` uses AnchorProvider, so the adapter signs after the mint keypair's partial signature.
-- **Unlock:** `gate.explain(mint, wallet)` first, then `gate.createAtaAndThaw(mint, wallet)`, paid by the holder's wallet. `explain` needs a funded fee payer: pass `{ payer: wallet }`.
-- **Hooking up the SDK:**
-  - The frontend is not a yarn workspace. Use `"@thawgate/sdk": "file:../sdk"` (npm symlinks it; build `sdk/dist` first) or the packed tarball.
-  - web3.js needs a `Buffer` polyfill in Vite.
-- **mint-service:** the old panels call mint-service, whose `/mint` and `/burn` now go through the SDK. Its runtime is untested (it needs Postgres). Decide in S13 whether the console mints client-side and mint-service retires.
-- **`/decisions` (S14):** `explain()` plus the keeper's `GET /mints/:mint`, which now carries a `reason` per owner from the same table.
+**S14, Console II** (PLAN.md S14):
+- **`/decisions`:** per wallet, allowed or denied, the code, the credential's issuer and expiry, and the last thaw or freeze tx.
+  - Sources: `gate.explain()` (live), the keeper's `GET /mints/:mint` (a `reason` per owner), and tx logs through `classifyGateLogs`.
+  - SAS attestation expiry is at byte 133 + data_len (LOG S9).
+- **`/reserves`** (no wallet): read-only `SolanaStablecoin.fromConfig({ rpcUrl })` with no wallet.
+  - `reserves(mint).fetch()` gives reserves, asOf, attestor, reportUri, maxStaleness and postedAt; the supply comes from `getMint`.
+  - Mint-blocked history needs the failed `mint_tokens` txs (indexer, or signatures of the config/reserve PDA).
+- **For `/reserves` screenshots, use a mint whose issuer key we hold** (vUSD, issuer `5BXg…`; re-post reserves with the CLI if stale).
 
 Open:
+- **New in S13:**
+  - **Phantom and Solflare are wired but weren't run** (the devnet runs used the burner adapter). User: connect Phantom on devnet and run the wizard once. Watch for a warning on `initialize`, which the mint keypair partly signs before the wallet does.
+  - **30 s in the browser vs 0.26 s in Node:** the simulated setup failure took 30.4 s to show in the browser. A real preflight failure through the SDK's `send` in Node took 0.26 s. Check a real failure in the browser before S18 (e.g. attest the same wallet twice).
+  - **Not exercised in S13:**
+    - the existing-credential path (the `BYSdZK…` / `Fovh6z…` prefill);
+    - "Change policy";
+    - resume after a page reload (only an in-session retry ran);
+    - the `/ops` panels (they render; no services ran).
+  - **The console can't mint or add allowlist entries yet** (SDK `mintTokens`, `compliance(mint).addToAllowlist`), so a holder's balance after unlocking is 0. A client-side mint form goes in S14 if cheap, else S16. mint-service isn't retired; only `/ops` calls it.
+  - **Bundle:** 1.28 MB in one chunk (S16: code-split). Of the console's 422 MB `node_modules`, `@solana-mobile` + react-native (~130 MB) come in through `@solana/wallet-adapter-react`.
+  - **CLI `enable-token-acl`** sends without a CU limit. It works: `enable_token_acl` took 80,344–89,344 CU on devnet in S13, under the 200k default. It could call `sendEnableTokenAcl`.
 - **Docker images aren't built locally** (no daemon in WSL). Full CI's docker-health builds them, and it was green on `44d85a1` (run 37149607979; the `7c2820c` mint-service fix holds).
 - **New in S12-venue:**
   - **Orca Token Badge:** still not issued. If one arrives, the S2 Orca steps (SPIKES.md) run on devnet unchanged, and S18 can trade there.
@@ -68,6 +73,13 @@ Open:
   - The build-in-public thread (user).
 
 Gotchas:
+- **New in S13:**
+  - **`WalletMultiButton` ignores `className`.** It always sets `wallet-adapter-button-trigger`; style that class.
+  - **The burner adapter makes a new key on every connect**, and on reload too (autoConnect). Use one page per wallet, and fund it after it connects.
+  - **Edge draws disabled radios identically on the dark theme.** The console marks the chosen option through its label (`.check:has(input:checked)`).
+  - **Files copied from `/mnt/c` land as 755.** `chmod 644` them (the screenshots were).
+  - **The SDK's `StablecoinConfig` type has no `enableAllowlist`**, though the account has it.
+  - **`src/polyfills.ts` must stay the first import of `main.tsx`** (`globalThis.Buffer`).
 - **New in S12-venue:**
   - **Size a Token-2022 vault from its mint's extensions.** A Pausable mint (every SSS-ACL mint) needs `PausableAccount` on each token account. demo-pool sizes a vault the way Orca does: `get_required_init_account_extensions(mint extensions)` plus ImmutableOwner.
   - **`explain(mint, owner, { tokenAccount, payer })`** explains any token account, not just the ATA. The venue test uses it on the pool's vault.
@@ -1126,3 +1138,64 @@ Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" 
 - **Not done:** `scripts/rehearse-deploy-devnet-acl.sh` wasn't re-run (the real deploy went through the dry run, and the script's final check confirms all four programs match).
 - **Links:** the devnet txs above. Commits: `341b2ae`, `784e276`, `59d96f2`, and this log.
 - **Next:** S13 (Console I), per the handoff at the top of this file.
+
+## S13 · 2026-10-04 · Console I: issuer wizard and "Unlock my wallet" on devnet
+- **Decisions (plan mode, approved):**
+  - **SDK split** (`55a55c8`):
+    - `createStablecoin` sent its three transactions in one call. A failed second one lost the first signature, and a retry made a new mint.
+    - Now `initializeStablecoin`, `setupMinting` and `sendEnableTokenAcl` send one transaction each, and `createStablecoin` calls them (same transactions, same order).
+    - `set_reserve_attestor` and `update_minter` don't need Token ACL (checked in sss-token), so the wizard runs setup before enable. `tests/e2e/sdk.ts` case 13 covers that order.
+  - **mint-service (the handoff's question):** the console signs client-side with the issuer's wallet, and mint-service is not retired. It stays a server-side API that only `/ops` calls.
+  - **The SDK in the console:** `"@thawgate/sdk": "file:../sdk"` with `frontend/.npmrc` `install-links=true`. That installs a packed copy, as npm will; `sdk/node_modules` (yarn) is untouched, and the bundle has one web3.js.
+- **Shipped** (`f9b4c03`, `f24b7aa`):
+  - **Structure:** `App.tsx` is now the providers, layout and routes: `/issuer`, `/holders`, `/decisions` and `/reserves` (S14 stubs), and `/ops`. The old panels moved to `pages/ops/` unchanged.
+  - **Wallets:** Phantom and Solflare adapters replace `@solana/wallet-adapter-wallets`. A burner appears only with `VITE_BURNER_WALLET=1`.
+  - **Issuer wizard:**
+    - Steps: create (mint, then reserves and minter); policy (blacklist, allowlist mode; SAS off, an existing credential + schema, or a new one labelled "self-issued test KYC"); then enable Token ACL.
+    - Each step shows its tx. Before re-sending, a retry asks the chain whether the step already landed (config PDA, reserve attestation, credential/schema, Token ACL MintConfig).
+    - Progress is saved in `localStorage` per wallet.
+    - A Test KYC card attests a wallet under a self-issued credential.
+  - **Holder view:** `explain(mint, wallet, { payer: wallet })` runs first. A denial shows the reason and `TG:DENY:<code>`. On success it runs `createAtaAndThaw` and shows `TG:ALLOW:<code>` (from the landed tx's logs), the tx link and the balance.
+  - **RPC rule:** public devnet by default. `VITE_RPC_URL` is optional and local; `vite build` refuses a keyed one (tested: a URL with `api-key=` fails the build). README §4 and CLAUDE.md "Console" carry the rule.
+  - **CI:** Full CI's typescript-check builds the console (`npm ci && npm run build`).
+- **Devnet run: done-when met.** Headless Edge drove the console through playwright-core, with burner wallets and the public RPC `api.devnet.solana.com`.
+  - There were two runs of the same script; the screenshots are from run 2. Run 2 exists because the SAS radios looked unselected while disabled (the chosen option is now bold), and the screenshots must match the committed code.
+  - Funding: `5BXg…` sent 0.3 SOL to each issuer and 0.05 SOL to each holder: −0.70002 SOL with fees, 28.163480789 SOL left. Run 2's funding txs: [5hTLzAhu…](https://explorer.solana.com/tx/5hTLzAhuTkMNTGDZM9d2UcZCu2knDq2RYrV4xRE968hghZW1XFy4fNK7gHk8YAYv83v9nowjVJES8pPDD1iBsi6Q?cluster=devnet), [3tYkRQU6…](https://explorer.solana.com/tx/3tYkRQU6L5PFbLth2Xw9rQzo7w59AmJqTmuPAgZxCJoAcnfNpkgzxML82DqnrwkqwDsCVb4hf75ZnEjZ7rVdzcvo?cluster=devnet).
+  - **Run 2:** issuer `A2acQHXf…` (burner); mint `5XvJiVJ8g8L9rCqUKXQMutYFKErfaP73k5zCZ57v9Dn9` ("S13 Console USD", s13USD, reserves 1,000,000); credential `ASr3E9bW…` "Self-issued test KYC" (**self-issued test KYC**), schema `BNCUwjfK…`; holder `5pFyxWEL…` (burner).
+
+  | Step, as clicked in the UI | Tx | CU | click → done |
+  |---|---|---|---|
+  | Create the mint (initialize) | [4nmYKkbg…](https://explorer.solana.com/tx/4nmYKkbgYEyZmsPsjyCsaB9xgPaEofrG69AdePQazG52QdSKv5vbHMv3DzYhQziwipXf1UJL7yvMcXgK5oRFMDbe?cluster=devnet) | 58,287 | 2.99 s |
+  | Minter and reserves (setup), 1st attempt: **simulated failure**. The script answered this `sendTransaction` with an error inside the browser, so it never reached devnet. The step showed "failed" + "Retry this step" (`s13-02`) | — | — | 30.41 s |
+  | Setup, retried: same mint, initialize not re-sent | [3dLLpmdQ…](https://explorer.solana.com/tx/3dLLpmdQHSRAFYvuKsB68sz8GQrMFmd1dJjAjyECVhsSYsNzN2jvXXAyBRVr4xAJY5dF2fb9rouS6WomCivoNnHG?cluster=devnet) | 42,355 | 1.23 s |
+  | Policy: blacklist on, allowlist off, SAS = new self-issued credential + schema, min kyc_level 1 | [5pzBXNYg…](https://explorer.solana.com/tx/5pzBXNYgrVBQXuihYToR6uMyRhMB1GARCZFFAeESQ75KJjdhL8FXgQ9wdAzoXPRuNGkYgoA4vjt47uRwiLV7ZymE?cluster=devnet) | 20,777 | 2.29 s |
+  | Enable Token ACL (`enable_token_acl`) | [2nTM5UPd…](https://explorer.solana.com/tx/2nTM5UPd1QcZKZdLJUnf4FqcbqxZyYa3QBpopEJTcX3jWqqABVvHTFf9idd8nvYTBEw2gsHD4M1E1ftFmuJa7p8s?cluster=devnet) | 89,344 | 0.86 s |
+  | Holder, "Unlock my wallet": **Unlock denied, `TG:DENY:NO_CREDENTIAL`** (explain, simulated; nothing sent) | — | — | 0.87 s |
+  | Issuer, Test KYC card: attest the holder (kyc_level 1, IN, 365 days) | [3aNorG4Z…](https://explorer.solana.com/tx/3aNorG4ZWoksuWhJWkp2T1wMq4TW8T3aH2Nr2M2mVBpivKrj5pJuGzx1cEo66gSwc58SPtXGJnx2BJmqSev3JvqH?cluster=devnet) | 5,986 | 0.97 s |
+  | **Holder, "Unlock my wallet": Unlocked, `TG:ALLOW:KYC`**, balance 0 s13USD | [5hM9tdfa…](https://explorer.solana.com/tx/5hM9tdfaqShRzJTu9ZoeaNbCk5cw6E7RcEiwU9bqY2fA7zrJ12yC4ReoZ6KBuEDJusQG7r4TLvpUQmX1R6vkLpG4?cluster=devnet) | 55,932 | 1.75 s |
+
+  - **Read back with a node probe after the run:**
+    - all six txs show `err: null`;
+    - the mint's Token ACL gating program is ThawGate, with permissionless thaw and freeze on;
+    - the policy is blacklist on, allowlist off, SAS on (`ASr3E9bW…`, min 1), with authority = the issuer;
+    - `explain(holder)` now returns thawed / compliant / `COMPLIANT`.
+  - **Cost per run:** the issuer spent 0.0234234 SOL (all the rent and fees above) and the holder 0.00153916 SOL (ATA rent + fee). Both runs were identical. Run 2 took 52.5 s end to end, including two funding transfers and the 30.4 s simulated failure.
+  - **Run 1** (same flow, issuer `HANUs3ur…`, holder `FBw39N82…`, credential `AD18TKxk…`): mint `4NHxzLnbxLdtVgYrqxFAmzUyWLPsfr6c2HSAHLEuuqsQ`.
+    - Txs: initialize [3KjWjnuw…](https://explorer.solana.com/tx/3KjWjnuwQtdqBXf51VGrUdK3ehMXKe7ijQFgHzg2M9FqaXArezpjyZqDE4ms5QC34H2SSY68D3Y3xkHvRE2vzPXE?cluster=devnet), setup after the simulated failure [RgPiziT7…](https://explorer.solana.com/tx/RgPiziT7c8NxNi2dYDPP8Vvpbk1nGTeDx5dsD1ZBuU1roAnfmzyXCJZ6Ha6GGyf4v1sEVtkKJyqq641c2q3JvA4?cluster=devnet), credential [5nfKwDyy…](https://explorer.solana.com/tx/5nfKwDyyKYvxLHvrHQFH59jf75s4CpadN9QxxxCfkAhWo9vnkLZqprvi6n7z5a5wTdWbRSNJiar3yEVf2LeBupFZ?cluster=devnet), enable [276MDcEt…](https://explorer.solana.com/tx/276MDcEtGSxzZTyehVPKp3DBnSj5saX6PmfShseCUPQg98tX5TahM6gv2DPc886dB7VswcjAwYWsDuBARAVJLgHX?cluster=devnet) (80,344 CU), attest [3crT7ovy…](https://explorer.solana.com/tx/3crT7ovyCPHEesttjghJwswk3JtGZWsAKRkAL8FcVe8YoAdQ4LvmSwHz2GFTeViGK42ucSt4RCDZSWQ7fzaVH7cb?cluster=devnet), unlock [jp7xKBbj…](https://explorer.solana.com/tx/jp7xKBbjF3yrGgUaWPcMgfUTdT9UpfKnEamUhS3M9MVq7Hi7heW9K9HuG811RTRpXtvAXxNBeqCdGqzEsGkgFT9?cluster=devnet) (`TG:ALLOW:KYC`).
+    - Its funding txs: [4rzQA5Ap…](https://explorer.solana.com/tx/4rzQA5ApJpgyJYvDCHSt8Ab8dmuYBvVzts1QgEEhMpQbkQ4Cx6XYv2QJ1EBjYbPfCEhj2meTeCfUGuT4nxJZnD31?cluster=devnet), [63hcZEZP…](https://explorer.solana.com/tx/63hcZEZPAi3RzTEnPpYDn3sozpTR6GQd76VLJboTzqzXCXCfkBxy9wP5z7F3m3PbxZmb3upu1JcFVAkBYA722Ndr?cluster=devnet).
+  - **The 30 s:** the simulated failure took 30.4 s to show in the browser in both runs. A real preflight failure through the SDK's `send` in Node (a transfer above `5BXg…`'s balance, refused in preflight, nothing sent) surfaced in 0.26 s. The cause wasn't investigated; it may come from the injection.
+  - **Screenshots:** `docs/thawgate/screenshots/s13-01-issuer-form` … `s13-06-holder-unlocked` (.png). They show the burner-wallet notice, because the run used it.
+- **Not exercised (honesty):**
+  - Phantom and Solflare: wired, but not run by me.
+  - The existing-credential path.
+  - "Change policy".
+  - Resume after a page reload: only the in-session retry ran.
+  - The `/ops` panels: they render, but no services ran.
+- **Checks:**
+  - `SKIP_BUILD=1 yarn test:sdk`: 13 passing (40 s), with the new case 13.
+  - `cd sdk && npx vitest run`: 128 passed.
+  - `yarn typecheck`: clean.
+  - Console `npm ci && npm run build`: clean. The bundle is 1.28 MB in one chunk.
+  - `anchor build`: 23 s, all four `.so` sha256 equal DEPLOYMENT.md (no program change).
+- **Links:** the devnet txs above. Commits `55a55c8` (sdk), `f9b4c03` (console), `f24b7aa` (ci), and this log.
+- **Next:** S14 (Console II), per the handoff at the top of this file.

@@ -216,10 +216,10 @@ Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fal
 - **Done when:** the three cases pass on devnet with tx links in LOG.md. **Done 2026-10-04** (LOG.md S12-venue).
 
 ### S13 · Console I: split the single `App.tsx`
-- [ ] Vite + React 18 + Tailwind (already set up). Add a router, and routes `/issuer`, `/holders`, `/decisions`, `/reserves`.
-- [ ] Issuer wizard: create mint (ACL mode) → policy (pick SAS credential, blacklist, allowlist) → enable Token ACL, all through `@thawgate/sdk`.
-- [ ] Holder view: "Unlock my wallet" button (`createAtaAndThaw`) with the returned reason.
-- **Done when:** a new mint can be created and a wallet unlocked entirely from the UI on devnet.
+- [x] Vite + React 18 + Tailwind (already set up). Add a router, and routes `/issuer`, `/holders`, `/decisions`, `/reserves`. (`/decisions` and `/reserves` are S14 stubs; the old panels moved to `/ops`.)
+- [x] Issuer wizard: create mint (ACL mode) → policy (pick SAS credential, blacklist, allowlist) → enable Token ACL, all through `@thawgate/sdk`.
+- [x] Holder view: "Unlock my wallet" button (`createAtaAndThaw`) with the returned reason.
+- **Done when:** a new mint can be created and a wallet unlocked entirely from the UI on devnet. **Done 2026-10-04** (LOG.md S13).
 
 ### S14 · Console II: decision dashboard + public reserves page
 - [ ] `/decisions`: per wallet, show allowed/denied, reason code, credential issuer + expiry, last thaw/freeze tx. Source it from the indexer (tx logs) plus `explain()` for live checks. This is the "why was this wallet allowed/denied" answer to the honeypot concern.
