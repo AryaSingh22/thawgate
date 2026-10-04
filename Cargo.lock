@@ -620,6 +620,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-pool"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "blake3",
+ "bytemuck_derive",
+ "constant_time_eq",
+ "getrandom 0.2.14",
+ "spl-token-2022",
+ "toml_datetime 0.6.6",
+ "toml_edit 0.21.1",
+]
+
+[[package]]
 name = "derivation-path"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

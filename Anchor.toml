@@ -9,11 +9,14 @@ skip-lint = false
 sss_token = { address = "HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ", idl = "target/idl/sss_token.json" }
 transfer_hook = { address = "2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv", idl = "target/idl/transfer_hook.json" }
 thawgate_gate = { address = "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ", idl = "target/idl/thawgate_gate.json" }
+# demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)
+demo_pool = { address = "9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS", idl = "target/idl/demo_pool.json" }
 
 [programs.devnet]
 sss_token = { address = "HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ", idl = "target/idl/sss_token.json" }
 transfer_hook = { address = "2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv", idl = "target/idl/transfer_hook.json" }
 thawgate_gate = { address = "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ", idl = "target/idl/thawgate_gate.json" }
+demo_pool = { address = "9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS", idl = "target/idl/demo_pool.json" }
 
 [registry]
 url = "https://api.apr.dev"

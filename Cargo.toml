@@ -3,6 +3,7 @@ members = [
     "programs/sss-token",
     "programs/transfer-hook",
     "programs/thawgate-gate",
+    "programs/demo-pool",
 ]
 resolver = "2"
 

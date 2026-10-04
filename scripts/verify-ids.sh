@@ -16,6 +16,7 @@ PROGRAMS=(
   "sss-token:sss_token"
   "transfer-hook:transfer_hook"
   "thawgate-gate:thawgate_gate"
+  "demo-pool:demo_pool"
 )
 
 # Address of <name> in one [programs.<cluster>] section of Anchor.toml.
@@ -64,7 +65,7 @@ for entry in "${VENDORED[@]}"; do
 done
 
 # Deployed programs must match DEPLOYMENT.md.
-for name in sss-token transfer-hook thawgate-gate; do
+for name in sss-token transfer-hook thawgate-gate demo-pool; do
   src_id=$(grep 'declare_id!' "programs/$name/src/lib.rs" | grep -oP '"[^"]+"' | tr -d '"')
   grep -q "$src_id" DEPLOYMENT.md || { echo "  ERROR: $name ID $src_id not in DEPLOYMENT.md"; fail=1; }
 done
