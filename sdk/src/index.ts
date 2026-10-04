@@ -25,7 +25,7 @@
 
 // Main client
 export { SolanaStablecoin } from "./client";
-export type { CreateStablecoinOptions, CreatedStablecoin } from "./client";
+export type { CreateStablecoinOptions, CreatedStablecoin, InitializeStablecoinOptions, SetupMintingOptions } from "./client";
 
 // ThawGate gate client (any Token ACL mint gated by ThawGate; also SolanaStablecoin#gate)
 export { GateClient, toGatePolicyConfig } from "./gate/client";

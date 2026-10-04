@@ -17,6 +17,7 @@
  *  11. the README quickstart, sdk/examples/quickstart.mjs, from a fresh wallet (native ESM import of the SDK)
  *  12. cli/README.md's example with a new issuer key: sas create-credential / create-schema, create-stablecoin, explain,
  *      sas attest, unlock, policy update --min-kyc, freeze-if-invalid
+ *  13. createStablecoin's three steps in the console wizard's order (reserves before Token ACL), then an SAS unlock
  */
 import { CLUSTER } from "./cluster"; // first: sets the RPC and payer before the helpers load
 import assert from "node:assert/strict";
@@ -370,6 +371,22 @@ describe("@thawgate/sdk on localnet", () => {
     assert.deepEqual(pick(json("freeze-if-invalid", "--token-account", tokenAccount), "frozen", "code"), { frozen: true, code: "KYC_LEVEL_TOO_LOW" });
     assert.equal(await frozen(new PublicKey(tokenAccount)), true);
     fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  it("13. the console wizard's order: initializeStablecoin → setupMinting → sendEnableTokenAcl, then unlock", async () => {
+    const { mint: m } = await client.initializeStablecoin({ name: "Wizard USD", symbol: "WZUSD", decimals: DECIMALS, enableAllowlist: true });
+    await client.setupMinting(m, { reserves: { amount: TOKENS(1_000), reportUri: "https://github.com/AryaSingh22/thawgate (S13 e2e)" } });
+    assert.equal(await fetchMintConfig(connection, m), null, "reserves and minter are set before Token ACL");
+    assert.equal((await client.reserves(m).fetch())?.reserves.toString(), TOKENS(1_000).toString());
+    assert.ok(await client.hasRole(m, issuer.publicKey, RoleType.Minter));
+
+    await client.sendEnableTokenAcl(m, { checkBlacklist: true, sas: { credential, schema } });
+    assert.ok((await fetchMintConfig(connection, m))?.gatingProgram.equals(THAWGATE_GATE_PROGRAM_ID));
+    const erin = Keypair.generate().publicKey;
+    assert.equal((await client.gate.explain(m, erin)).code, "NO_CREDENTIAL");
+    await attest(erin, 1);
+    const sig = await client.send(await client.gate.createAtaAndThaw(m, erin));
+    assert.equal((classifyGateLogs(await logsOf(sig), true, "thaw") as { code: string }).code, "KYC");
   });
 });
 

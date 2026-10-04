@@ -126,6 +126,12 @@ export interface CreatedStablecoin {
     signatures: { initialize: string; enableTokenAcl: string; setup: string };
 }
 
+/** Options for {@link SolanaStablecoin.initializeStablecoin}: the mint part of {@link CreateStablecoinOptions}. */
+export type InitializeStablecoinOptions = Pick<CreateStablecoinOptions, "name" | "symbol" | "uri" | "decimals" | "enableAllowlist" | "mintKeypair">;
+
+/** Options for {@link SolanaStablecoin.setupMinting}: the reserves and minter part of {@link CreateStablecoinOptions}. */
+export type SetupMintingOptions = Pick<CreateStablecoinOptions, "reserves" | "minter">;
+
 /**
  * SolanaStablecoin — main SDK class.
  *
@@ -308,18 +314,41 @@ export class SolanaStablecoin {
      * checks `supply + amount <= reserves` and that the post is fresher than `maxStalenessSeconds`.
      */
     async createStablecoin(opts: CreateStablecoinOptions): Promise<CreatedStablecoin> {
-        const authority = this.requireWallet("createStablecoin").publicKey;
         const allowlistOn = (opts.policy.allowlistMode ?? "off") !== "off";
-        const args = { ...sssAclPreset(opts.name, opts.symbol, opts.uri ?? "", opts.decimals ?? 6), enableAllowlist: opts.enableAllowlist ?? allowlistOn };
+        const { mint, signature: initialize } = await this.initializeStablecoin({ ...opts, enableAllowlist: opts.enableAllowlist ?? allowlistOn });
+        const enableTokenAcl = await this.sendEnableTokenAcl(mint, opts.policy);
+        const setup = await this.setupMinting(mint, opts);
+        return { mint, signatures: { initialize, enableTokenAcl, setup } };
+    }
+
+    // The three transactions of createStablecoin, one method each, so a UI can show every signature and retry a failed
+    // step on the same mint. Any order after initializeStablecoin works: setupMinting doesn't need Token ACL.
+
+    /** createStablecoin's 1st transaction: `initialize` with the SSS-ACL preset (accounts start frozen). Allowlist off by default. */
+    async initializeStablecoin(opts: InitializeStablecoinOptions): Promise<{ mint: PublicKey; signature: string }> {
+        const authority = this.requireWallet("initializeStablecoin").publicKey;
+        const args = { ...sssAclPreset(opts.name, opts.symbol, opts.uri ?? "", opts.decimals ?? 6), enableAllowlist: opts.enableAllowlist ?? false };
         const { instructions, mint, mintKeypair } = await this.initialize(authority, args, opts.mintKeypair);
-        const initialize = await this.send(instructions, [mintKeypair]);
+        const signature = await this.send(instructions, [mintKeypair]);
+        return { mint, signature };
+    }
 
+    /** createStablecoin's 2nd transaction: `enable_token_acl` with `policy`, sent with the compute budget it needs. */
+    async sendEnableTokenAcl(mint: PublicKey, policy: PolicyInput): Promise<string> {
+        const authority = this.requireWallet("sendEnableTokenAcl").publicKey;
         // enable_token_acl makes four CPIs (Token ACL create_config + toggle, the metadata field, the gate's init_policy).
-        const enableTokenAcl = await this.send([
+        return this.send([
             ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
-            ...(await this.enableTokenAcl(mint, opts.policy, authority)),
+            ...(await this.enableTokenAcl(mint, policy, authority)),
         ]);
+    }
 
+    /**
+     * createStablecoin's 3rd transaction: the minter role and quota, the reserve attestor, and (when the wallet is the
+     * attestor) a first reserve post.
+     */
+    async setupMinting(mint: PublicKey, opts: SetupMintingOptions): Promise<string> {
+        const authority = this.requireWallet("setupMinting").publicKey;
         const amount = toBN(opts.reserves.amount);
         const attestor = opts.reserves.attestor ?? authority;
         const setup: TransactionInstruction[] = [];
@@ -332,8 +361,7 @@ export class SolanaStablecoin {
         if (attestor.equals(authority)) {
             setup.push(...(await reserves.attestReserves(authority, amount, await this.clusterTime(), opts.reserves.reportUri)));
         }
-        const setupSig = await this.send(setup);
-        return { mint, signatures: { initialize, enableTokenAcl, setup: setupSig } };
+        return this.send(setup);
     }
 
     /**
