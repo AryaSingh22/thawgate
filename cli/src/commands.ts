@@ -780,7 +780,7 @@ export function registerCommands(program: Command): void {
                 keypair.publicKey,
                 holder,
                 new BN(opts.limit),
-                opts.period as QuotaPeriod,
+                parseQuotaPeriod(opts.period),
             );
             const tx = new Transaction().add(...instructions);
             const sig = await sendAndConfirmTransaction(connection, tx, [keypair]);
@@ -979,6 +979,24 @@ function parseRoleType(role: string): RoleType {
         throw new Error(
             `Invalid role: ${role}. Valid roles: ${Object.keys(map).join(", ")}`,
         );
+    }
+    return result;
+}
+
+/**
+ * Parses a quota period name to the QuotaPeriod enum. `minters add` used to pass the string itself, which the SDK
+ * can't map ("Cannot read properties of undefined (reading 'toLowerCase')"; found in S14).
+ */
+function parseQuotaPeriod(period: string): QuotaPeriod {
+    const map: Record<string, QuotaPeriod> = {
+        daily: QuotaPeriod.Daily,
+        weekly: QuotaPeriod.Weekly,
+        monthly: QuotaPeriod.Monthly,
+        lifetime: QuotaPeriod.Lifetime,
+    };
+    const result = map[period.toLowerCase()];
+    if (result === undefined) {
+        throw new Error(`Invalid period: ${period}. Valid periods: ${Object.keys(map).join(", ")}`);
     }
     return result;
 }

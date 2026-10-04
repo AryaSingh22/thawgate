@@ -323,6 +323,14 @@ describe("@thawgate/sdk on localnet", () => {
     const pauser = Keypair.generate().publicKey;
     cli("grant-role", "--mint", m, "--holder", pauser.toBase58(), "--role", "pauser");
     assert.ok(await client.hasRole(mint, pauser, RoleType.Pauser));
+    // `minters add` passed the --period string where the SDK wants the enum, and crashed before S14.
+    const minter2 = Keypair.generate().publicKey;
+    cli("minters", "add", minter2.toBase58(), "--mint", m, "--limit", "5000000", "--period", "daily", "--confirm");
+    const quota = await client.getMinterQuota(mint, minter2);
+    assert.ok(await client.hasRole(mint, minter2, RoleType.Minter));
+    assert.deepEqual([quota?.limit.toString(), quota?.period], ["5000000", { daily: {} }]);
+    cli("minters", "remove", minter2.toBase58(), "--mint", m, "--confirm");
+    assert.equal(await client.hasRole(mint, minter2, RoleType.Minter), false);
     cli("blacklist", "--mint", m, "--target", erin, "--reason", "cli smoke", "--token-account", ata.toBase58(), "--confirm");
     assert.equal(await frozen(ata), true, "blacklisting froze the passed account");
     assert.deepEqual(pick(json("explain", "--mint", m, "--wallet", erin), "account", "status", "code"), { account: "frozen", status: "denied", code: "BLACKLISTED" });
