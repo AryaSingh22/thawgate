@@ -23,6 +23,12 @@ scripts/sdk-pack-smoke.sh    # npm-packed SDK + CLI in an empty project (run und
 The workspace install needs Node ≥ 22.12; the published SDK and CLI support Node ≥ 20. Workspace packages depend on each other by version (`"@thawgate/sdk": "0.1.0"`): yarn 1 copies `file:` dependencies instead of linking them.
 `frontend/` (@thawgate/console) and `tui/` are not yarn workspaces: run `npm install` and build inside each one.
 
+## Console (`frontend/`)
+- Build `sdk/dist` first. `frontend/.npmrc` sets `install-links=true`, so `"@thawgate/sdk": "file:../sdk"` installs a packed copy, the way the npm package will. A symlink would make npm install the SDK's deps into `sdk/node_modules` (a yarn workspace) and bundle two web3.js copies. After rebuilding the SDK: `rm -rf node_modules/@thawgate/sdk && npm install`.
+- `npm run dev` (port 3000), `npm run build` (`tsc --noEmit` + `vite build`; Full CI runs it). `src/polyfills.ts` sets `globalThis.Buffer` and must stay the first import in `main.tsx`.
+- **RPC rule: never put the Helius key (or any keyed RPC URL) in the frontend.** Every `VITE_*` variable is compiled into the public bundle. The default is public devnet. `VITE_RPC_URL` is optional, goes in `frontend/.env.local` (gitignored) on the user's machine only, and `vite build` refuses a keyed one.
+- `VITE_BURNER_WALLET=1` adds an in-page burner wallet for scripted devnet runs (headless Edge via playwright-core, S13). It gets a new key on every connect, so fund it by transfer.
+
 Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for IDL builds), Solana CLI 3.0.14 (same as CI; there is no 3.0.15 release). The avm prebuilt 0.32.x binaries need glibc 2.39 and WSL Ubuntu 22.04 has 2.35, so install with `avm install 0.32.2 --from-source`. `tests/fixtures/` holds devnet dumps of Token ACL, the ABL gate, SAS and S&A (see `tests/fixtures/README.md`).
 
 ## Programs (Anchor.toml, localnet = devnet)

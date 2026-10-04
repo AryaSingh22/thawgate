@@ -58,6 +58,14 @@ Commands and environment: [cli/README.md](cli/README.md).
 docker compose up -d
 ```
 
+### 4. Console (devnet, browser wallet)
+`frontend/` is the ThawGate console. `/issuer` is a wizard: create the stablecoin (mint + reserves), choose a policy (blacklist, allowlist mode, SAS credential: existing or a new self-issued test one), then enable Token ACL. Each step shows its transaction and resumes after a failure. `/holders` has "Unlock my wallet": it shows the gate's reason in words plus its `TG:` code. Everything runs client-side through `@thawgate/sdk`, signed by Phantom or Solflare.
+```bash
+yarn install && yarn workspace @thawgate/sdk build   # the console installs the built SDK from ../sdk
+cd frontend && npm install && npm run dev            # http://localhost:3000
+```
+**RPC: never put a keyed RPC URL (Helius, …) in the frontend.** Every `VITE_*` variable is compiled into the public JavaScript bundle. The console uses public devnet (`api.devnet.solana.com`) by default. For a faster RPC on your own machine only, set `VITE_RPC_URL` in `frontend/.env.local` (gitignored; see `frontend/.env.example`). `npm run build` refuses to build with a keyed `VITE_RPC_URL`.
+
 ## Architecture Layers
 
 ```
@@ -125,7 +133,7 @@ All test runs, logs, and screenshots are captured in the `evidence/` directory.
 ## Bonus Features Showcased
 
 1. **Terminal UI (TUI)**: A fully functional TUI application for operators tracking mints, roles, and blacklists.
-2. **React Dashboard**: A sleek, dark-themed dashboard frontend mapping all tokens and metrics in real-time.
+2. **Console** (`frontend/`): the issuer wizard and the holder's "Unlock my wallet", on devnet with a browser wallet ([Quick Start §4](#4-console-devnet-browser-wallet)). The older SSS service panels are at `/ops`.
 3. **Reserve-backed mint**: `mint_tokens` refuses to mint above the attested reserves or on a stale attestation ([docs/RESERVES.md](docs/RESERVES.md)). It replaced the oracle-module stub in S9.
 4. **Sanctions screening**: a risk provider's flag blacklists the wallet and the keeper freezes its accounts, with no manual step ([docs/SANCTIONS.md](docs/SANCTIONS.md)). Range is used when `RANGE_API_KEY` is set; otherwise a static list, labelled as the fallback.
 
