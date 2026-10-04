@@ -48,6 +48,9 @@ jobs:
         run: |
           cd sdk && yarn tsc --noEmit && yarn build && cd ..
           cd cli && yarn tsc --noEmit && cd ..
+      # The console (frontend/, npm, not a yarn workspace). frontend/.npmrc install-links packs ../sdk, built above.
+      - name: Console build (tsc + vite build)
+        run: cd frontend && npm ci --no-audit --no-fund && npm run build
 
   sdk-tests:
     runs-on: ubuntu-latest
