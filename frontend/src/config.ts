@@ -18,3 +18,9 @@ export const explorerAddress = (address: string) => `https://explorer.solana.com
 /** "ThawGate Demo KYC": the ThawGate team's self-issued devnet credential and schema (kyc_level: u8, country: String). */
 export const DEMO_CREDENTIAL = "BYSdZKskggc4vxQs97KFXY6G5c3dA8x8zQy61VgjBwRc";
 export const DEMO_SCHEMA = "Fovh6zUrtq6CW52hwkwuW4sx4wPc3a8tECPV8tvDkVrT";
+
+/** vUSD, the demo coin (S12-venue; issuer and reserve attestor 5BXg…). /reserves and /decisions open on it. */
+export const DEMO_MINT = "AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw";
+
+/** The keeper's HTTP server (services/keeper): /decisions reads its holder index (GET /mints/:mint). */
+export const KEEPER_URL: string = (import.meta.env.VITE_KEEPER_URL || "http://localhost:3005").replace(/\/+$/, "");

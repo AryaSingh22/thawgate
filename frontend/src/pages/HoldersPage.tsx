@@ -13,13 +13,13 @@ type Result =
     | { kind: "error"; message: string };
 
 /** `TG:ALLOW:KYC` / `TG:DENY:NO_CREDENTIAL` for a gate verdict, or null when the gate didn't decide. */
-function tgCode(verdict: GateVerdict | null): string | null {
+export function tgCode(verdict: GateVerdict | null): string | null {
     if (verdict?.outcome === "allowed") return `TG:ALLOW:${verdict.code}`;
     if (verdict?.outcome === "denied") return `TG:DENY:${verdict.code}`;
     return null;
 }
 
-const HEADLINES: Record<Explanation["status"], string> = {
+export const HEADLINES: Record<Explanation["status"], string> = {
     can_unlock: "Can unlock",
     denied: "Unlock denied",
     compliant: "Already unlocked",

@@ -1,12 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { Keypair, PublicKey } from "@solana/web3.js";
-import { AllowlistMode, BN, GatePolicy, PolicyInput, SAS_PROGRAM_ID, SolanaStablecoin, findConfigPda, sas } from "@thawgate/sdk";
+import { useAnchorWallet, useWallet } from "@solana/wallet-adapter-react";
+import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import {
+    AllowlistMode,
+    BN,
+    GatePolicy,
+    MinterQuota,
+    PolicyInput,
+    ReserveAttestation,
+    RoleType,
+    SAS_PROGRAM_ID,
+    SolanaStablecoin,
+    findConfigPda,
+    sas,
+} from "@thawgate/sdk";
 
-import { AddressLink, Field, StepRow, StepState } from "../components";
+import { Refusal, mintRefusal, sendWithoutPreflight } from "../chainLogs";
+import { AddressLink, Field, StepRow, StepState, TxLink } from "../components";
 import { DEMO_CREDENTIAL, DEMO_SCHEMA } from "../config";
-import { LAST_MINT_KEY, errorMessage, loadJson, parseKey, saveJson } from "../lib";
+import { LAST_MINT_KEY, MintInfo, duration, errorMessage, formatUnits, loadJson, mintInfo, parseKey, parseUnits, saveJson, utcTime } from "../lib";
 import { useSdk } from "../useSdk";
 
 interface CoinForm {
@@ -476,6 +489,8 @@ export function IssuerPage() {
 
             {progress.sas?.selfIssued ? <AttestCard sdk={sdk} credential={progress.sas.credential} schema={progress.sas.schema} /> : null}
 
+            <MintCard sdk={sdk} defaultMint={enabled && progress.mint ? progress.mint : (loadJson<string>(LAST_MINT_KEY) ?? "")} />
+
             {progress.mint || progress.policyDone ? (
                 <button type="button" className="button slim" disabled={busy} onClick={startOver}>
                     Start a new stablecoin
@@ -556,5 +571,247 @@ function AttestCard({ sdk, credential, schema }: { sdk: SolanaStablecoin; creden
                 Issue attestation
             </button>
         </section>
+    );
+}
+
+/** What the Mint card knows about the mint it's pointed at. */
+interface MintStatus {
+    info: MintInfo;
+    reserves: ReserveAttestation | null;
+    clusterTime: number;
+    isMinter: boolean;
+    quota: MinterQuota | null;
+}
+
+type MintOutcome =
+    | { kind: "minted"; signature: string; amount: bigint }
+    /** The simulation failed: nothing was sent. `ixs` can still be sent to record the refusal. */
+    | { kind: "refused"; refusal: Refusal; ixs: TransactionInstruction[] }
+    | { kind: "recorded"; signature: string; refusal: Refusal }
+    | { kind: "error"; message: string };
+
+/**
+ * `mint_tokens` for any mint this wallet is a Minter of. The mint is simulated first: a refusal (reserves, quota, a
+ * locked recipient) comes back in plain words and costs nothing. "Send anyway" lands the refused transaction on chain
+ * as a public record (it shows in /reserves).
+ */
+function MintCard({ sdk, defaultMint }: { sdk: SolanaStablecoin; defaultMint: string }) {
+    const { publicKey } = useWallet();
+    const anchorWallet = useAnchorWallet();
+    const [mint, setMint] = useState(defaultMint);
+    const [recipient, setRecipient] = useState(publicKey?.toBase58() ?? "");
+    const [amount, setAmount] = useState("1000");
+    const [status, setStatus] = useState<MintStatus | null>(null);
+    const [statusError, setStatusError] = useState("");
+    const [busy, setBusy] = useState(false);
+    const [outcome, setOutcome] = useState<MintOutcome | null>(null);
+    const mintKey = parseKey(mint);
+
+    useEffect(() => setMint(defaultMint), [defaultMint]);
+    useEffect(() => setRecipient(publicKey?.toBase58() ?? ""), [publicKey]);
+
+    async function loadStatus(key: PublicKey): Promise<MintStatus> {
+        const [info, reserves, clusterTime, isMinter, quota] = await Promise.all([
+            mintInfo(sdk.connection, key),
+            sdk.reserves(key).fetch(),
+            sdk.clusterTime(),
+            publicKey ? sdk.hasRole(key, publicKey, RoleType.Minter) : false,
+            publicKey ? sdk.getMinterQuota(key, publicKey) : null,
+        ]);
+        return { info, reserves, clusterTime, isMinter, quota };
+    }
+
+    async function refresh() {
+        if (!mintKey) return;
+        try {
+            setStatus(await loadStatus(mintKey));
+        } catch {
+            // keep the last status; the outcome panel already says what happened
+        }
+    }
+
+    useEffect(() => {
+        setStatus(null);
+        setStatusError("");
+        setOutcome(null);
+        if (!mintKey) return;
+        let live = true;
+        loadStatus(mintKey).then(
+            (s) => live && setStatus(s),
+            (e) => live && setStatusError(`Not a Token-2022 stablecoin on devnet: ${errorMessage(e)}`),
+        );
+        return () => {
+            live = false;
+        };
+    }, [mint, publicKey, sdk]);
+
+    async function mintNow() {
+        const to = parseKey(recipient);
+        if (!publicKey || !mintKey || !to || !status) return;
+        const base = parseUnits(amount, status.info.decimals);
+        if (!base) return setOutcome({ kind: "error", message: `Amount: a number above 0 with at most ${status.info.decimals} decimals.` });
+        setBusy(true);
+        setOutcome(null);
+        try {
+            const ixs = await sdk.mintTokens(mintKey, publicKey, to, new BN(base.toString()));
+            const sim = await sdk.gate.simulate(ixs, publicKey);
+            if (sim.payerMissing) return setOutcome({ kind: "error", message: "This wallet has no devnet SOL to pay the fee." });
+            if (sim.err !== null) {
+                const refusal = mintRefusal(sim.logs, status.info) ?? {
+                    title: "Refused",
+                    sentence: `The simulation failed: ${JSON.stringify(sim.err)}. ${sim.logs.slice(-3).join(" ")}`,
+                    code: null,
+                };
+                return setOutcome({ kind: "refused", refusal, ixs });
+            }
+            setOutcome({ kind: "minted", signature: await sdk.send(ixs), amount: base });
+            void refresh();
+        } catch (error) {
+            setOutcome({ kind: "error", message: errorMessage(error) });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    async function recordRefusal() {
+        if (outcome?.kind !== "refused" || !anchorWallet || !status) return;
+        setBusy(true);
+        try {
+            const { signature, err, logs } = await sendWithoutPreflight(sdk.connection, anchorWallet, outcome.ixs);
+            // The chain can disagree with the simulation if reserves moved in between.
+            if (err === null) setOutcome({ kind: "minted", signature, amount: 0n });
+            else setOutcome({ kind: "recorded", signature, refusal: mintRefusal(logs, status.info) ?? outcome.refusal });
+            void refresh();
+        } catch (error) {
+            setOutcome({ kind: "error", message: errorMessage(error) });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    const units = (v: { toString(): string }) => (status ? `${formatUnits(v, status.info.decimals)} ${status.info.symbol}`.trim() : "-");
+    const reserves = status?.reserves;
+    const posted = reserves && !reserves.asOf.isZero();
+    const age = posted && status ? status.clusterTime - reserves.asOf.toNumber() : null;
+    const fresh = age !== null && reserves ? age <= reserves.maxStaleness.toNumber() : false;
+    const room = posted && status ? BigInt(reserves.reserves.toString()) - status.info.supply : null;
+
+    return (
+        <section className="panel form-panel">
+            <div className="panel-heading">
+                <h2>Mint tokens</h2>
+                <span className="badge">mint_tokens</span>
+            </div>
+            <p className="muted">
+                Mint as a Minter of any SSS-ACL stablecoin. sss-token refuses a mint that would take the supply above the attested reserves, or that
+                relies on a reserve post older than the staleness limit. The console simulates first, so a refusal costs nothing.
+            </p>
+            <div className="two-column">
+                <Field label="Stablecoin mint">
+                    <input className="input mono" value={mint} onChange={(e) => setMint(e.target.value.trim())} placeholder="Mint address" />
+                </Field>
+                <Field label="Recipient wallet" hint="Its token account must be unlocked (Holders page).">
+                    <input className="input mono" value={recipient} onChange={(e) => setRecipient(e.target.value.trim())} placeholder="Wallet address" />
+                </Field>
+                <Field label={`Amount${status?.info.symbol ? ` (${status.info.symbol})` : ""}`}>
+                    <input className="input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+                </Field>
+            </div>
+            {statusError ? <p className="muted">{statusError}</p> : null}
+            {status ? (
+                <dl className="detail-list">
+                    <div>
+                        <dt>Supply</dt>
+                        <dd>{units(status.info.supply)}</dd>
+                    </div>
+                    <div>
+                        <dt>Attested reserves</dt>
+                        <dd>
+                            {!reserves ? "none: no attestor set" : !posted ? "none posted yet" : units(reserves.reserves)}
+                            {posted && age !== null ? (
+                                <>
+                                    {" "}
+                                    · as of {utcTime(reserves.asOf.toNumber())} ·{" "}
+                                    <span className={fresh ? "badge good" : "badge danger"}>{fresh ? `fresh for ${duration(reserves.maxStaleness.toNumber() - age)}` : "stale"}</span>
+                                </>
+                            ) : null}
+                        </dd>
+                    </div>
+                    {room !== null ? (
+                        <div>
+                            <dt>Room under reserves</dt>
+                            <dd>{units(room > 0n ? room : 0n)}</dd>
+                        </div>
+                    ) : null}
+                    <div>
+                        <dt>Your minter quota</dt>
+                        <dd>
+                            {!status.isMinter || !status.quota
+                                ? "not a minter of this mint"
+                                : status.quota.limit.isZero()
+                                  ? `unlimited (used ${units(status.quota.used)})`
+                                  : `${units(status.quota.limit)} (used ${units(status.quota.used)})`}
+                        </dd>
+                    </div>
+                </dl>
+            ) : null}
+            <button type="button" className="button primary" disabled={!status || !parseKey(recipient) || busy} onClick={mintNow}>
+                {busy ? "Working…" : "Mint"}
+            </button>
+            {outcome ? <MintOutcomePanel outcome={outcome} units={units} mint={mint} busy={busy} onRecord={recordRefusal} /> : null}
+        </section>
+    );
+}
+
+function MintOutcomePanel({
+    outcome,
+    units,
+    mint,
+    busy,
+    onRecord,
+}: {
+    outcome: MintOutcome;
+    units: (v: bigint) => string;
+    mint: string;
+    busy: boolean;
+    onRecord: () => void;
+}) {
+    if (outcome.kind === "error") return <pre className="error-text">{outcome.message}</pre>;
+    if (outcome.kind === "minted") {
+        return (
+            <div className="step-row mint-outcome">
+                <div className="step-line">
+                    <span className="badge good">minted</span>
+                    {outcome.amount ? <strong>{units(outcome.amount)}</strong> : <strong>Minted: the chain accepted it</strong>}
+                    <TxLink signature={outcome.signature} />
+                </div>
+            </div>
+        );
+    }
+    const onChain = outcome.kind === "recorded";
+    return (
+        <div className="step-row mint-outcome refused">
+            <div className="step-line">
+                <span className="badge danger">{onChain ? "refused on chain" : "refused"}</span>
+                <strong>{outcome.refusal.title}</strong>
+                {outcome.refusal.code ? <span className="badge danger mono">{outcome.refusal.code}</span> : null}
+                {onChain ? <TxLink signature={outcome.signature} /> : null}
+            </div>
+            <p>{outcome.refusal.sentence}</p>
+            {onChain ? (
+                <p className="muted">
+                    The failed transaction is on chain for anyone to check. It's listed under blocked mints on{" "}
+                    <Link to={`/reserves?mint=${mint}`}>the reserves page</Link>.
+                </p>
+            ) : (
+                <>
+                    <p className="muted">Nothing was sent: the console simulated the mint, and the program refused it.</p>
+                    <button type="button" className="button slim" disabled={busy} onClick={onRecord}>
+                        Send anyway: record the refusal on chain
+                    </button>
+                    <small className="muted"> One transaction fee. The program refuses it again, and the failed transaction stays on chain.</small>
+                </>
+            )}
+        </div>
     );
 }

@@ -595,3 +595,103 @@ fieldset.field {
         padding: 12px;
     }
 }
+
+/* S14 console: input + button rows, the reserves meter, decision table cells, mint outcomes */
+.control-row {
+    display: flex;
+    align-items: end;
+    gap: 10px;
+}
+
+.control-row .field {
+    flex: 1;
+}
+
+.meter {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* The track is a darker step of the fill's own hue, so the state reads across the whole bar. */
+.meter-track {
+    height: 12px;
+    overflow: hidden;
+    border-radius: 6px;
+    background: rgba(20, 184, 166, 0.16);
+}
+
+.meter-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: #14b8a6;
+}
+
+.meter.near .meter-track {
+    background: rgba(245, 158, 11, 0.16);
+}
+
+.meter.near .meter-fill {
+    background: #f59e0b;
+}
+
+.meter.stale .meter-track {
+    background: rgba(248, 113, 113, 0.16);
+}
+
+.meter.stale .meter-fill {
+    background: #f87171;
+}
+
+.meter-label {
+    color: #c8d0d9;
+    font-size: 13px;
+}
+
+td.num {
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.code {
+    color: #c8d0d9;
+    font-size: 12px;
+}
+
+.page p.cell-note {
+    margin-top: 6px;
+    color: #9aa4b2;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+table.decisions td {
+    min-width: 140px;
+}
+
+table.decisions td:nth-child(2) {
+    min-width: 260px;
+}
+
+.mint-outcome {
+    padding: 12px;
+    border: 1px solid #2d333d;
+    border-radius: 8px;
+    background: #12161b;
+}
+
+.mint-outcome.refused {
+    border-color: rgba(248, 113, 113, 0.45);
+}
+
+.mint-outcome .button {
+    justify-self: start;
+}
+
+@media (max-width: 560px) {
+    .control-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
