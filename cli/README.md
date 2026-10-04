@@ -24,9 +24,10 @@
 | `create-stablecoin --name --symbol [--uri] [--decimals 6] <policy flags> --reserves <base units> --report-uri <uri> [--max-staleness 86400] [--attestor <pubkey>]` | Creates the mint, the Token ACL config, the ThawGate policy, the minter role and the reserves (3 transactions). |
 | `enable-token-acl --mint <policy flags>` | `enable_token_acl` on a mint you initialized in Acl mode. |
 | `mint`, `burn`, `freeze`, `thaw`, `pause`, `unpause`, `grant-role`, `revoke-role`, `roles …`, `minters …`, `transfer-authority`, `status`, `supply`, `holders` | The sss-token issuer commands. They work on Acl mints too (checked on localnet in S11). |
-| `blacklist --mint --target <wallet> --reason [--token-account <pubkey>] --confirm` | `--token-account` must be owned by the target; the default is its ATA. On Token ACL mints a thawed account is frozen in the same transaction. |
+| `blacklist --mint --target <wallet> --reason [--token-account <pubkey>] --confirm` | `--token-account` must be owned by the target; the default is its ATA. On Token ACL mints a thawed account is frozen in the same transaction. A wallet removed with `unblacklist` can be blacklisted again. |
 | `unblacklist`, `seize` | |
-| `allowlist add|remove --mint --wallet` | For `allowOnly` / `bypassForPdas` policies. The mint needs `enable_allowlist`. |
+| `allowlist add|remove --mint --wallet` | For `allowOnly` / `bypassForPdas` policies. The mint needs `enable_allowlist`. A removed wallet can be added again. |
+| `reserves post --mint --amount <base units> [--report-uri <uri>] [--as-of <unix seconds>]` | Posts the mint's reserves. Your `--keypair` must be the mint's attestor. The report URI defaults to the last one posted, and as-of to the cluster's time. Minting may rely on the post until as-of + the mint's max staleness (printed as `freshUntil`). |
 
 **Policy** (`<policy flags>` = `--blacklist on|off`, `--allowlist off|allowOnly|bypassForPdas`, `--sas-credential <pubkey> --sas-schema <pubkey>`, `--min-kyc <n>`; `policy update` also takes `--no-sas`)
 

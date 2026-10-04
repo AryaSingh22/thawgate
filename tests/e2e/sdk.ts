@@ -18,6 +18,7 @@
  *  12. cli/README.md's example with a new issuer key: sas create-credential / create-schema, create-stablecoin, explain,
  *      sas attest, unlock, policy update --min-kyc, freeze-if-invalid
  *  13. createStablecoin's three steps in the console wizard's order (reserves before Token ACL), then an SAS unlock
+ *  14. `thawgate reserves post` (S15) as the attestor; refused for another key, an older or future as-of, a bad amount
  */
 import { CLUSTER } from "./cluster"; // first: sets the RPC and payer before the helpers load
 import assert from "node:assert/strict";
@@ -395,6 +396,41 @@ describe("@thawgate/sdk on localnet", () => {
     await attest(erin, 1);
     const sig = await client.send(await client.gate.createAtaAndThaw(m, erin));
     assert.equal((classifyGateLogs(await logsOf(sig), true, "thaw") as { code: string }).code, "KYC");
+  });
+
+  it("14. thawgate reserves post: the attestor posts; another key, an older or future as-of and a bad amount are refused", async () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), "thawgate-cli-"));
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("SSS_")));
+    const run = (keyfile: string, ...args: string[]) =>
+      execFileSync("node", [CLI, "--json", "--rpc-url", RPC_URL, "--keypair", keyfile, ...args], {
+        cwd: home,
+        env: { ...env, HOME: home },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    const refused = (keyfile: string, args: string[], message: RegExp) =>
+      assert.throws(() => run(keyfile, ...args), (e: any) => message.test(String(e.stderr)) || assert.fail(`not ${message}:\n${e.stderr}`));
+    const m = mint.toBase58();
+    const before = (await client.reserves(mint).fetch())!;
+
+    // createStablecoin (case 1) made the issuer the attestor.
+    const posted = JSON.parse(run(KEYPAIR, "reserves", "post", "--mint", m, "--amount", TOKENS(2_000_000).toString()));
+    const after = (await client.reserves(mint).fetch())!;
+    assert.equal(after.reserves.toString(), TOKENS(2_000_000).toString());
+    assert.equal(after.reportUri, before.reportUri, "the report URI defaults to the last one");
+    assert.equal(after.asOf.toNumber(), posted.asOf);
+    assert.ok(posted.asOf >= before.asOf.toNumber());
+    assert.equal(posted.freshUntil, posted.asOf + after.maxStaleness.toNumber());
+
+    const other = path.join(home, "other.json");
+    fs.writeFileSync(other, JSON.stringify(Array.from(Keypair.generate().secretKey)));
+    const post = (...extra: string[]) => ["reserves", "post", "--mint", m, ...extra];
+    refused(other, post("--amount", "1"), /only the mint's attestor/);
+    refused(KEYPAIR, post("--amount", "1", "--as-of", String(posted.asOf - 1)), /older than the posted as_of/);
+    refused(KEYPAIR, post("--amount", "1.5"), /whole number/);
+    refused(KEYPAIR, post("--amount", "1", "--as-of", String(posted.asOf + 86_400)), /InvalidReserveAttestation|0x1797/); // the program's refusal
+    assert.equal((await client.reserves(mint).fetch())!.reserves.toString(), TOKENS(2_000_000).toString(), "nothing else was posted");
+    fs.rmSync(home, { recursive: true, force: true });
   });
 });
 

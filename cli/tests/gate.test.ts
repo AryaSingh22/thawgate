@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PublicKey } from "@solana/web3.js";
-import { policyFromFlags } from "../src/gate";
+import { policyFromFlags, u64Arg } from "../src/gate";
 
 const CRED = new PublicKey("4auu6tNqd6pDsYx4yYfVc4VHXdyENhwMiXh5bP5gE2Kp");
 const SCHEMA = new PublicKey("AUPc2FiAYMe6jcXBvoyRuckypNq8gNAGftKPoacbLsRv");
@@ -37,5 +37,18 @@ describe("policyFromFlags", () => {
     it("--no-sas turns SAS off and can't be mixed with SAS flags", () => {
         expect(policyFromFlags({ sas: false })).toEqual({ sas: null });
         expect(() => policyFromFlags({ sas: false, minKyc: "1" }, stored)).toThrow(/can't be combined/);
+    });
+});
+
+describe("u64Arg (reserves post --amount, --as-of)", () => {
+    it("takes whole numbers up to u64::MAX", () => {
+        expect(u64Arg("0", "--amount").toString()).toBe("0");
+        expect(u64Arg("1000000000000", "--amount").toString()).toBe("1000000000000");
+        expect(u64Arg("18446744073709551615", "--amount").toString()).toBe("18446744073709551615");
+    });
+
+    it("refuses decimals, signs, words and anything past a u64", () => {
+        for (const v of ["1.5", "-1", "1e6", "", "abc", undefined]) expect(() => u64Arg(v, "--amount")).toThrow(/whole number/);
+        expect(() => u64Arg("18446744073709551616", "--amount")).toThrow(/larger than a u64/);
     });
 });

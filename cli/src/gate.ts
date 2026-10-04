@@ -1,11 +1,12 @@
 /**
  * @module gate
  * @description CLI commands for ThawGate, mirroring @thawgate/sdk: the issuer preset (create-stablecoin,
- * enable-token-acl), policies, the holder flows (explain, unlock, freeze-if-invalid), swap-gate, SAS credentials and
- * the issuer allowlist.
+ * enable-token-acl), policies, the holder flows (explain, unlock, freeze-if-invalid), swap-gate, SAS credentials,
+ * the issuer allowlist and reserve posts.
  */
 
 import { Command } from "commander";
+import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { AllowlistMode, Explanation, GatePolicy, PolicyInput, sas } from "@thawgate/sdk";
 import { createClient } from "./commands";
@@ -72,6 +73,14 @@ const pk = (v: unknown, flag: string): PublicKey => {
     if (typeof v !== "string") throw new Error(`${flag} is required`);
     return new PublicKey(v);
 };
+
+/** A whole number that fits a u64 (base units, unix seconds). */
+export function u64Arg(v: unknown, flag: string): BN {
+    if (typeof v !== "string" || !/^\d+$/.test(v)) throw new Error(`${flag} takes a whole number, not ${String(v)}`);
+    const n = new BN(v);
+    if (n.bitLength() > 64) throw new Error(`${flag} is larger than a u64`);
+    return n;
+}
 
 /** The explanation without the raw logs (unless --verbose), with keys as strings. */
 function explanationOut(e: Explanation, verbose: boolean): Record<string, unknown> {
@@ -379,4 +388,43 @@ export function registerGateCommands(program: Command): void {
                 logger.output({ signature: await client.send(ixs) });
             });
     }
+
+    // ------------------------------------------------------------------------------------------------
+    // Reserves (the attestation mint_tokens checks; the MasterAuthority sets the attestor at creation)
+    // ------------------------------------------------------------------------------------------------
+    const reservesCmd = program.command("reserves").description("A mint's reserve attestation: mint_tokens refuses supply past it");
+
+    reservesCmd
+        .command("post")
+        .description("Post the mint's reserves as its attestor (--keypair). Minting may rely on them until as-of + max staleness")
+        .requiredOption("--mint <pubkey>", "Mint address")
+        .requiredOption("--amount <base units>", "Reserves in the mint's base units (1.00 of a 6-decimal coin = 1000000)")
+        .option("--report-uri <uri>", "Link to the reserve report, max 200 bytes (default: the one posted last)")
+        .option("--as-of <unix seconds>", "When the reserves were measured (default: the cluster's time now)")
+        .action(async (opts: Opts) => {
+            const { client, keypair, logger } = ctx();
+            const mint = pk(opts.mint, "--mint");
+            const amount = u64Arg(opts.amount, "--amount");
+            const reserves = client.reserves(mint);
+            const current = await reserves.fetch();
+            if (!current) throw new Error(`${mint.toBase58()} has no reserve attestation: its MasterAuthority sets the attestor first (set_reserve_attestor)`);
+            if (!current.attestor.equals(keypair.publicKey)) {
+                throw new Error(`only the mint's attestor ${current.attestor.toBase58()} can post its reserves (--keypair is ${keypair.publicKey.toBase58()})`);
+            }
+            const asOf = opts.asOf !== undefined ? u64Arg(opts.asOf, "--as-of").toNumber() : await client.clusterTime();
+            if (asOf < current.asOf.toNumber()) throw new Error(`--as-of ${asOf} is older than the posted as_of ${current.asOf.toString()}`);
+            const reportUri = (opts.reportUri as string | undefined) ?? current.reportUri;
+            const signature = await client.send(await reserves.attestReserves(keypair.publicKey, amount, asOf, reportUri));
+            const freshUntil = asOf + current.maxStaleness.toNumber();
+            logger.output({
+                signature,
+                mint: mint.toBase58(),
+                attestor: keypair.publicKey.toBase58(),
+                reserves: amount.toString(),
+                asOf,
+                freshUntil,
+                freshUntilUtc: new Date(freshUntil * 1000).toISOString(),
+                reportUri,
+            });
+        });
 }
