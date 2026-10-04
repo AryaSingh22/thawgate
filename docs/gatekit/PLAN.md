@@ -222,9 +222,10 @@ Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fal
 - **Done when:** a new mint can be created and a wallet unlocked entirely from the UI on devnet. **Done 2026-10-04** (LOG.md S13).
 
 ### S14 · Console II: decision dashboard + public reserves page
-- [ ] `/decisions`: per wallet, show allowed/denied, reason code, credential issuer + expiry, last thaw/freeze tx. Source it from the indexer (tx logs) plus `explain()` for live checks. This is the "why was this wallet allowed/denied" answer to the honeypot concern.
-- [ ] `/reserves` (no wallet needed): supply vs attested reserves, `as_of`, attestor, report link, mint-blocked history.
-- **Done when:** both pages are live on the dev server against devnet data; take screenshots for the README.
+- [x] `/decisions`: per wallet, show allowed/denied, reason code, credential issuer + expiry, last thaw/freeze tx. Source it from the indexer (tx logs) plus `explain()` for live checks. This is the "why was this wallet allowed/denied" answer to the honeypot concern. (Built on the keeper's index plus the token accounts' own transactions, not the indexer service.)
+- [x] `/reserves` (no wallet needed): supply vs attested reserves, `as_of`, attestor, report link, mint-blocked history.
+- [x] Added in S14: a Mint action on `/issuer` that refuses past reserves in plain words.
+- **Done when:** both pages are live on the dev server against devnet data; take screenshots for the README. **Done 2026-10-04** (LOG.md S14).
 
 ### Wed 7 · S15 Security + test hardening (C2: feature freeze at start)
 - [ ] Run `/security-review` and `/code-review high` on the gate and sss-token diffs. Fix or document every finding.

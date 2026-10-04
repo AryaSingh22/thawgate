@@ -2,74 +2,73 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S14 handoff (read first; remove when S14 ends)
-S13 is done (entry at the bottom). The console (`frontend/`) has `/issuer`, the wizard, and `/holders`, "Unlock my wallet", both through `@thawgate/sdk` and signed in the browser. `/decisions` and `/reserves` are stubs for S14. The old SSS panels are at `/ops`.
+## ▶ S15 handoff (read first; remove when S15 ends)
+S14 is done (entry at the bottom). The console has:
+- `/issuer`: the wizard plus **Mint tokens**, which refuses past reserves in plain words and can record the refusal on chain;
+- `/holders`;
+- `/decisions` and `/reserves`, public with no wallet.
 
-**CI on `034df6b`** (the S13 push, `075e0e7..034df6b`; checked 2026-10-04):
-- **Full CI green** (37199231825). The new step **"Console build (tsc + vite build)"** passed (vite built in 5.32 s).
-- **Gate Tests green** (37199231834): gate 48, story 7, keeper 8, screener 5, **sdk 13** (new case 13 ✓), venue 3.
-- **Also green:** CI (37199231840), TypeScript Tests (37199231837).
-- **Anchor Integration** (37199231824): 69 / 6, all in the known classes:
-  - races: SSS-1 Steps 08/09, SSS-2 Step 04;
-  - "already in use": SSS-1 Step 16, SSS-2 Step 15;
-  - SSS-2 Step 16, downstream.
+The screenshots are `docs/thawgate/screenshots/s14-*`. `scripts/screenshots/console.mjs` retakes them.
 
-**Running the console:**
-- `yarn workspace @thawgate/sdk build`, then `cd frontend && npm install && npm run dev` (:3000; `localhost:3000` from Windows reaches the WSL server).
-- **After an SDK change:** `rm -rf node_modules/@thawgate/sdk && npm install`. `frontend/.npmrc` `install-links=true` installs a packed copy, not a link.
-- **RPC:** public devnet by default. A keyed `VITE_RPC_URL` only in `frontend/.env.local`; `npm run build` refuses one (README §4, CLAUDE.md "Console").
-- **Screenshots without a human wallet** (how S13 did it):
-  - Run the dev server with `VITE_BURNER_WALLET=1`.
-  - playwright-core 1.63 on Windows Node 22.15 drives the installed Edge (`chromium.launch({ channel: "msedge" })`), with no browser download.
-  - Use one browser context per wallet. Fund each burner after it connects (`solana transfer` from `5BXg…`, called through `wsl`).
-  - The S13 script lived in the session scratchpad and is **not in the repo**. Selectors that worked:
-    - `.wallet-adapter-button-trigger`;
-    - the modal's `li` "Burner Wallet" (behind `.wallet-adapter-modal-list-more` when hidden);
-    - `.step-row` badges `done` / `failed`;
-    - `getByLabel(/^Name/)`: a field's label includes its hint text, so match by prefix.
+**CI on the S14 push:** pending, recorded by the follow-up commit.
 
-State on devnet (2026-10-04, after S13):
-- **Programs:** unchanged since S12-venue (all four `.so` sha256 equal DEPLOYMENT.md). `5BXg…` has 28.163480789 SOL.
-- **S13 console mints:** `5XvJiVJ8g8L9rCqUKXQMutYFKErfaP73k5zCZ57v9Dn9` (run 2) and `4NHxzLnbxLdtVgYrqxFAmzUyWLPsfr6c2HSAHLEuuqsQ` (run 1).
-  - Their issuers were in-page burner wallets whose keys are gone, so **nobody can mint, change the policy or post reserves on them**.
-  - What they're still good for: showing a holder's state (holders `5pFyxWEL…` and `FBw39N82…` are unlocked by `TG:ALLOW:KYC`). Their reserves of 1,000,000 were posted on 2026-10-04 and go stale after a day.
-- Unchanged: vUSD `AsePwCcV…` (S12-venue, issuer `5BXg…`, frozen alice/bob), the S11 quickstart mints, and the S9 story mint.
+**S15, Security + test hardening** (PLAN.md S15; **C2 feature freeze** at the start, tag `c2-freeze` when done):
+- Run `/security-review` and `/code-review high` on the gate and sss-token diffs. Fix or document every finding (SECURITY.md "Known limitations").
+- Work through the PLAN checklist:
+  - the gate never trusts accounts it doesn't derive;
+  - the flag-account check happens only where state is written;
+  - `can_freeze` can't be griefed;
+  - the policy authority is bound to MintConfig;
+  - ImmutableOwner is enforced;
+  - the reserve check uses `mint.supply`.
+- Try the Trident fuzz target on the gate. If it still won't run, say so in the docs.
+- **One sss-token upgrade** with two fixes:
+  - **blacklist re-add:** `remove_from_blacklist` closes the entry, or `add_to_blacklist` reactivates an inactive one;
+  - **the reserve-PDA bump fix:** `mint_tokens` CU depends on the bump. Check the address with `create_program_address` and the stored bump (LOG S9).
 
-**S14, Console II** (PLAN.md S14):
-- **`/decisions`:** per wallet, allowed or denied, the code, the credential's issuer and expiry, and the last thaw or freeze tx.
-  - Sources: `gate.explain()` (live), the keeper's `GET /mints/:mint` (a `reason` per owner), and tx logs through `classifyGateLogs`.
-  - SAS attestation expiry is at byte 133 + data_len (LOG S9).
-- **`/reserves`** (no wallet): read-only `SolanaStablecoin.fromConfig({ rpcUrl })` with no wallet.
-  - `reserves(mint).fetch()` gives reserves, asOf, attestor, reportUri, maxStaleness and postedAt; the supply comes from `getMint`.
-  - Mint-blocked history needs the failed `mint_tokens` txs (indexer, or signatures of the config/reserve PDA).
-- **For `/reserves` screenshots, use a mint whose issuer key we hold** (vUSD, issuer `5BXg…`; re-post reserves with the CLI if stale).
+  Deploy with `scripts/deploy-devnet-acl.sh` (`DRY_RUN=1` first), then update DEPLOYMENT.md.
+- **Also worth a look in the review** (S14 surfaces):
+  - the keeper's `access-control-allow-origin: *` (read-only endpoints);
+  - the Mint card's "Send anyway" (skips preflight on purpose, one fee);
+  - the CLI's other string-to-enum options, which were like `minters add`'s `--period` before `554716a`.
+
+State on devnet (2026-10-04, after S14):
+- **Programs:** unchanged (all four `.so` sha256 equal DEPLOYMENT.md). `5BXg…` has 27.824678509 SOL.
+- **vUSD** `AsePwCcV…`:
+  - Supply is 104,000 and reserves 1,000,000, **as of 2026-10-04 10:31 UTC, stale after 2026-10-05 10:31 UTC**.
+  - Re-post before any vUSD mint or screenshot. No CLI command posts reserves: use a node script as `5BXg…` with `reserves(mint).attestReserves(attestor, amount, await sdk.clusterTime(), reportUri)`, or the attestor service.
+  - Its reserve account holds 4 landed `ReserveInsufficient` refusals (the `/reserves` history).
+  - Its 4 burner Minter roles are deactivated.
+- **S14 wizard mints:**
+  - `7B7FWJfARr7buP3K7u88XdkrZhG7VZAUjWgvfi8tBNTN`: complete. Holder `64CZUvqU…` is unlocked and holds 1,000.
+  - `3e5Mgs6H…`: abandoned.
+  - Both issuers were burners whose keys are gone.
+- **Unchanged:** the S13 console mints, the S11 quickstart mints, and the S9 story mint.
 
 Open:
-- **New in S13:**
-  - **Phantom and Solflare are wired but weren't run** (the devnet runs used the burner adapter). User: connect Phantom on devnet and run the wizard once. Watch for a warning on `initialize`, which the mint keypair partly signs before the wallet does.
-  - **30 s in the browser vs 0.26 s in Node:** the simulated setup failure took 30.4 s to show in the browser. A real preflight failure through the SDK's `send` in Node took 0.26 s. Check a real failure in the browser before S18 (e.g. attest the same wallet twice).
-  - **Not exercised in S13:**
-    - the existing-credential path (the `BYSdZK…` / `Fovh6z…` prefill);
-    - "Change policy";
-    - resume after a page reload (only an in-session retry ran);
-    - the `/ops` panels (they render; no services ran).
-  - **The console can't mint or add allowlist entries yet** (SDK `mintTokens`, `compliance(mint).addToAllowlist`), so a holder's balance after unlocking is 0. A client-side mint form goes in S14 if cheap, else S16. mint-service isn't retired; only `/ops` calls it.
-  - **Bundle:** 1.28 MB in one chunk (S16: code-split). Of the console's 422 MB `node_modules`, `@solana-mobile` + react-native (~130 MB) come in through `@solana/wallet-adapter-react`.
-  - **CLI `enable-token-acl`** sends without a CU limit. It works: `enable_token_acl` took 80,344–89,344 CU on devnet in S13, under the 200k default. It could call `sendEnableTokenAcl`.
-- **Docker images aren't built locally** (no daemon in WSL). Full CI's docker-health builds them, and it was green on `44d85a1` (run 37149607979; the `7c2820c` mint-service fix holds).
+- **New in S14:**
+  - **Phantom and Solflare still haven't been run** (user). The SDK now signs wallet-first. Run the wizard once with Phantom on devnet and note whether it warns on `initialize`.
+  - **No CLI command posts reserves** (`thawgate reserves attest` would; S16 if wanted).
+  - **The console still can't add allowlist entries** (`compliance(mint).addToAllowlist`).
+  - **The Mint card's refusal texts** other than `ReserveInsufficient` haven't run.
+  - **The keeper indexes facts only for owners of thawed accounts.** `/decisions` fills frozen rows from chain reads and a live `explain`. A keeper endpoint for frozen owners would save the browser reads.
+  - **`/decisions` is slow on public devnet:** it reads each account's transactions one by one, about 65 s for the `pages` flow on vUSD's 4 rows. A keyed `VITE_RPC_URL` in `.env.local` (local only) is faster.
+  - **Bundle:** 1.32 MB in one chunk (S16: code-split).
+  - **From S13, not exercised yet:** "Change policy", the existing-credential path, resume after a reload, and the `/ops` panels.
+  - **CLI `enable-token-acl`** sends without a CU limit. It works (80–89k CU), but it could call `sendEnableTokenAcl`.
+- **Docker images aren't built locally** (no daemon in WSL). Full CI's docker-health builds them.
 - **New in S12-venue:**
   - **Orca Token Badge:** still not issued. If one arrives, the S2 Orca steps (SPIKES.md) run on devnet unchanged, and S18 can trade there.
-  - **demo-pool has no withdraw and no LP shares** (single LP, devnet test liquidity). Each venue run's liquidity stays in its pool.
-  - `scripts/rehearse-deploy-devnet-acl.sh` wasn't re-run. With step [4], it now also deploys demo_pool on its rehearsal validator.
-- **`@thawgate/shared` is still a `file:` dependency** in mint-service, indexer, compliance-service and webhook-service. Yarn 1 copies it, the bug S11 fixed for the SDK. Switch them to `"0.1.0"` and rewrite the dependency in each Dockerfile as mint-service does for the SDK (S16/S17).
+  - **demo-pool has no withdraw and no LP shares** (single LP, devnet test liquidity).
+  - `scripts/rehearse-deploy-devnet-acl.sh` wasn't re-run. With step [4], it also deploys demo_pool on its rehearsal validator.
+- **`@thawgate/shared` is still a `file:` dependency** in mint-service, indexer, compliance-service and webhook-service. Switch them to `"0.1.0"` and rewrite the dependency in each Dockerfile, as mint-service does for the SDK (S16/S17).
 - **npm publish (S17):**
-  - Both packages are publish-ready: the CLI depends on `@thawgate/sdk` `0.1.0`, and both have READMEs and `engines >=20`.
-  - The pack smoke runs in CI on Node 20 and 22.
+  - Both packages are publish-ready, and the pack smoke runs in CI on Node 20 and 22.
   - The quickstart README says "until 0.1.0 is on npm"; update it after publishing.
-- **Carried from S10 (unchanged):**
-  - Range untested live; S19 wording is now in PLAN.md.
-  - No second blacklist after a removal; S15, with the reserve bump fix.
-  - Keeper self-trigger on SAS logs; trigger-label race.
+- **Carried from S10:**
+  - Range is untested live; the S19 wording is in PLAN.md.
+  - No second blacklist after a removal (S15, above).
+  - Keeper self-trigger on SAS logs; the trigger-label race.
   - Screener ops: no compose entry, state in memory, one provider.
 - **Carried from S9 and earlier:**
   - Treasury PDA + BypassForPdas for mainnet (S16).
@@ -80,11 +79,22 @@ Open:
   - The build-in-public thread (user).
 
 Gotchas:
+- **New in S14:**
+  - **Public devnet `getTransaction`:** the per-method limit is low. A batch of 5 passed and the next batch was refused, because each item counts. After bursts, the whole IP gets "Connection rate limits exceeded" for a while.
+  - **web3.js's `getTransactions` (batch)** returns results **out of order**. Read one at a time (`readTransaction` in `frontend/src/chainLogs.ts`) or match by signature.
+  - **`confirmTransaction` (blockhash strategy) rejects with the bare `TransactionError`** object when its first status poll sees a failed tx. It resolves with `value.err` only on the websocket path.
+  - **Anchor 0.32's `sendAndConfirm` waits 30 s on a dropped send:** a legacy `confirmTransaction(signature)` with no blockhash. A preflight error is immediate.
+  - **`mint_tokens` checks the minter quota before reserves.** To show `ReserveInsufficient`, the minter's quota must be above the reserves.
+  - **Screenshot script** (`scripts/screenshots/console.mjs`):
+    - Run it from a Windows dir with `playwright-core` installed (`npm i playwright-core@1.63`).
+    - Start the console with `VITE_BURNER_WALLET=1`. For `/decisions`, also start the keeper: `KEEPER_MINTS=<mint> KEEPER_KEYPAIR=~/.keys/thawgate/keeper.json node services/keeper/dist/main.js` (rebuild its dist after source changes).
+    - It reads a burner's address from an input the page prefills (the Mint card's recipient, the holder's "Your wallet").
+  - **Ready-made probes:** `/tmp/s14-txs.js` (read-only: a mint's or address's txs with err, CU, signers) and `/tmp/s14-lastgate.js`.
 - **New in S13:**
   - **`WalletMultiButton` ignores `className`.** It always sets `wallet-adapter-button-trigger`; style that class.
   - **The burner adapter makes a new key on every connect**, and on reload too (autoConnect). Use one page per wallet, and fund it after it connects.
-  - **Edge draws disabled radios identically on the dark theme.** The console marks the chosen option through its label (`.check:has(input:checked)`).
-  - **Files copied from `/mnt/c` land as 755.** `chmod 644` them (the screenshots were).
+  - **Edge draws disabled radios identically on the dark theme.** The console marks the chosen option through its label.
+  - **Files copied from `/mnt/c` land as 755.** `chmod 644` them.
   - **The SDK's `StablecoinConfig` type has no `enableAllowlist`**, though the account has it.
   - **`src/polyfills.ts` must stay the first import of `main.tsx`** (`globalThis.Buffer`).
 - **New in S12-venue:**
@@ -1207,3 +1217,106 @@ Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" 
 - **CI on `034df6b`:** Full CI (with the new console build step), Gate Tests (sdk 13 passing), CI and TypeScript Tests green. Anchor Integration 69 / 6, all in the known classes (run IDs in the S14 handoff).
 - **Links:** the devnet txs above. Commits `55a55c8` (sdk), `f9b4c03` (console), `f24b7aa` (ci), `034df6b` (this log).
 - **Next:** S14 (Console II), per the handoff at the top of this file.
+
+## S14 · 2026-10-04 · Console II: Mint action, `/decisions` and `/reserves` on devnet
+- **Decisions (plan mode, approved):**
+  - **Phantom:** the user's manual Phantom result didn't come through (the prompt still had its placeholder). The user chose to switch the signing order anyway: the wallet signs first, then the extra signers (`ca668d9`).
+  - **The Mint demo runs on vUSD with a burner minter.** `5BXg…` never signs in a browser, and `mint_tokens` checks the minter quota **before** the reserves (`mint.rs`). `5BXg…`'s vUSD quota equals the reserves (1,000,000), so its over-reserve mint fails as `MinterQuotaExceeded`. The screenshot script grants each run's burner a Minter role with a 2,000,000 quota (`thawgate minters add`, as `5BXg…`) and removes it at the end.
+  - **Recording a refusal on chain is opt-in.** The Mint card simulates first. "Send anyway" sends without preflight (one fee), so the refused tx lands and shows in the `/reserves` history. That's the same method as S12-venue's landed refusals.
+  - **The keeper sends CORS headers** (`f6b72ed`). A Vite proxy would only work on the dev server.
+- **Shipped:**
+  - **SDK** (`ca668d9`): `GateClient.send` gives Anchor no signers and a wallet that signs first, then `partialSign`s the extra signers. That's Phantom's order. Anchor's send, confirm and error path are unchanged.
+  - **CLI** (`554716a`): `minters add` was broken for every call. It passed the `--period` string where the SDK wants the enum (`reading 'toLowerCase'`). Found when the script first granted a minter. `parseQuotaPeriod` fixes it, and `tests/e2e/sdk.ts` case 10 now adds a daily-quota minter, reads the quota back, and removes it.
+  - **Keeper** (`f6b72ed`): `access-control-allow-origin: *` on every response. All endpoints are read-only.
+  - **Console** (`7e0c72b`):
+    - **Mint tokens** (on `/issuer`) works for any mint the wallet is a Minter of. It shows supply, reserves (as-of, freshness), room under the reserves and the quota.
+      - A refusal is put in plain words from the program's own log line (`SSS:DENY:RESERVE_INSUFFICIENT supply= amount= reserves= as_of=`).
+      - It also has texts for stale or missing reserves, quota, no minter role, paused, and a frozen recipient.
+    - **`/decisions`** (no wallet) has one row per token account in the keeper's index (`VITE_KEEPER_URL`):
+      - the decision, with its `TG:` code and the sentence from `@thawgate/sdk/reasons`;
+      - the credential's signer, expiry and kyc_level;
+      - the blacklist and allowlist entries;
+      - the last thaw or freeze the gate decided, via `classifyGateLogs` over the account's own transactions;
+      - "Re-check live" (`explain`).
+
+      The keeper keeps facts only for owners of thawed accounts. For frozen rows, the page reads the same PDAs from the chain and decides with a live `explain`. "Check a wallet" explains any wallet.
+    - **`/reserves`** (no wallet) shows supply against attested reserves as stat tiles and a meter. It also shows freshness, the attestor, the report link, the reserve account, and the refused mints that landed (failed txs on the reserve account, parsed from the `SSS:DENY:RESERVE_*` line).
+    - No `getProgramAccounts` anywhere.
+  - **Script** (`1466f0d`): `scripts/screenshots/console.mjs`, with flows `wizard`, `s14` and `pages`.
+    - The S13 script was lost with that session's scratchpad, so this is a rewrite.
+    - It runs on Windows Node with playwright-core and Edge, and calls `wsl` for funding and the CLI.
+    - On a failure it saves screenshots and the pages' console errors.
+- **The 30 s (S13 open item): it's the confirmation timeout.** Measured in run 1 (`--probe-send-timeout`, a 1 vUSD mint whose `sendTransaction` was answered inside the page; nothing reached devnet):
+  - answered with an RPC error: the error showed after **0.86 s**;
+  - answered with a signature that never lands: **30.65 s**, "Transaction was not confirmed in 30.00 seconds".
+  - **Why** (from the code): Anchor 0.32.1's `sendAndConfirm` confirms with `confirmTransaction(signature, commitment)`, without a blockhash. That's web3.js's legacy strategy, which times out after 30 s at `confirmed`. Its `TransactionExpiredTimeoutError` isn't the `TimeoutError` that Anchor's loop retries.
+  - So S13's injection must have returned a signature. Only a dropped send waits 30 s; a real preflight error shows at once. Documented, not changed.
+- **Devnet runs** (headless Edge, burner wallets, public RPC `api.devnet.solana.com`; keeper with `KEEPER_MINTS=vUSD`, Helius server-side):
+  - **vUSD** `AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw`: supply 100,000 → **104,000** (four 1,000 vUSD test mints to `5BXg…`). Reserves 1,000,000 as of 2026-10-04 10:31 UTC; fresh for the whole session (24 h window), so not re-posted.
+
+  | Run | Burner minter | Grant | Mint 1,000 vUSD | Past reserves: 950,000, landed refused | Revoke |
+  |---|---|---|---|---|---|
+  | 1 (with the probe) | `BpWEn2DL…` | [3n4f3bzk…](https://explorer.solana.com/tx/3n4f3bzkFnzm3x2pffSJmNu3VDCUqVvh2Kp8EyHGkdNTVePHTnWFBfmBqWcT1MuJr1xa4tSgXZAeHd4zM7Z6v9Hn?cluster=devnet) | [4oB4W39b…](https://explorer.solana.com/tx/4oB4W39bFXq7iwgRTrUiiHQ6Yu6Cd3XDjJZ8mw438uGrSCdduuAAHATzS9MhLizAEGqmY8D3UcVB1rcswrVvNDzR?cluster=devnet) | [5dDiYy8y…](https://explorer.solana.com/tx/5dDiYy8yNkJ2BA7fZom6Tou3Mhk1w4aZYpHjt7vh1vzpunHzBRfVK3ydhYGNTgNyWEfJzutktKPbTAQ9AYqvCNfh?cluster=devnet) (page showed `[object Object]`) | [2f7dVFzL…](https://explorer.solana.com/tx/2f7dVFzL1o4og1GrS2suVDJQT7uAJFYjgMBdhxuCTUK4Ejrztc9DEKwfFU872X3fDVk1BmRcKkW2wzJSM9feUYZk?cluster=devnet) |
+  | 2 (diagnosis) | `8iciJPUf…` | [22GFUXG2…](https://explorer.solana.com/tx/22GFUXG29VayNGhrrAGtESUXBc5Sz78YnNCsdYxBqnXsYzVPgqFZRpYqkBNVkJtNmBe8nNqYPmvr9xkoTcwEAQEY?cluster=devnet) | [2hJocCnL…](https://explorer.solana.com/tx/2hJocCnLhUaFHkGaoeH3qxGLnrFKGrsy5u84X8bAqADzmgWbN8wzLL6XNvRZ2jX22yUYrCpNh6dSL2Bhw9Boypee?cluster=devnet) | [4tP22mQ7…](https://explorer.solana.com/tx/4tP22mQ75Bp1DX5iUx4pUYXVRQYpHRBWQqScZJPWYGZtJGcsyWHtXEb8KJ7AzfY2EcgzC6zofEXFRsE57xsLtcXm?cluster=devnet) (same) | [2SZUqAy4…](https://explorer.solana.com/tx/2SZUqAy4T5FWsBGzL8PCV2mkg6QJswEEHQFeAGh3kvKNhoeY4ThS8HcECzkwSCxFR5k1xXuZGwyfbBi8zf5J22cy?cluster=devnet) |
+  | 3 | `Gu65MC9X…` | [4pBJkBsd…](https://explorer.solana.com/tx/4pBJkBsdPXcM97cvCd3kFNpAiHUHNDzw8nWWXbWX68eKc1Wz5GxV6rnFdqL2QrfF4YVwgH1sThLf5VW1QVLA6Fni?cluster=devnet) | [2n1ngFdq…](https://explorer.solana.com/tx/2n1ngFdqKKNTQpQ8zCqi6tk3heEEJCGxtvAxfVTXwoM3FH2gfqw3YJvCvViah4tj7DjFRvrNHJM4Hevsswf8SzZj?cluster=devnet) | [37hzsBQH…](https://explorer.solana.com/tx/37hzsBQHyaLwEi3Lk4NnDuAFFLD7xwfvvnYTr2i8uXwcvGaCkeQYQBtATXAeHudBgx11nDsgdDsrDZKpiPxjTNU?cluster=devnet) | [5UPaEZjb…](https://explorer.solana.com/tx/5UPaEZjbULyyKfWXuog9d1QihhrTcdroC8gfBP2pME2sdatxbJRemKqCq3799V5K8eqxdgFwq6i5CrLjzYD9mCQd?cluster=devnet) |
+  | **final** (screenshots 04–06) | `2TrHdAUG…` | [3DKXfvjj…](https://explorer.solana.com/tx/3DKXfvjjS1SYufGqMneR2PwFKcnsfYP7y4qsgqETVSes6TBPwAukXv6mWehdW41dvNRLUbdoBpmm6eBpzZxYHG3j?cluster=devnet) (22,213 CU) | [26SUdLXY…](https://explorer.solana.com/tx/26SUdLXYmK11mRjmYVqVkjTPouA2vfK38kGziD6iWj2pWavrryivtgUntUZo63XGRdiXuEvuHEQ32iFafbUu7r82?cluster=devnet) (24,713 CU) | [5uyH7QMR…](https://explorer.solana.com/tx/5uyH7QMRWCmTvkL394A8HhFXBptKjG7wm5WvAqkbTVndizkcHefBjBn7QH6R736s7LUgXjHB8jFzMHHaQsJC7Sdc?cluster=devnet) | [3dpA1hAd…](https://explorer.solana.com/tx/3dpA1hAdpoR5LqkZfvTzS7jMxVqcX2cwcFfC5sJFsLzMeK1cjmUomSDFuVoBd2n2bScBs6upBYQ7P6UzEYPppvdh?cluster=devnet) (10,280 CU) |
+
+  - **All four refusals** failed with `ReserveInsufficient` (custom error 6035) at 18,237 CU each. The program logged, e.g., `SSS:DENY:RESERVE_INSUFFICIENT supply=104000000000 amount=950000000000 reserves=1000000000000 as_of=1791109892`. The page's sentence (`s14-05`): "Minting 950,000 vUSD would take the supply from 104,000 vUSD to 1,054,000 vUSD, above the 1,000,000 vUSD of attested reserves (as of 2026-10-04 10:31 UTC). …"
+  - **Timings, click → shown:**
+    - mint within reserves: 5.01 s in the final run (1.38–5.01 s over the four runs);
+    - refusal (simulated): 0.86 s (0.33–8.34 s; the 8.34 s waited on 429 retries);
+    - recorded on chain: 1.37 s (2.39 s in run 3);
+    - "Re-check live" on all 4 rows: 1.71–5.85 s;
+    - the read-only `pages` flow (`/reserves`, `/decisions`, re-checks): 65 s end to end.
+  - **Bugs the runs found, all fixed before the screenshots:**
+    - **Run 0:** the CLI crash above. Burner `Cj9pq2Nu…` got 0.05 SOL; nothing else was sent.
+    - **Runs 1–2:** the refusal landed, but the page showed `[object Object]`. web3.js rejects `confirmTransaction` with the bare `TransactionError` when its first status poll sees the failed tx, and it resolves with `value.err` only on the websocket path.
+    - **Run 3:** the closing `/reserves` load hit public-devnet 429s, and the blocked-mints table paired rows wrong. Both were batched `getTransactions` problems: its results come back out of order, and public devnet's per-method limit refuses the second batch. Transactions are now read one at a time and matched by signature.
+    - The screenshots are `s14-04`…`06` from the final run, plus `s14-01`…`03` from a read-only `pages` run after the fixes.
+  - **`/decisions` on vUSD** (`s14-02`, `s14-03`): each row's last thaw/freeze matches the S12-venue log.
+
+    | Wallet | Decision | Last thaw/freeze | Live re-check |
+    |---|---|---|---|
+    | the pool vault, PDA `CrkVVB2g…` | allowed, `TG:ALLOW:PDA_ALLOWLISTED` | unlocked `2f1fF5k6…` | `COMPLIANT` |
+    | alice | denied, `NO_CREDENTIAL`; frozen | the keeper's freeze `3N8zvh2j…` | `NO_CREDENTIAL` |
+    | bob | denied, `NO_CREDENTIAL` | unlock refused `4PUF6qeS…` | `NO_CREDENTIAL` |
+    | `5BXg…` | allowed, `TG:ALLOW:KYC`; attestation signed by `5avMnUXP…`, kyc_level 2, expires 2027-10-01 | unlocked `4X7ex3H9…` | `COMPLIANT` |
+
+    The credential "ThawGate Demo KYC" carries the **self-issued devnet credential** badge.
+  - **Wizard retest with the burner (the wallet-first signing order):**
+    - Mint `7B7FWJfARr7buP3K7u88XdkrZhG7VZAUjWgvfi8tBNTN`, issuer `8Dzbs6En…`, holder `64CZUvqU…`. 24 s end to end.
+    - Run 1 (mint `3e5Mgs6H…`) created and enabled its coin, then stopped at a script selector. It's abandoned; its burner key is gone.
+
+    | Step | Tx | CU |
+    |---|---|---|
+    | initialize: **2 signatures (burner, then the mint keypair)**, landed | [3djfQPkn…](https://explorer.solana.com/tx/3djfQPknrRdsw9rAVykGVbj61SAvQ2UggDgjAt5uz3YLxncGmJr2Pg8Hwcs73fHsVrLDkxh1YKsnJ1edMZYexrSp?cluster=devnet) | 57,945 |
+    | setup (minter, attestor, reserves) | [4jzbiZ3w…](https://explorer.solana.com/tx/4jzbiZ3wAv3MqRTnjMweF38oJnfEndDu8hHTHNGKX4Mp2Cnrffo6idW7qH6qwgSYYfQn7nXiJJhBPfZdmkQkZrde?cluster=devnet) | 37,555 |
+    | self-issued test KYC credential + schema | [3quSJYFv…](https://explorer.solana.com/tx/3quSJYFvu3JQHwxS11oUWMqZxy1mRS8B4mhUeRom6CxgDVya6bUTh7Y5eZzH8V8ogfko8q7mZyqZLC7UMrhSq3Qx?cluster=devnet) | 14,777 |
+    | enable_token_acl | [MNV4PAve…](https://explorer.solana.com/tx/MNV4PAveWQRXtdfWBUYAi8beuXnJ3Ghjv5Jwmg41AQoETnCzF9f51hDmeuh1Gy2uqXngCZProD67uY73D8L93z2?cluster=devnet) | 77,175 |
+    | holder: `TG:DENY:NO_CREDENTIAL` (simulated) | — | — |
+    | attest the holder | [3RDUcnKM…](https://explorer.solana.com/tx/3RDUcnKMoBEJtwqDXfFGEkVs4z1BCiQvvPsLsnj25z85UXqBK4BsQNxDLdaR1Vyzn26eos9ZjDyzm2TMz24Zqk9K?cluster=devnet) | 5,986 |
+    | holder unlocks: `TG:ALLOW:KYC` | [cKXa27fK…](https://explorer.solana.com/tx/cKXa27fKeoz69rWixKBsPDReV9VDtnKDAB9E6H5P31awdQBpjHvwf7xiBVP8HcXWo7d9smQ3ES8qitwiar3DKhF?cluster=devnet) | 58,932 |
+    | **issuer mints 1,000 to the holder** (Mint card) | [4bJjduAu…](https://explorer.solana.com/tx/4bJjduAudnaCEGbPDPxVcoP6fn723viJda2YFBLXt72pMXFaHr7nkK7m9433i5LXoGURFk7RT3LxkSi9cGQjgorS?cluster=devnet) | 22,939 |
+
+  - **Cost:** `5BXg…` went from 28.163480789 to 27.824678509 SOL (−0.33880228).
+    - 0.33 of it funded burners, and most of that stays with them (their keys are gone).
+    - The rest is fees plus the rent of the 4 Minter role and quota accounts the grants created. `minters remove` deactivates a role but doesn't close it.
+    - The keeper froze nothing this session.
+- **Not exercised (honesty):**
+  - **Phantom and Solflare:** still not run by me. The new signing order is checked with the burner adapter and the keypair wallet only.
+  - **Mint card refusals:** only `ReserveInsufficient` ran. The other texts (stale, missing, quota, no role, paused, frozen recipient) come from `mint.rs` and Token-2022's log line.
+  - **"Check a wallet":** rendered, not used in the run.
+  - **The keeper without `KEEPER_MINTS`:** not run.
+  - **From S13, still open:** "Change policy", the existing-credential path, resume after a reload.
+- **Checks:**
+  - `cd sdk && npx vitest run`: 128 passed.
+  - `SKIP_BUILD=1 yarn test:sdk`: 13 passing (44 s), case 10 with the new `minters add`/`remove` check.
+  - Keeper `npx vitest run`: 36 passed.
+  - `yarn typecheck`: clean.
+  - Console `npm run build`: clean (bundle 1,315.75 kB in one chunk).
+  - `anchor build`: no program change; all four `.so` sha256 equal DEPLOYMENT.md.
+- **Screenshots:** `docs/thawgate/screenshots/s14-01-reserves` … `s14-06-refusal-recorded` (.png).
+- **Links:**
+  - The devnet txs above.
+  - Commits `ca668d9` (sdk), `554716a` (cli), `f6b72ed` (keeper), `7e0c72b` (console), `1466f0d` (scripts), and this log.
+- **Next:** S15 (security + test hardening, C2 feature freeze), per the handoff at the top of this file.

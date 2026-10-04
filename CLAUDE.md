@@ -28,6 +28,9 @@ The workspace install needs Node ≥ 22.12; the published SDK and CLI support No
 - `npm run dev` (port 3000), `npm run build` (`tsc --noEmit` + `vite build`; Full CI runs it). `src/polyfills.ts` sets `globalThis.Buffer` and must stay the first import in `main.tsx`.
 - **RPC rule: never put the Helius key (or any keyed RPC URL) in the frontend.** Every `VITE_*` variable is compiled into the public bundle. The default is public devnet. `VITE_RPC_URL` is optional, goes in `frontend/.env.local` (gitignored) on the user's machine only, and `vite build` refuses a keyed one.
 - `VITE_BURNER_WALLET=1` adds an in-page burner wallet for scripted devnet runs (headless Edge via playwright-core, S13). It gets a new key on every connect, so fund it by transfer.
+- `/decisions` reads the keeper's `GET /mints/:mint` at `VITE_KEEPER_URL` (default `http://localhost:3005`; the keeper sends `access-control-allow-origin: *`). Nothing in the console calls `getProgramAccounts`.
+- Public devnet allows very few `getTransaction` calls per window, and web3.js's batched `getTransactions` returns results out of order. Read transactions one at a time (`readTransaction` in `src/chainLogs.ts`).
+- Screenshots: `scripts/screenshots/console.mjs` (flows `wizard`, `s14`, `pages`; Windows Node + playwright-core + Edge, setup in its header). Output goes to `docs/thawgate/screenshots/` (`chmod 644` after copying from `/mnt/c`).
 
 Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for IDL builds), Solana CLI 3.0.14 (same as CI; there is no 3.0.15 release). The avm prebuilt 0.32.x binaries need glibc 2.39 and WSL Ubuntu 22.04 has 2.35, so install with `avm install 0.32.2 --from-source`. `tests/fixtures/` holds devnet dumps of Token ACL, the ABL gate, SAS and S&A (see `tests/fixtures/README.md`).
 
