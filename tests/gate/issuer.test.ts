@@ -31,6 +31,8 @@ import {
 import {
   aclPolicy,
   addToBlacklistIx,
+  allowlistIx,
+  allowlistPda,
   ataOf,
   balanceOf,
   blacklistPda,
@@ -38,18 +40,23 @@ import {
   createSssMint,
   enableTokenAclIx,
   frameTable,
+  grantPauserIx,
   initArgs,
   initializeIx,
   issuerFreezeIx,
   mintToIx,
   Mode,
   pausePda,
+  removeFromBlacklistIx,
   reservesForTestsIxs,
+  Role,
+  rolePda,
   seizeIx,
   sendWeb3,
   sendWeb3Fails,
   setPausedIx,
   sss,
+  transferAuthorityIx,
   transferIx,
 } from "./issuer";
 
@@ -252,6 +259,87 @@ describe("sss-token issuer (Token ACL mode)", function () {
       assert.equal((await mintExtensions(mint)).ext.PausableConfig?.paused, false);
       await send([await transferIx(mint, alice, bob, 1_000)]);
       assert.equal(await balanceOf(ataOf(mint, bob)), 2_000n);
+    });
+  });
+
+  // S15: a blacklist or allowlist entry, or a MasterAuthority record, that a key had before is reactivated. Before,
+  // each was created with `init`, so the second time failed with "already in use".
+  describe("re-add and transfer back (S15)", () => {
+    const erin = key("acl-erin");
+    const blacklisted = () => (sss.account as any).blacklistEntry.fetch(blacklistPda(mint, erin));
+    const lamports = async (k: PublicKey) => (await rpc.getBalance(kit(k), { commitment: "confirmed" }).send()).value;
+    const feeOf = async (sig: string) =>
+      BigInt((await rpc.getTransaction(sig as any, { commitment: "confirmed", maxSupportedTransactionVersion: 0, encoding: "json" }).send())!.meta!.fee);
+
+    it("add_to_blacklist reactivates a removed entry: frozen again, the gate denies the thaw, no new rent", async () => {
+      const ata = await createAta(mint, erin);
+      await send([await thawIx(mint, erin, ata)]);
+      await sendWeb3([await addToBlacklistIx(mint, erin, ata, "S15 first")]);
+      await sendWeb3([await removeFromBlacklistIx(mint, erin)]);
+      assert.equal((await blacklisted()).active, false);
+      await send([await thawIx(mint, erin, ata)]); // an inactive entry doesn't block the holder
+      assert.equal(await tokenAccountState(ata), "initialized");
+
+      const before = await lamports(payer);
+      const sent = await sendWeb3([await addToBlacklistIx(mint, erin, ata, "S15 again")]);
+      cu.record("add_to_blacklist, re-add (reactivate + Token ACL freeze)", sent);
+      assert.equal(before - (await lamports(payer)), await feeOf(sent.sig), "the re-add pays the fee only");
+      const entry = await blacklisted();
+      assert.equal(entry.active, true);
+      assert.equal(entry.reason, "S15 again");
+      assert.equal(await tokenAccountState(ata), "frozen");
+      assertDenied(await sendFails([await thawIx(mint, erin, ata)]), "BLACKLISTED");
+    });
+
+    it("refuses an add while the entry is active (AccountAlreadyBlacklisted) and a remove while it is inactive (AccountNotBlacklisted)", async () => {
+      assertFailedWith(await sendWeb3Fails([await addToBlacklistIx(mint, erin, ataOf(mint, erin), "S15 third")]), "Error Code: AccountAlreadyBlacklisted");
+      assert.equal((await blacklisted()).reason, "S15 again", "the refused add changed nothing");
+      await sendWeb3([await removeFromBlacklistIx(mint, erin)]);
+      assertFailedWith(await sendWeb3Fails([await removeFromBlacklistIx(mint, erin)]), "Error Code: AccountNotBlacklisted");
+    });
+
+    let authorityMint: PublicKey;
+    const b = keypair("acl-authority-b");
+
+    it("transfer_authority A → B → A → B: the previous holder's record is reactivated; the one who handed over is refused", async () => {
+      authorityMint = await createSssMint("acl-authority", Mode.Acl);
+      const m = authorityMint;
+      const master = async (k: PublicKey) => (await (sss.account as any).roleRecord.fetch(rolePda(m, k, Role.master))).active;
+      for (const [from, to] of [[payerKeypair, b], [b, payerKeypair], [payerKeypair, b]] as const) {
+        const signers = from === payerKeypair ? [] : [from];
+        const sent = await sendWeb3([await transferAuthorityIx(m, from.publicKey, to.publicKey)], signers);
+        cu.record(`transfer_authority (${from === payerKeypair ? "A → B" : "B → A"})`, sent);
+        assert.equal((await (sss.account as any).stablecoinConfig.fetch(configPda(m))).authority.toBase58(), to.publicKey.toBase58());
+        assert.equal(await master(to.publicKey), true);
+        assert.equal(await master(from.publicKey), false);
+        // A MasterAuthority-only call by the key that handed over (the payer's Pauser record exists, so nothing is created).
+        const refused = await sendWeb3Fails([await grantPauserIx(m, from.publicKey, payer)], signers);
+        assertFailedWith(refused, "Error Code: NotAuthorized");
+      }
+    });
+
+    it("transfer_authority to yourself is refused (RoleAlreadyActive); the config is unchanged", async () => {
+      const refused = await sendWeb3Fails([await transferAuthorityIx(authorityMint, b.publicKey, b.publicKey)], [b]);
+      assertFailedWith(refused, "Error Code: RoleAlreadyActive");
+      assert.equal((await (sss.account as any).stablecoinConfig.fetch(configPda(authorityMint))).authority.toBase58(), b.publicKey.toBase58());
+      assert.equal((await (sss.account as any).roleRecord.fetch(rolePda(authorityMint, b.publicKey, Role.master))).active, true);
+    });
+
+    it("add_to_allowlist_v3 reactivates a removed entry; refuses an active one (AllowlistEntryAlreadyActive) and removing an inactive one", async () => {
+      const m = await createSssMint("acl-allowlist", Mode.Acl, { allowlist: true });
+      const wallet = key("acl-al-wallet");
+      const active = async () => (await (sss.account as any).allowlistEntry.fetch(allowlistPda(m, wallet))).active;
+
+      await sendWeb3([await allowlistIx(m, wallet, true)]);
+      assertFailedWith(await sendWeb3Fails([await allowlistIx(m, wallet, true)]), "Error Code: AllowlistEntryAlreadyActive");
+      await sendWeb3([await allowlistIx(m, wallet, false)]);
+      assert.equal(await active(), false);
+      assertFailedWith(await sendWeb3Fails([await allowlistIx(m, wallet, false)]), "Error Code: AllowlistEntryNotActive");
+
+      const before = await lamports(payer);
+      const sent = await sendWeb3([await allowlistIx(m, wallet, true)]);
+      assert.equal(before - (await lamports(payer)), await feeOf(sent.sig), "the re-add pays the fee only");
+      assert.equal(await active(), true);
     });
   });
 });

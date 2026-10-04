@@ -71,7 +71,7 @@ export async function sendWeb3Fails(ixs: anchor.web3.TransactionInstruction[], e
 // ---------------------------------------------------------------------------------------------
 // sss-token instructions
 // ---------------------------------------------------------------------------------------------
-export type MintOptions = { hook?: boolean; permanentDelegate?: boolean; frozen?: boolean };
+export type MintOptions = { hook?: boolean; permanentDelegate?: boolean; frozen?: boolean; allowlist?: boolean };
 
 /** sss-token `initialize` args. Acl/Both default to frozen accounts; only Both (or `hook`) adds the hook. */
 export function initArgs(name: string, mode: Mode, o: MintOptions = {}) {
@@ -86,7 +86,7 @@ export function initArgs(name: string, mode: Mode, o: MintOptions = {}) {
     defaultAccountFrozen: o.frozen ?? mode !== Mode.Hook,
     hookProgramId: withHook ? HOOK_ID : null,
     enableConfidentialTransfers: false,
-    enableAllowlist: false,
+    enableAllowlist: o.allowlist ?? false,
     complianceMode: mode,
   };
 }
@@ -257,6 +257,58 @@ export async function addToBlacklistIx(mint: PublicKey, wallet: PublicKey, token
       ...tokenAclAccounts(mint),
     })
     .instruction();
+}
+
+/** sss-token `remove_from_blacklist` by the payer (Blacklister): deactivates `wallet`'s entry. */
+export async function removeFromBlacklistIx(mint: PublicKey, wallet: PublicKey) {
+  return sss.methods
+    .removeFromBlacklist()
+    .accountsStrict({
+      operator: payer,
+      config: configPda(mint),
+      operatorRole: rolePda(mint, payer, Role.blacklister),
+      blacklistEntry: blacklistPda(mint, wallet),
+      target: wallet,
+    })
+    .instruction();
+}
+
+/** sss-token `transfer_authority`, signed by the current MasterAuthority `from`. */
+export async function transferAuthorityIx(mint: PublicKey, from: PublicKey, to: PublicKey) {
+  return sss.methods
+    .transferAuthority(to)
+    .accountsStrict({
+      authority: from,
+      config: configPda(mint),
+      oldMasterRole: rolePda(mint, from, Role.master),
+      newMasterRole: rolePda(mint, to, Role.master),
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+/** sss-token `update_roles` signed by `authority`: grants `holder` the Pauser role (a MasterAuthority-only call). */
+export async function grantPauserIx(mint: PublicKey, authority: PublicKey, holder: PublicKey) {
+  return sss.methods
+    .updateRoles(holder, { pauser: {} }, true)
+    .accountsStrict({
+      authority,
+      config: configPda(mint),
+      authorityRole: rolePda(mint, authority, Role.master),
+      targetRole: rolePda(mint, holder, Role.pauser),
+      systemProgram: SystemProgram.programId,
+    })
+    .instruction();
+}
+
+export const allowlistPda = (mint: PublicKey, wallet: PublicKey) => registryPda("allowlist", mint, wallet)[0];
+
+/** sss-token `add_to_allowlist_v3` / `remove_from_allowlist_v3` by the payer (MasterAuthority). */
+export async function allowlistIx(mint: PublicKey, wallet: PublicKey, add: boolean) {
+  const base = { authority: payer, config: configPda(mint), authorityRole: rolePda(mint, payer, Role.master), wallet, allowlistEntry: allowlistPda(mint, wallet) };
+  return add
+    ? sss.methods.addToAllowlistV3().accountsStrict({ ...base, systemProgram: SystemProgram.programId }).instruction()
+    : sss.methods.removeFromAllowlistV3().accountsStrict(base).instruction();
 }
 
 /** sss-token `seize` of `owner`'s whole balance into `treasury`; `extras` are the transfer hook's accounts, if any. */

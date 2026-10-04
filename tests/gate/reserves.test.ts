@@ -10,8 +10,8 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { PublicKey } from "@solana/web3.js";
-import { keypair, key } from "./keys";
+import { Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { keypair, key, SSS_TOKEN_ID } from "./keys";
 import { chainNow, createAta, logged, payerKeypair, payerSigner, rpc, signerOf, tokenAccountState, TxFailed, waitUntilChainTimeAfter } from "./helpers";
 import {
   addToBlacklistIx,
@@ -45,6 +45,28 @@ function assertError(failure: TxFailed, code: string, logLine?: string) {
 
 const fetchReserve = (mint: PublicKey) => (sss.account as any).reserveAttestation.fetch(reservePda(mint));
 const supplyOf = async (mint: PublicKey) => BigInt((await rpc.getTokenSupply(mint.toBase58() as any, { commitment: "confirmed" }).send()).value.amount);
+const bumpOf = (seed: string, mint: PublicKey) => PublicKey.findProgramAddressSync([Buffer.from(seed), mint.toBuffer()], SSS_TOKEN_ID)[1];
+
+/**
+ * The first mint keypair `<name>-<i>` whose config and reserve PDA bumps pass `want`. Deterministic, so a run against
+ * an older build mints on the same addresses.
+ */
+function grindMint(name: string, want: (configBump: number, reserveBump: number) => boolean) {
+  for (let i = 0; ; i++) {
+    const kp = keypair(`${name}-${i}`);
+    const configBump = bumpOf("stablecoin_config", kp.publicKey);
+    const reserveBump = bumpOf("reserve_attestation", kp.publicKey);
+    if (want(configBump, reserveBump)) return { kp, configBump, reserveBump };
+  }
+}
+
+/** `ix` with its reserve_attestation account replaced by `account`. */
+function withReserveAccount(ix: TransactionInstruction, mint: PublicKey, account: PublicKey) {
+  const at = ix.keys.findIndex((k) => k.pubkey.equals(reservePda(mint)));
+  assert.ok(at >= 0, "mint_tokens has no reserve_attestation account");
+  ix.keys[at] = { ...ix.keys[at], pubkey: account };
+  return ix;
+}
 
 describe("sss-token reserve-backed mint (S9)", function () {
   this.timeout(300_000);
@@ -214,5 +236,46 @@ describe("sss-token reserve-backed mint (S9)", function () {
       fs.rmSync(file, { force: true });
     }
     assert.equal(await tokenAccountState(ataOf(acl, payer)), "initialized");
+  });
+
+  // S15: mint_tokens checks the reserve PDA with the bump stored in the attestation and signs with config.bump. Before,
+  // it searched for both bumps on every mint, about 1,500 CU per step below 255 (LOG.md S9: +12,979 CU at bump 248).
+  let lowBumps: PublicKey;
+  let highBumps: PublicKey;
+
+  it("9. mint_tokens CU doesn't depend on the config and reserve PDA bumps", async () => {
+    const high = grindMint("rsv-bump-high", (c, r) => c === 255 && r === 255);
+    const low = grindMint("rsv-bump-low", (c, r) => c <= 253 && r <= 248);
+    const minted: Record<string, number> = {};
+    for (const [label, m] of [["high", high], ["low", low]] as const) {
+      const mint = await createSssMint(`rsv-bump-${label}`, Mode.Acl, {}, m.kp);
+      await createAta(mint, payer);
+      await sendWeb3([await issuerFreezeIx("thaw", mint, ataOf(mint, payer))]);
+      await sendWeb3([await setReserveAttestorIx(mint, attestor.publicKey, 3600)]);
+      await sendWeb3([await attestReservesIx(mint, attestor.publicKey, TOKENS(1_000), await chainNow())], [attestor]);
+      const sent = await sendWeb3([await mintToIx(mint, payer, TOKENS(1))]);
+      minted[label] = sent.cu;
+      cu.push(`mint_tokens, Acl, config bump ${m.configBump}, reserve bump ${m.reserveBump}: ${sent.cu}`);
+      if (label === "high") highBumps = mint;
+      else lowBumps = mint;
+    }
+    const gap = minted.low - minted.high;
+    cu.push(`  gap (low bumps − bump 255): ${gap}`);
+    assert.ok(Math.abs(gap) < 1_500, `mint_tokens costs ${gap} CU more at config bump ${low.configBump} / reserve bump ${low.reserveBump}`);
+  });
+
+  it("10. the reserve account must still be the mint's own PDA: anything else is refused (ConstraintSeeds)", async () => {
+    const stranger = Keypair.generate().publicKey; // no account at all
+    const cases: [string, PublicKey, PublicKey][] = [
+      ["another mint's attestation", lowBumps, reservePda(highBumps)],
+      ["an sss-token account of another type (the mint's config)", lowBumps, configPda(lowBumps)],
+      ["a funded system account (the payer)", lowBumps, payer],
+      ["on a Hook mint that has an attestation, an empty address", hookMint, stranger],
+    ];
+    for (const [label, mint, account] of cases) {
+      const failure = await sendWeb3Fails([withReserveAccount(await mintToIx(mint, payer, 1), mint, account)]);
+      assert.ok(logged(failure.logs, "Error Code: ConstraintSeeds"), `${label}: not ConstraintSeeds:\n${failure.logs.join("\n")}`);
+      assert.ok(logged(failure.logs, "caused by account: reserve_attestation"), `${label}:\n${failure.logs.join("\n")}`);
+    }
   });
 });

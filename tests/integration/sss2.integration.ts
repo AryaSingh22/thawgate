@@ -46,17 +46,21 @@ const ROLE_SEIZER = 5;
 // Transfer hook program ID (from CRIT-003)
 const HOOK_PROGRAM_ID = new PublicKey("2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv");
 
-// Send options for the S6b seize steps: the blockhash, the preflight and the confirmation all at "confirmed", so a
-// later "confirmed" read sees the write. With only `commitment` set, Anchor fetches the blockhash at the
-// connection's level and the preflight can reject it ("Blockhash not found").
+// Every send at "confirmed": the blockhash (the connection's commitment), the preflight and the confirmation, so the
+// next step's "confirmed" read sees the write (S15). `AnchorProvider.env()` confirms at "processed", and its reads
+// right after a write raced (S1: TokenAccountNotFoundError, stale isFrozen). With only `commitment` set, Anchor
+// fetches the blockhash at the connection's level and the preflight can reject it ("Blockhash not found").
 const CONFIRMED = { commitment: "confirmed", preflightCommitment: "confirmed" } as const;
 
 describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
-    const provider = anchor.AnchorProvider.env();
+    const env = anchor.AnchorProvider.env();
+    const provider = new anchor.AnchorProvider(new anchor.web3.Connection(env.connection.rpcEndpoint, "confirmed"), env.wallet, CONFIRMED);
     anchor.setProvider(provider);
 
-    const program = anchor.workspace.SssToken as Program;
-    const hookProgram = anchor.workspace.TransferHook as Program;
+    // Not anchor.workspace.X itself: the workspace caches each Program with the provider of the first file that
+    // touched it (tests/unit, at "processed").
+    const program = new Program(anchor.workspace.SssToken.idl, provider);
+    const hookProgram = new Program(anchor.workspace.TransferHook.idl, provider);
     const authority = provider.wallet;
     const mint = Keypair.generate();
     const minter = Keypair.generate();
@@ -123,7 +127,7 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
         await hookProgram.methods
             .initializeExtraAccountMetaList()
             .accounts({ payer: authority.publicKey, extraAccountMetaList: findHookMetasPda(), mint: mint.publicKey })
-            .rpc(CONFIRMED);
+            .rpc();
         console.log(`✅ Step 01: SSS-2 initialized — Mint: ${mint.publicKey.toBase58()}`);
     });
 
@@ -150,7 +154,7 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
         await program.methods.updateMinter(minter.publicKey, new BN(100_000_000_000), { lifetime: {} }).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, minterRole: minterRolePda, minterQuota: quotaPda, systemProgram: SystemProgram.programId }).rpc();
         await program.methods.updateRoles(blacklister.publicKey, { blacklister: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: blacklisterRolePda, systemProgram: SystemProgram.programId }).rpc();
         await program.methods.updateRoles(pauser.publicKey, { pauser: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: pauserRolePda, systemProgram: SystemProgram.programId }).rpc();
-        await program.methods.updateRoles(seizer.publicKey, { seizer: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: seizerRolePda, systemProgram: SystemProgram.programId }).rpc(CONFIRMED);
+        await program.methods.updateRoles(seizer.publicKey, { seizer: {} }, true).accounts({ authority: authority.publicKey, config: configPda, authorityRole: masterRolePda, targetRole: seizerRolePda, systemProgram: SystemProgram.programId }).rpc();
 
         console.log("✅ Step 03: All roles granted");
     });
@@ -221,8 +225,6 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
             new anchor.web3.Transaction().add(
                 createAssociatedTokenAccountIdempotentInstruction(authority.publicKey, treasuryAta, treasury.publicKey, mint.publicKey, TOKEN_2022_PROGRAM_ID),
             ),
-            [],
-            CONFIRMED,
         );
 
         // Token-2022 calls the hook on the seize transfer, so its extra accounts go in as remaining accounts. The
@@ -237,7 +239,7 @@ describe("SSS-2 Integration Test — Full Compliance Lifecycle", () => {
             .accounts({ seizer: seizer.publicKey, config: configPda, seizerRole: seizerRolePda, blacklistEntry: blacklistPda, mint: mint.publicKey, sourceTokenAccount: badActorAta, sourceAuthority: badActor.publicKey, treasuryTokenAccount: treasuryAta, tokenProgram: TOKEN_2022_PROGRAM_ID })
             .remainingAccounts(hookAccounts)
             .signers([seizer])
-            .rpc(CONFIRMED);
+            .rpc();
 
         const badActorAccount = await getAccount(provider.connection, badActorAta, "confirmed", TOKEN_2022_PROGRAM_ID);
         expect(Number(badActorAccount.amount)).to.equal(0);

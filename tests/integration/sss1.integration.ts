@@ -38,11 +38,19 @@ const ROLE_MINTER = 1;
 const ROLE_BURNER = 2;
 const ROLE_PAUSER = 3;
 
+// Every send at "confirmed": the blockhash (the connection's commitment), the preflight and the confirmation, so the
+// next step's "confirmed" read sees the write (S15). `AnchorProvider.env()` confirms at "processed", and its reads
+// right after a write raced (S1: TokenAccountNotFoundError, stale isFrozen).
+const CONFIRMED = { commitment: "confirmed", preflightCommitment: "confirmed" } as const;
+
 describe("SSS-1 Integration Test — Full Lifecycle", () => {
-    const provider = anchor.AnchorProvider.env();
+    const env = anchor.AnchorProvider.env();
+    const provider = new anchor.AnchorProvider(new anchor.web3.Connection(env.connection.rpcEndpoint, "confirmed"), env.wallet, CONFIRMED);
     anchor.setProvider(provider);
 
-    const program = anchor.workspace.SssToken as Program;
+    // Not anchor.workspace.SssToken itself: the workspace caches the Program with the provider of the first file that
+    // touched it (tests/unit, at "processed").
+    const program = new Program(anchor.workspace.SssToken.idl, provider);
     const authority = provider.wallet;
     const mint = Keypair.generate();
     const minter = Keypair.generate();
