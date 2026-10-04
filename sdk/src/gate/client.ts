@@ -460,9 +460,28 @@ export class GateClient {
         return { err, logs: value.logs ?? [], errorCode, payerMissing: err === "AccountNotFound", unitsConsumed: value.unitsConsumed };
     }
 
-    /** Sign with the client's wallet (plus `signers`), send, and confirm. Returns the signature. */
+    /**
+     * Sign with the client's wallet, then with `signers`, send, and confirm. Returns the signature.
+     *
+     * The wallet signs first: Phantom asks for that order on multi-signer transactions (a wallet may change the
+     * transaction while signing, which would void signatures made before it). Anchor's `sendAndConfirm` signs the
+     * other way round, so it gets no signers here and a wallet that adds them after the real wallet has signed.
+     */
     async send(ixs: TransactionInstruction[], signers: Signer[] = []): Promise<string> {
         this.me("send");
-        return (this.program.provider as AnchorProvider).sendAndConfirm(new Transaction().add(...ixs), signers, { commitment: this.commitment });
+        const wallet = this.wallet!;
+        const provider = this.program.provider as AnchorProvider;
+        if (signers.length === 0) return provider.sendAndConfirm(new Transaction().add(...ixs), [], { commitment: this.commitment });
+        const walletFirst: GateWallet = {
+            publicKey: wallet.publicKey,
+            signTransaction: async (tx) => {
+                const signed = await wallet.signTransaction(tx);
+                if (signed instanceof VersionedTransaction) signed.sign(signers);
+                else (signed as Transaction).partialSign(...signers);
+                return signed;
+            },
+            signAllTransactions: (txs) => Promise.all(txs.map((tx) => walletFirst.signTransaction(tx))),
+        };
+        return new AnchorProvider(this.connection, walletFirst, provider.opts).sendAndConfirm(new Transaction().add(...ixs), [], { commitment: this.commitment });
     }
 }
