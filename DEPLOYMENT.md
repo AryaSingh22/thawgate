@@ -1,5 +1,26 @@
 # Deployment Record
 
+## Devnet, 2026-10-04 10:30 UTC: demo-pool (S12-venue, the demo venue)
+
+> **Demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2).** See [programs/demo-pool/README.md](programs/demo-pool/README.md).
+
+**Anchor:** 0.32.2 · **Solana CLI:** 3.0.14 · **Cluster:** devnet, Agave 4.3.0 · **Script:** `scripts/deploy-devnet-acl.sh` with the new step [4] (dry run first)
+
+The gate, sss-token and the transfer hook already matched the build (their `.so` sha256s are unchanged from the records below), so they were skipped.
+
+| Program | Address | Upgrade authority | Program bytes (sha256 of the `.so`) | Slot |
+|---------|---------|-------------------|-------------------------------------|------|
+| `demo-pool` | `9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS` | `5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e` | 288,808 (`5968d341940ce925…`) | 507334176 |
+
+| Step | Signature |
+|------|-----------|
+| `demo-pool` deploy | [`2ufPiNjBGTJ5kvV129v2uJwtJUk5tUyMsMgQNF8TdVF1WDcwBYn24avLHQG3fNXLCLimMFqiYB11xaBeP2DudAEy`](https://explorer.solana.com/tx/2ufPiNjBGTJ5kvV129v2uJwtJUk5tUyMsMgQNF8TdVF1WDcwBYn24avLHQG3fNXLCLimMFqiYB11xaBeP2DudAEy?cluster=devnet) |
+
+**Cost:**
+- `5BXg…` paid every transaction (the dry run predicted ~303). The send took about 35 s.
+- `5BXg…` went from 30.369526493 to 28.899104269 SOL (−1.470422224; the dry run's bound was 1.473401600).
+- ProgramData holds 1.46802348 SOL for 288,853 bytes.
+
 ## Devnet, 2026-10-01 15:35 UTC: sss-token upgrade (S9, reserve-backed mint)
 
 **Anchor:** 0.32.2 · **Solana CLI:** 3.0.14 · **Cluster:** devnet, Agave 4.3.0 · **Script:** `scripts/deploy-devnet-acl.sh` at `1ef417f` (dry run first)

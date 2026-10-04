@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Devnet deploy of the Token ACL release (S7): a fresh deploy of the ThawGate gate, then upgrades of sss-token and
 # the transfer hook to the S6 builds, each extended first when the new .so is longer than its on-chain program data
-# (by at least MIN_EXTEND bytes, Agave 4.x's minimum).
+# (by at least MIN_EXTEND bytes, Agave 4.x's minimum). S12-venue adds a fresh deploy of demo_pool, the demo venue
+# (programs/demo-pool: any protocol that separates pool init from deposit works the same way).
 #
 #   DRY_RUN=1 scripts/deploy-devnet-acl.sh   every step, its signers and its SOL cost; reads the chain, sends nothing
 #   scripts/deploy-devnet-acl.sh             sends, after typing "deploy" (YES=1 skips the prompt)
@@ -13,11 +14,12 @@
 #
 # Signers (the CLI gets keypair paths; this script never reads or prints a keypair's contents):
 #   5BXg… ~/.config/solana/sss-authority.json   fee payer for every buffer, deploy and upgrade (upgrade spills come back
-#                                               to it); sss-token upgrade authority; gate upgrade authority
-#                                               (GATE_AUTHORITY=<keypair path> overrides)
+#                                               to it); sss-token upgrade authority; gate and demo_pool upgrade
+#                                               authority (GATE_AUTHORITY=<keypair path> overrides both)
 #   3YnV… ~/.config/solana/id.json              transfer hook upgrade authority: signs the hook's buffer writes and upgrade,
 #                                               and pays the hook's `extend` (a tx fee: its ProgramData already holds the rent)
 #   THAW… ~/.keys/thawgate/thawgate_gate-keypair.json   the gate's program keypair (first deploy only)
+#   9oYx… ~/.keys/thawgate/demo_pool-keypair.json       demo_pool's program keypair (first deploy only)
 #
 # Other settings: CU_PRICE (priority fee in micro-lamports per CU for buffer writes and deploys, default 50000;
 # `extend` has no priority fee option in CLI 3.0.14) · USE_RPC=1 (send buffer writes through the RPC instead of leader
@@ -35,6 +37,7 @@ CU_PRICE="${CU_PRICE:-50000}"
 SSS_AUTH="$HOME/.config/solana/sss-authority.json"
 HOOK_AUTH="$HOME/.config/solana/id.json"
 GATE_KP="$HOME/.keys/thawgate/thawgate_gate-keypair.json"
+POOL_KP="$HOME/.keys/thawgate/demo_pool-keypair.json"
 GATE_AUTHORITY="${GATE_AUTHORITY:-$SSS_AUTH}"
 BUFFER_DIR="${BUFFER_DIR:-$HOME/.keys/thawgate/buffers}" # a rehearsal uses its own
 EXPECT_SSS_AUTH=5BXgjuDBcMr4r4xtKMTctZebgTbZYgzzmsdqtpLayE1e # CLAUDE.md
@@ -130,9 +133,11 @@ trap on_error ERR INT TERM
 GATE_ID=$(program_id thawgate-gate)
 SSS_ID=$(program_id sss-token)
 HOOK_ID=$(program_id transfer-hook)
+POOL_ID=$(program_id demo-pool)
 GATE_SO=target/deploy/thawgate_gate.so
 SSS_SO=target/deploy/sss_token.so
 HOOK_SO=target/deploy/transfer_hook.so
+POOL_SO=target/deploy/demo_pool.so
 
 echo "== ThawGate devnet deploy (Token ACL release)$([ "$DRY_RUN" = 1 ] && echo ", DRY RUN: nothing is sent")"
 echo "RPC: $RPC_SOURCE (host $RPC_HOST)"
@@ -141,12 +146,13 @@ echo
 echo "== Local checks"
 if [ -n "${SKIP_BUILD:-}" ]; then echo "anchor build: skipped (SKIP_BUILD)"; else echo "anchor build"; anchor build 2>&1 | tail -n 3; fi
 scripts/verify-ids.sh
-for f in "$SSS_AUTH" "$HOOK_AUTH" "$GATE_KP" "$GATE_AUTHORITY" "$GATE_SO" "$SSS_SO" "$HOOK_SO"; do [ -f "$f" ] || die "missing ${f/#$HOME/\~}"; done
+for f in "$SSS_AUTH" "$HOOK_AUTH" "$GATE_KP" "$POOL_KP" "$GATE_AUTHORITY" "$GATE_SO" "$SSS_SO" "$HOOK_SO" "$POOL_SO"; do [ -f "$f" ] || die "missing ${f/#$HOME/\~}"; done
 [ "$(solana-keygen pubkey "$SSS_AUTH")" = "$EXPECT_SSS_AUTH" ] || die "~/.config/solana/sss-authority.json is not $EXPECT_SSS_AUTH"
 [ "$(solana-keygen pubkey "$HOOK_AUTH")" = "$EXPECT_HOOK_AUTH" ] || die "~/.config/solana/id.json is not $EXPECT_HOOK_AUTH"
 [ "$(solana-keygen pubkey "$GATE_KP")" = "$GATE_ID" ] || die "${GATE_KP/#$HOME/\~} is not the gate's declare_id! ($GATE_ID)"
+[ "$(solana-keygen pubkey "$POOL_KP")" = "$POOL_ID" ] || die "${POOL_KP/#$HOME/\~} is not demo_pool's declare_id! ($POOL_ID)"
 GATE_AUTH_KEY=$(solana-keygen pubkey "$GATE_AUTHORITY")
-echo "signers: 5BXg = $EXPECT_SSS_AUTH, 3YnV = $EXPECT_HOOK_AUTH; gate program keypair = $GATE_ID; gate upgrade authority = $GATE_AUTH_KEY"
+echo "signers: 5BXg = $EXPECT_SSS_AUTH, 3YnV = $EXPECT_HOOK_AUTH; program keypairs: gate = $GATE_ID, demo_pool = $POOL_ID; their upgrade authority = $GATE_AUTH_KEY"
 
 echo
 echo "== Cluster (read-only)"
@@ -219,36 +225,44 @@ fees() { echo $(($1 * $2 * LAMPORTS_PER_SIGNATURE + $1 * CU_PRICE * CU_LIMIT_BOU
 echo
 echo "== Plan (costs from this cluster's rent; write-tx counts and priority fees are estimates, see the header)"
 
-# Step 1: the gate, fresh deploy.
-GATE_LEN=$(stat -c%s "$GATE_SO")
-GATE_STATE=$(program_state "$GATE_ID" "$GATE_SO")
-echo
-echo "[1] thawgate_gate $GATE_ID: fresh deploy of $GATE_LEN bytes (on chain: $GATE_STATE)"
-case "$GATE_STATE" in
-  same) echo "    already deployed with these bytes: skip" ;;
-  different) die "$GATE_ID already exists with other bytes; this script only does the gate's first deploy" ;;
-  absent)
-    buf=$(rent $((GATE_LEN + 37)))
-    pd=$(rent $((GATE_LEN + 45)))
-    writes=$(((GATE_LEN + CHUNK_1_SIGNER - 1) / CHUNK_1_SIGNER))
-    txs=$((writes + 2))
-    fee=$(fees "$txs" 1)
-    echo "    signers: fee payer + buffer authority + upgrade authority $GATE_AUTH_KEY; program keypair $GATE_ID"
-    echo "    buffer: $(buffer_label thawgate_gate)"
-    echo "    txs: ~$txs (create buffer, ~$writes writes, deploy), fees ≤ $(sol "$fee")"
-    echo "    rent: buffer $(sol "$buf") while writing (returned to the payer by the deploy); ProgramData $(sol "$pd") + program account $(sol "$RENT_PROGRAM")"
-    peak=$((buf + RENT_PROGRAM + fee))
-    net=$((pd + RENT_PROGRAM + fee))
-    echo "    5BXg: peak $(sol "$peak"), net $(sol "$net")"
-    PAYER_NEED=$(max "$PAYER_NEED" $((PAYER_NET + peak)))
-    PAYER_NET=$((PAYER_NET + net))
-    TX_TOTAL=$((TX_TOTAL + txs))
-    ;;
-esac
+declare -A STATE EXTEND
+
+# Steps 1 and 4: first deploys. plan_fresh <label> <id> <so> records the on-chain state it read, for do_fresh. Such a
+# program is only ever deployed fresh here: a program that already exists with other bytes stops the script.
+plan_fresh() {
+  local label=$1 id=$2 so=$3
+  local len state buf pd writes txs fee peak net
+  len=$(stat -c%s "$so")
+  state=$(program_state "$id" "$so")
+  STATE[$id]=$state
+  echo
+  echo "$label $id: fresh deploy of $len bytes (on chain: $state)"
+  case "$state" in
+    same) echo "    already deployed with these bytes: skip" ;;
+    different) die "$id already exists with other bytes; this script only does its first deploy" ;;
+    absent)
+      buf=$(rent $((len + 37)))
+      pd=$(rent $((len + 45)))
+      writes=$(((len + CHUNK_1_SIGNER - 1) / CHUNK_1_SIGNER))
+      txs=$((writes + 2))
+      fee=$(fees "$txs" 1)
+      echo "    signers: fee payer + buffer authority + upgrade authority $GATE_AUTH_KEY; program keypair $id"
+      echo "    buffer: $(buffer_label "$(basename "$so" .so)")"
+      echo "    txs: ~$txs (create buffer, ~$writes writes, deploy), fees ≤ $(sol "$fee")"
+      echo "    rent: buffer $(sol "$buf") while writing (returned to the payer by the deploy); ProgramData $(sol "$pd") + program account $(sol "$RENT_PROGRAM")"
+      peak=$((buf + RENT_PROGRAM + fee))
+      net=$((pd + RENT_PROGRAM + fee))
+      echo "    5BXg: peak $(sol "$peak"), net $(sol "$net")"
+      PAYER_NEED=$(max "$PAYER_NEED" $((PAYER_NET + peak)))
+      PAYER_NET=$((PAYER_NET + net))
+      TX_TOTAL=$((TX_TOTAL + txs))
+      ;;
+  esac
+}
+plan_fresh "[1] thawgate_gate" "$GATE_ID" "$GATE_SO"
 
 # Steps 2 and 3: upgrades. plan_upgrade <label> <id> <so> <authority keypair> <expected authority> <signers per write tx>
 # records the on-chain state it read and the extend size, for do_upgrade.
-declare -A STATE EXTEND
 plan_upgrade() {
   local label=$1 id=$2 so=$3 auth_kp=$4 auth=$5 sigs=$6
   local len on_len on_bal on_auth state need extend rent_new extend_rent buf writes txs fee refund peak net chunk
@@ -301,6 +315,7 @@ plan_upgrade() {
 }
 plan_upgrade "[2] sss_token" "$SSS_ID" "$SSS_SO" "$SSS_AUTH" "$EXPECT_SSS_AUTH" 1
 plan_upgrade "[3] transfer_hook" "$HOOK_ID" "$HOOK_SO" "$HOOK_AUTH" "$EXPECT_HOOK_AUTH" 2
+plan_fresh "[4] demo_pool" "$POOL_ID" "$POOL_SO"
 
 echo
 echo "== Totals"
@@ -333,14 +348,18 @@ buffer_for_step() { # program name: the keypair path; created only when sending
   if [ "$DRY_RUN" = 1 ]; then buffer_keypair "$1"; else ensure_buffer_keypair "$1"; fi
 }
 
-if [ "$GATE_STATE" = absent ]; then
-  CURRENT_STEP="[1] thawgate_gate deploy"
-  CURRENT_BUFFER=$(buffer_for_step thawgate_gate)
+# do_fresh <label> <id> <so> <program keypair>
+do_fresh() {
+  local label=$1 id=$2 so=$3 program_kp=$4
+  if [ "${STATE[$id]}" != absent ]; then echo "$label: already deployed, skip"; return; fi
+  CURRENT_STEP="$label deploy"
+  CURRENT_BUFFER=$(buffer_for_step "$(basename "$so" .so)")
   CURRENT_BUFFER_AUTH="$GATE_AUTHORITY"
   echo "$CURRENT_STEP"
-  step solana program deploy "$GATE_SO" --program-id "$GATE_KP" --upgrade-authority "$GATE_AUTHORITY" \
+  step solana program deploy "$so" --program-id "$program_kp" --upgrade-authority "$GATE_AUTHORITY" \
     --buffer "$CURRENT_BUFFER" --fee-payer "$SSS_AUTH" --keypair "$SSS_AUTH" --url "$RPC" "${send_flags[@]}"
-fi
+}
+do_fresh "[1] thawgate_gate" "$GATE_ID" "$GATE_SO" "$GATE_KP"
 
 # do_upgrade <label> <id> <so> <authority keypair>
 do_upgrade() {
@@ -361,6 +380,7 @@ do_upgrade() {
 }
 do_upgrade "[2] sss_token" "$SSS_ID" "$SSS_SO" "$SSS_AUTH"
 do_upgrade "[3] transfer_hook" "$HOOK_ID" "$HOOK_SO" "$HOOK_AUTH"
+do_fresh "[4] demo_pool" "$POOL_ID" "$POOL_SO" "$POOL_KP"
 CURRENT_BUFFER=""
 
 echo
@@ -370,9 +390,9 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 CURRENT_STEP="final check"
 echo "== Result"
-for id in "$GATE_ID" "$SSS_ID" "$HOOK_ID"; do run solana program show "$id" --url "$RPC"; echo; done
-for pair in "$GATE_ID:$GATE_SO" "$SSS_ID:$SSS_SO" "$HOOK_ID:$HOOK_SO"; do
+for id in "$GATE_ID" "$SSS_ID" "$HOOK_ID" "$POOL_ID"; do run solana program show "$id" --url "$RPC"; echo; done
+for pair in "$GATE_ID:$GATE_SO" "$SSS_ID:$SSS_SO" "$HOOK_ID:$HOOK_SO" "$POOL_ID:$POOL_SO"; do
   [ "$(program_state "${pair%%:*}" "${pair#*:}")" = same ] || die "${pair%%:*} does not hold ${pair#*:} after the deploy"
 done
 echo "balances after: 5BXg $(sol "$(balance "$EXPECT_SSS_AUTH")"), 3YnV $(sol "$(balance "$EXPECT_HOOK_AUTH")")"
-echo "All three programs match target/deploy. Record the signatures above (and in the log) in docs/gatekit/LOG.md."
+echo "All four programs match target/deploy. Record the signatures above (and in the log) in docs/gatekit/LOG.md."
