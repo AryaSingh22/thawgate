@@ -46,13 +46,14 @@ pub struct AddToBlacklist<'info> {
     )]
     pub operator_role: Account<'info, RoleRecord>,
 
-    /// The blacklist entry PDA to be created.
+    /// The blacklist entry PDA: created on the wallet's first blacklisting, reactivated after a removal (S15).
     #[account(
-        init,
+        init_if_needed,
         payer = operator,
         space = BLACKLIST_ENTRY_SIZE,
         seeds = [SEED_BLACKLIST, config.mint.as_ref(), target.key().as_ref()],
         bump,
+        constraint = !blacklist_entry.active @ SssError::AccountAlreadyBlacklisted,
     )]
     pub blacklist_entry: Account<'info, BlacklistEntry>,
 
@@ -111,8 +112,9 @@ pub struct AddedToBlacklist {
 /// Handler for the add_to_blacklist instruction.
 ///
 /// Feature-gated: requires `config.compliance_enabled()` (the hook or Token ACL).
-/// Creates a BlacklistEntry PDA and freezes the target's token account (through Token ACL once it holds the
-/// mint's freeze authority).
+/// Creates the BlacklistEntry PDA, or reactivates the inactive entry `remove_from_blacklist` left (with the new
+/// reason, time and operator; no new rent), and freezes the target's token account (through Token ACL once it holds
+/// the mint's freeze authority). An active entry is refused with `AccountAlreadyBlacklisted`.
 pub fn handler_add_to_blacklist(ctx: Context<AddToBlacklist>, reason: String) -> Result<()> {
     // Compliance feature gate — FIRST LINE of handler body
     require!(
@@ -241,7 +243,7 @@ pub fn handler_remove_from_blacklist(ctx: Context<RemoveFromBlacklist>) -> Resul
 
     let clock = Clock::get()?;
 
-    // Deactivate blacklist entry (never delete — audit trail)
+    // Deactivate blacklist entry (never delete — audit trail; add_to_blacklist can reactivate it)
     let entry = &mut ctx.accounts.blacklist_entry;
     entry.active = false;
 

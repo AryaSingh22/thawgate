@@ -82,9 +82,9 @@ pub struct MintTokens<'info> {
     pub system_program: Program<'info, System>,
 
     /// The mint's reserve attestation (S9). Always passed, so a caller can't skip the check by leaving it out;
-    /// it may not exist (Hook mode mints that never opted in).
+    /// it may not exist (Hook mode mints that never opted in). The address is checked with the stored bump (S15).
     /// CHECK: PDA constraint; read in the handler.
-    #[account(seeds = [SEED_RESERVE, mint.key().as_ref()], bump)]
+    #[account(seeds = [SEED_RESERVE, mint.key().as_ref()], bump = reserve_bump(&reserve_attestation, &mint.key()))]
     pub reserve_attestation: UncheckedAccount<'info>,
 }
 
@@ -162,8 +162,8 @@ pub fn mint_handler(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
     check_reserve_attestation(ctx.accounts, amount, clock.unix_timestamp)?;
 
     let mint_key = ctx.accounts.config.mint;
-    let config_seeds = &[SEED_CONFIG, mint_key.as_ref()];
-    let (_, config_bump) = Pubkey::find_program_address(config_seeds, ctx.program_id);
+    // The `config` constraint checked this bump; searching for it again cost ~1,500 CU per step below 255 (S15).
+    let config_bump = ctx.accounts.config.bump;
     let signer_seeds: &[&[&[u8]]] = &[&[SEED_CONFIG, mint_key.as_ref(), &[config_bump]]];
 
     // Create ATA if it doesn't exist

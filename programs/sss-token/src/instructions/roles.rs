@@ -222,9 +222,10 @@ pub struct TransferAuthority<'info> {
     )]
     pub old_master_role: Account<'info, RoleRecord>,
 
-    /// The new authority's MasterAuthority role record — will be created.
+    /// The new authority's MasterAuthority role record: created, or reactivated when the key held MasterAuthority
+    /// before (S15). An active record means the new authority is the signer itself.
     #[account(
-        init,
+        init_if_needed,
         payer = authority,
         space = ROLE_RECORD_SIZE,
         seeds = [
@@ -234,6 +235,7 @@ pub struct TransferAuthority<'info> {
             &[RoleType::MasterAuthority as u8],
         ],
         bump,
+        constraint = !new_master_role.active @ SssError::RoleAlreadyActive,
     )]
     pub new_master_role: Account<'info, RoleRecord>,
 
@@ -257,8 +259,9 @@ pub struct AuthorityTransferred {
 /// Handler for the transfer_authority instruction.
 ///
 /// Transfers MasterAuthority to a new key. The old authority's role record
-/// is deactivated (not deleted) and a new role record is created for the
-/// new authority. Does NOT transfer the on-chain mint authority (that PDA
+/// is deactivated (not deleted) and the new authority's record is created, or
+/// reactivated if that key held MasterAuthority before, so authority can return
+/// to a previous holder. Does NOT transfer the on-chain mint authority (that PDA
 /// remains program-controlled).
 pub fn handler_transfer_authority(
     ctx: Context<TransferAuthority>,

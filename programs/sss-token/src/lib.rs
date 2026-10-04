@@ -115,7 +115,8 @@ pub mod sss_token {
 
     /// Transfers MasterAuthority to a new key.
     ///
-    /// Only the current MasterAuthority can call. Old authority is deactivated.
+    /// Only the current MasterAuthority can call. Old authority is deactivated. A key that held MasterAuthority
+    /// before gets its record back (reactivated).
     pub fn transfer_authority(
         ctx: Context<TransferAuthority>,
         new_authority: Pubkey,
@@ -126,7 +127,7 @@ pub mod sss_token {
     /// Adds an address to the blacklist (SSS-2 and Token ACL modes).
     ///
     /// Feature-gated: requires compliance (enable_transfer_hook, or compliance_mode Acl/Both).
-    /// Creates a BlacklistEntry and freezes the target's token account.
+    /// Creates the BlacklistEntry (or reactivates an inactive one) and freezes the target's token account.
     pub fn add_to_blacklist(ctx: Context<AddToBlacklist>, reason: String) -> Result<()> {
         instructions::compliance::handler_add_to_blacklist(ctx, reason)
     }
@@ -181,7 +182,7 @@ pub mod sss_token {
     // SSS-3 Instructions — Private Stablecoin
     // ====================================================================
 
-    /// Adds a wallet to the allowlist (SSS-3 only).
+    /// Adds a wallet to the allowlist (SSS-3 only), or reactivates its inactive entry.
     ///
     /// Feature-gated: requires enable_allowlist.
     /// Only MasterAuthority can manage the allowlist.

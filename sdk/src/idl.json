@@ -13,7 +13,7 @@
     {
       "name": "add_to_allowlist_v3",
       "docs": [
-        "Adds a wallet to the allowlist (SSS-3 only).",
+        "Adds a wallet to the allowlist (SSS-3 only), or reactivates its inactive entry.",
         "",
         "Feature-gated: requires enable_allowlist.",
         "Only MasterAuthority can manage the allowlist."
@@ -79,6 +79,9 @@
         },
         {
           "name": "allowlist_entry",
+          "docs": [
+            "Created on the wallet's first add, reactivated after a removal (S15)."
+          ],
           "writable": true,
           "pda": {
             "seeds": [
@@ -121,7 +124,7 @@
         "Adds an address to the blacklist (SSS-2 and Token ACL modes).",
         "",
         "Feature-gated: requires compliance (enable_transfer_hook, or compliance_mode Acl/Both).",
-        "Creates a BlacklistEntry and freezes the target's token account."
+        "Creates the BlacklistEntry (or reactivates an inactive one) and freezes the target's token account."
       ],
       "discriminator": [
         90,
@@ -188,7 +191,7 @@
         {
           "name": "blacklist_entry",
           "docs": [
-            "The blacklist entry PDA to be created."
+            "The blacklist entry PDA: created on the wallet's first blacklisting, reactivated after a removal (S15)."
           ],
           "writable": true,
           "pda": {
@@ -1441,7 +1444,7 @@
           "name": "reserve_attestation",
           "docs": [
             "The mint's reserve attestation (S9). Always passed, so a caller can't skip the check by leaving it out;",
-            "it may not exist (Hook mode mints that never opted in)."
+            "it may not exist (Hook mode mints that never opted in). The address is checked with the stored bump (S15)."
           ],
           "pda": {
             "seeds": [
@@ -2272,7 +2275,8 @@
       "docs": [
         "Transfers MasterAuthority to a new key.",
         "",
-        "Only the current MasterAuthority can call. Old authority is deactivated."
+        "Only the current MasterAuthority can call. Old authority is deactivated. A key that held MasterAuthority",
+        "before gets its record back (reactivated)."
       ],
       "discriminator": [
         48,
@@ -2341,7 +2345,8 @@
         {
           "name": "new_master_role",
           "docs": [
-            "The new authority's MasterAuthority role record — will be created."
+            "The new authority's MasterAuthority role record: created, or reactivated when the key held MasterAuthority",
+            "before (S15). An active record means the new authority is the signer itself."
           ],
           "writable": true
         },
@@ -3261,6 +3266,11 @@
       "code": 6040,
       "name": "TargetAccountOwnerMismatch",
       "msg": "Target account owner mismatch: target_token_account must be owned by the blacklisted wallet"
+    },
+    {
+      "code": 6041,
+      "name": "AllowlistEntryAlreadyActive",
+      "msg": "Allowlist entry already active: this wallet is already on the allowlist"
     }
   ],
   "types": [
@@ -3528,7 +3538,8 @@
         "",
         "Derived as a PDA from `[SEED_BLACKLIST, mint.key(), target.key()]`.",
         "When an address is blacklisted, their token account is also frozen.",
-        "Entries are never deleted; `active` is set to `false` when removed."
+        "Entries are never deleted; `active` is set to `false` when removed, and back to `true` when the address is",
+        "blacklisted again (`reason`, `added_at` and `added_by` then describe the latest blacklisting)."
       ],
       "type": {
         "kind": "struct",

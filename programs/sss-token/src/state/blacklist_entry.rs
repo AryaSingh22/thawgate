@@ -2,7 +2,7 @@
 //!
 //! Tracks addresses that are blocked from sending or receiving tokens.
 //! Blacklist entries are never deleted — when removed, `active` is set to `false`
-//! to maintain a complete audit trail.
+//! to maintain a complete audit trail. Blacklisting the address again reactivates the entry (S15).
 
 use anchor_lang::prelude::*;
 use crate::constants::MAX_REASON_LEN;
@@ -23,7 +23,8 @@ pub const BLACKLIST_ENTRY_SIZE: usize = 8 + 32 + 32 + (4 + MAX_REASON_LEN) + 8 +
 ///
 /// Derived as a PDA from `[SEED_BLACKLIST, mint.key(), target.key()]`.
 /// When an address is blacklisted, their token account is also frozen.
-/// Entries are never deleted; `active` is set to `false` when removed.
+/// Entries are never deleted; `active` is set to `false` when removed, and back to `true` when the address is
+/// blacklisted again (`reason`, `added_at` and `added_by` then describe the latest blacklisting).
 #[account]
 #[derive(Debug)]
 pub struct BlacklistEntry {

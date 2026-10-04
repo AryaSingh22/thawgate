@@ -79,4 +79,47 @@ fn new_errors_are_appended_and_old_codes_do_not_move() {
     assert_eq!(u32::from(SssError::NotReserveAttestor), 6038);
     assert_eq!(u32::from(SssError::InvalidReserveAttestation), 6039);
     assert_eq!(u32::from(SssError::TargetAccountOwnerMismatch), 6040);
+    // S15: the re-add and transfer-back refusals reuse these two; the screener matches the first by name.
+    assert_eq!(u32::from(SssError::AccountAlreadyBlacklisted), 6011);
+    assert_eq!(u32::from(SssError::RoleAlreadyActive), 6017);
+    assert_eq!(u32::from(SssError::AllowlistEntryAlreadyActive), 6041);
+}
+
+fn attestation_bytes(report_uri: &str, bump: u8) -> Vec<u8> {
+    let att = ReserveAttestation {
+        mint: Pubkey::new_unique(),
+        attestor: Pubkey::new_unique(),
+        reserves: 7,
+        as_of: NOW,
+        max_staleness: 86_400,
+        report_uri: report_uri.to_string(),
+        posted_at: NOW,
+        bump,
+        reserved: [0; 64],
+    };
+    let mut data = Vec::new();
+    att.try_serialize(&mut data).unwrap();
+    data.resize(RESERVE_ATTESTATION_SIZE, 0); // the account's unused tail
+    data
+}
+
+#[test]
+fn stored_bump_reads_the_bump_after_any_report_uri() {
+    let full = "x".repeat(MAX_URI_LEN);
+    for (uri, bump) in [("", 255u8), ("https://example.com/reserves.json", 248), (full.as_str(), 1)] {
+        assert_eq!(stored_bump(&attestation_bytes(uri, bump)), Some(bump), "uri of {} bytes", uri.len());
+    }
+}
+
+#[test]
+fn stored_bump_is_none_for_anything_else() {
+    let good = attestation_bytes("abc", 250);
+    assert_eq!(stored_bump(&[]), None, "no account");
+    assert_eq!(stored_bump(&good[..100]), None, "truncated");
+    let mut other_type = good.clone();
+    other_type[0] ^= 1;
+    assert_eq!(stored_bump(&other_type), None, "another account type");
+    let mut long_uri = good.clone();
+    long_uri[96..100].copy_from_slice(&((MAX_URI_LEN as u32) + 1).to_le_bytes());
+    assert_eq!(stored_bump(&long_uri), None, "a URI length the account can't hold");
 }

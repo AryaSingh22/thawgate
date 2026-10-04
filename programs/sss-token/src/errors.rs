@@ -177,4 +177,10 @@ pub enum SssError {
     /// `add_to_blacklist`: the token account isn't owned by the wallet being blacklisted.
     #[msg("Target account owner mismatch: target_token_account must be owned by the blacklisted wallet")]
     TargetAccountOwnerMismatch,
+
+    // S15. Appended, so the codes above keep their numbers.
+
+    /// `add_to_allowlist_v3` on a wallet whose allowlist entry is already active.
+    #[msg("Allowlist entry already active: this wallet is already on the allowlist")]
+    AllowlistEntryAlreadyActive,
 }

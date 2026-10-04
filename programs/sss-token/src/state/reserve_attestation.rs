@@ -6,7 +6,8 @@
 //! There is no close instruction, so a mint that has one stays checked.
 
 use anchor_lang::prelude::*;
-use crate::constants::MAX_URI_LEN;
+use anchor_lang::Discriminator;
+use crate::constants::{MAX_URI_LEN, SEED_RESERVE};
 
 // Space = 8 (discriminator)
 //       + 32 (mint Pubkey)
@@ -47,6 +48,36 @@ pub struct ReserveAttestation {
     pub bump: u8,
     /// Zero. Room for an oracle-fed source (Switchboard, Chainlink) without a layout change.
     pub reserved: [u8; 64],
+}
+
+/// Offset of `report_uri`'s length prefix: discriminator, mint, attestor, reserves, as_of, max_staleness.
+const URI_LEN_OFFSET: usize = 8 + 32 + 32 + 8 + 8 + 8;
+
+/// The bump stored in a serialized [`ReserveAttestation`] (it follows `report_uri` and `posted_at`), or None when
+/// `data` isn't one.
+pub fn stored_bump(data: &[u8]) -> Option<u8> {
+    if !data.starts_with(ReserveAttestation::DISCRIMINATOR) {
+        return None;
+    }
+    let len: [u8; 4] = data.get(URI_LEN_OFFSET..URI_LEN_OFFSET + 4)?.try_into().ok()?;
+    let uri_len = u32::from_le_bytes(len) as usize;
+    if uri_len > MAX_URI_LEN {
+        return None;
+    }
+    data.get(URI_LEN_OFFSET + 4 + uri_len + 8).copied()
+}
+
+/// The bump `mint_tokens` checks the reserve PDA with (S15). When sss-token owns `info`, it's the stored bump, so the
+/// check costs one `create_program_address`. Otherwise (no attestation, or a wrong account) it's the canonical bump,
+/// found by the search `mint_tokens` used to run on every mint, about 1,500 CU per step below 255 (LOG.md S9). Either
+/// way Anchor compares the derived address with `info`'s key: the bump only picks the address to compare with.
+pub fn reserve_bump(info: &AccountInfo, mint: &Pubkey) -> u8 {
+    if info.owner == &crate::ID {
+        if let Some(bump) = info.try_borrow_data().ok().and_then(|data| stored_bump(&data)) {
+            return bump;
+        }
+    }
+    Pubkey::find_program_address(&[SEED_RESERVE, mint.as_ref()], &crate::ID).1
 }
 
 /// Outcome of the reserve check in `mint_tokens`.

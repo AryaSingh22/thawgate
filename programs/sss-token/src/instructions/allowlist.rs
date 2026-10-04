@@ -37,19 +37,21 @@ pub struct AddToAllowlist<'info> {
     /// CHECK: This is the wallet address to allowlist, not an account we read.
     pub wallet: UncheckedAccount<'info>,
 
+    /// Created on the wallet's first add, reactivated after a removal (S15).
     #[account(
-        init,
+        init_if_needed,
         payer = authority,
         space = ALLOWLIST_ENTRY_SIZE,
         seeds = [SEED_ALLOWLIST, config.mint.as_ref(), wallet.key().as_ref()],
         bump,
+        constraint = !allowlist_entry.active @ SssError::AllowlistEntryAlreadyActive,
     )]
     pub allowlist_entry: Account<'info, AllowlistEntry>,
 
     pub system_program: Program<'info, System>,
 }
 
-/// Handler for `add_to_allowlist`.
+/// Handler for `add_to_allowlist`: creates the entry, or reactivates an inactive one (no new rent).
 pub fn add_to_allowlist_handler(ctx: Context<AddToAllowlist>) -> Result<()> {
     let clock = Clock::get()?;
     let entry = &mut ctx.accounts.allowlist_entry;
