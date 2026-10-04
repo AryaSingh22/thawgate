@@ -5,7 +5,14 @@ One entry per session: shipped / links / next. This is the "built during the hac
 ## ▶ S14 handoff (read first; remove when S14 ends)
 S13 is done (entry at the bottom). The console (`frontend/`) has `/issuer`, the wizard, and `/holders`, "Unlock my wallet", both through `@thawgate/sdk` and signed in the browser. `/decisions` and `/reserves` are stubs for S14. The old SSS panels are at `/ops`.
 
-**CI for the S13 push:** see the S13 entry (recorded after the push).
+**CI on `034df6b`** (the S13 push, `075e0e7..034df6b`; checked 2026-10-04):
+- **Full CI green** (37199231825). The new step **"Console build (tsc + vite build)"** passed (vite built in 5.32 s).
+- **Gate Tests green** (37199231834): gate 48, story 7, keeper 8, screener 5, **sdk 13** (new case 13 ✓), venue 3.
+- **Also green:** CI (37199231840), TypeScript Tests (37199231837).
+- **Anchor Integration** (37199231824): 69 / 6, all in the known classes:
+  - races: SSS-1 Steps 08/09, SSS-2 Step 04;
+  - "already in use": SSS-1 Step 16, SSS-2 Step 15;
+  - SSS-2 Step 16, downstream.
 
 **Running the console:**
 - `yarn workspace @thawgate/sdk build`, then `cd frontend && npm install && npm run dev` (:3000; `localhost:3000` from Windows reaches the WSL server).
@@ -1197,5 +1204,6 @@ Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" 
   - `yarn typecheck`: clean.
   - Console `npm ci && npm run build`: clean. The bundle is 1.28 MB in one chunk.
   - `anchor build`: 23 s, all four `.so` sha256 equal DEPLOYMENT.md (no program change).
-- **Links:** the devnet txs above. Commits `55a55c8` (sdk), `f9b4c03` (console), `f24b7aa` (ci), and this log.
+- **CI on `034df6b`:** Full CI (with the new console build step), Gate Tests (sdk 13 passing), CI and TypeScript Tests green. Anchor Integration 69 / 6, all in the known classes (run IDs in the S14 handoff).
+- **Links:** the devnet txs above. Commits `55a55c8` (sdk), `f9b4c03` (console), `f24b7aa` (ci), `034df6b` (this log).
 - **Next:** S14 (Console II), per the handoff at the top of this file.
