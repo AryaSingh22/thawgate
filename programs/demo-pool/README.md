@@ -3,6 +3,8 @@
 > **Demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2).**
 > Not audited. Devnet only. One liquidity provider, no LP shares, no withdraw.
 
+**no withdraw; unaudited; devnet demo only**
+
 Program ID: `9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS` (devnet; upgrade authority `5BXg…`).
 
 ## Why it exists

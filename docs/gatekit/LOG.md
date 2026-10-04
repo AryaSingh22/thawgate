@@ -5,6 +5,17 @@ One entry per session: shipped / links / next. This is the "built during the hac
 ## ▶ S13 handoff (read first; remove when S13 ends)
 S12-venue is done (entry at the bottom). The demo venue `programs/demo-pool` is on devnet, and its three cases passed there. Always show it with the label: **"demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)"**. S12 (S&A payments) is cut to "if time allows on the Wed buffer" (PLAN.md S12).
 
+**Start of S13: CI on `075e0e7`** (the S12-venue push; checked 2026-10-04):
+- **Gate Tests green** (run 37196348432), including the new step **"Localnet demo venue": 3 passing (22 s)**. In that run the keeper froze alice 508 ms after the revoke.
+  - The Rust unit-tests step ran demo-pool's tests.
+  - Also: gate 48, story 7, keeper 8, screener 5, sdk 12.
+- **Also green:** Full CI (37196348380: rust-tests, docker-health, typescript-check, sdk-tests), CI (37196348392), TypeScript Tests (37196348504).
+- **Anchor Integration** (37196348388): 67 / 8, the known classes:
+  - races: SSS-1 Steps 02/08/09, SSS-2 Steps 04/06
+  - "already in use": SSS-1 Step 16, SSS-2 Step 15
+  - SSS-2 Step 16, downstream
+  - (69/6 on `44d85a1`: which races fail varies run to run.)
+
 State on devnet (2026-10-04):
 - **Programs:**
   - The gate, sss-token and the hook are unchanged since S9.
@@ -1068,7 +1079,7 @@ Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" 
   - The vault owner must be an off-curve PDA for `BypassForPdas`, so a program has to sign the vault's transfers out.
   - The only deployed AMM that creates its vaults before `initialize`, SPL Token Swap on devnet (`SwapsVeCi…`), was last deployed in slot 139,567,548. Its dumped binary doesn't contain the Token-2022 program ID.
 - **Shipped:**
-  - **`programs/demo-pool`** (`341b2ae`), 268 lines with 4 math tests:
+  - **`programs/demo-pool`** (`341b2ae`), 268 lines with 3 swap-math tests:
     - `init_pool` creates the vaults the Whirlpool way: keypair accounts with ImmutableOwner, owner = the pool PDA. Each is sized from the mint's required account extensions; SSS-ACL mints are Pausable, so every account needs `PausableAccount`.
     - `init_pool` moves no tokens, so the gated vault stays frozen.
     - Then `deposit` (admin, single LP, no shares, no withdraw) and a constant-product `swap` (30 bps fee off the input).
@@ -1110,7 +1121,7 @@ Replaces S12 (S&A payments), which is cut to "if time allows on the Wed buffer" 
 - **Measured, localnet** (Agave 3.0.14):
   - `yarn test:venue` passes 3/3 in 20 s. The keeper saw alice frozen 511 ms after the revoke; `init_pool` 30,686 CU; vault thaw 43,748 CU; swap 21,930 CU.
   - **Regression** (test-gate.sh now loads demo_pool): `test:gate` 48, `test:keeper` 8, `test:sdk` 12.
-  - `cargo test -p demo-pool` 4; `cargo clippy --workspace --all-targets -- -D warnings` clean.
+  - `cargo test -p demo-pool`: 4 passed (3 swap-math tests + Anchor's generated `test_id`; this entry first said "4 math tests", corrected after reading the CI log); `cargo clippy --workspace --all-targets -- -D warnings` clean.
   - `yarn typecheck` and the root `tsc` are clean. `anchor build` (4 programs) 78 s; verify-ids OK.
 - **Not done:** `scripts/rehearse-deploy-devnet-acl.sh` wasn't re-run (the real deploy went through the dry run, and the script's final check confirms all four programs match).
 - **Links:** the devnet txs above. Commits: `341b2ae`, `784e276`, `59d96f2`, and this log.
