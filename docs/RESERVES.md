@@ -62,8 +62,16 @@ There is **no close instruction**. Once a mint has an attestation, it stays chec
 - **Acl and Both mode mints** must have an attestation to mint at all.
 - **Hook mode mints** (legacy SSS-1/SSS-2) mint as before until their MasterAuthority calls `set_reserve_attestor`. From then on they are checked like the others.
 
+**The address check (S15):** `mint_tokens` checks the reserve PDA with the bump stored in the attestation (one `create_program_address`), and signs with the config's stored bump. Until S15 it searched for both bumps on every mint, about 1,500 CU per step below 255, so the cost depended on the mint's address (S9 on devnet: 33,627 CU for a mint whose reserve bump is 248). A Hook mint without an attestation still searches for its canonical bump. Anchor compares the derived address with the passed account either way, so another mint's attestation, a non-PDA or a different account type is refused with `ConstraintSeeds` (case 10 in `tests/gate/reserves.test.ts`).
+
 **CU** (localnet, Agave 3.0.14):
-- `mint_tokens` of 1,000 tokens to an existing account in the S7 story: 23,181 CU, against 20,702 before S9. The extra 2,479 derive and read the attestation.
+- `mint_tokens` of 1 token to an existing account, Acl mode (case 9 in `tests/gate/reserves.test.ts`):
+
+  | Config bump / reserve bump | Before S15 | Since S15 |
+  |---|---|---|
+  | 255 / 255 | 22,851 | 21,410 |
+  | 253 / 246 | 39,373 | 21,432 |
+- `mint_tokens` of 1,000 tokens to an existing account in the S7 story: 23,181 CU, against 20,702 before S9. The extra 2,479 derive and read the attestation (S9, before the S15 change).
 - `attest_reserves`: 4,625–4,740 CU.
 - `set_reserve_attestor` when it creates the account: 13,991 CU.
 
@@ -106,3 +114,11 @@ const att = await reserves.fetch();                                          // 
 ```
 
 `client.mintTokens` passes the attestation account automatically (`findReserveAttestationPda`).
+
+## CLI
+
+```bash
+thawgate --keypair <attestor.json> reserves post --mint <address> --amount 1000000000000
+```
+
+The keypair must be the mint's attestor; the CLI checks it before sending, along with `--as-of` not being older than the stored one. `--report-uri` defaults to the last posted URI, and `--as-of` to the cluster's time. The output includes `freshUntil` (as-of + max staleness), after which `mint_tokens` refuses with `ReserveStale` until the next post.
