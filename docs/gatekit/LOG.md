@@ -10,7 +10,10 @@ S15a is done (entry at the bottom):
 - **`thawgate reserves post`.**
 - **Legacy e2e:** 75 / 0 locally (3 runs).
 
-**CI on the S15a push:** see the S15a entry.
+**CI on `986f33b`** (the S15a push, `444d65f..986f33b`; checked 2026-10-04): **all five workflows green.**
+- **Anchor Integration** (37219222556): **75 passing, 0 failing**, green for the first time since the S1 migration.
+- **Gate Tests** (37219222643): gate 55, story 7, keeper 8, screener 5, sdk 14, venue 3.
+- **Full CI** (37219222547), **CI** (37219222549), **TypeScript Tests** (37219222548).
 
 **S15b, the rest of S15** (PLAN.md S15; C2 feature freeze; tag `c2-freeze` when done):
 - Run `/security-review` and `/code-review high` on the gate and sss-token diffs, S15a's included (`444d65f..HEAD`). Fix or document every finding (SECURITY.md "Known limitations").
@@ -1432,6 +1435,7 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - **TypeScript:** `yarn typecheck` clean; vitest: SDK 128, CLI 44, compliance-service 45.
   - **Localnet** (`SKIP_BUILD=1`): gate 55 (48 + 7), story 7, keeper 8, screener 5, venue 3, sdk 14.
   - **`anchor test --skip-build`** (the Anchor Integration suite): **75 passing, 0 failing, 3 runs** (S14 CI: 68 / 7).
+  - **CI on `986f33b`:** all five workflows green, **Anchor Integration 75 / 0** (run 37219222556). Gate Tests: gate 55, story 7, keeper 8, screener 5, sdk 14, venue 3.
 - **Not exercised (honesty):**
   - a re-add or a transfer back on devnet (localnet only);
   - Phantom and Solflare;
