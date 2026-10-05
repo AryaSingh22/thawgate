@@ -11,8 +11,9 @@ RUN npm install --no-audit --no-fund --legacy-peer-deps && npm run build && npm 
 WORKDIR /app/services/shared
 RUN npm install && npm run build 2>/dev/null || true
 WORKDIR /app/services/mint-service
-# In the yarn workspace the SDK is linked by version; here it is the tarball packed above.
-RUN node -e "const p = require('./package.json'); p.dependencies['@thawgate/sdk'] = 'file:/tmp/thawgate-sdk-0.1.0.tgz'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2))"
+# In the yarn workspace the SDK and shared are linked by version; here the SDK is the tarball packed above and shared
+# the directory (npm links it).
+RUN node -e "const p = require('./package.json'); p.dependencies['@thawgate/sdk'] = 'file:/tmp/thawgate-sdk-0.1.0.tgz'; p.dependencies['@thawgate/shared'] = 'file:../shared'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2))"
 RUN npm install && npm run build
 
 FROM node:20-slim

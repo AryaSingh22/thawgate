@@ -12,7 +12,7 @@
     "dependencies": {
         "@coral-xyz/anchor": "^0.32.1",
         "@solana/web3.js": "^1.95.0",
-        "@thawgate/shared": "file:../shared",
+        "@thawgate/shared": "0.1.0",
         "fastify": "^5.7.4",
         "ioredis": "^5.3.0"
     },

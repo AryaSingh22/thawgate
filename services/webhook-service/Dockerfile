@@ -5,6 +5,8 @@ COPY services/webhook-service ./services/webhook-service
 WORKDIR /app/services/shared
 RUN npm install && npm run build 2>/dev/null || true
 WORKDIR /app/services/webhook-service
+# In the yarn workspace shared is linked by version; here npm links the directory.
+RUN node -e "const p = require('./package.json'); p.dependencies['@thawgate/shared'] = 'file:../shared'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2))"
 RUN npm install && npm run build
 
 FROM node:20-slim

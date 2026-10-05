@@ -1754,13 +1754,6 @@
   dependencies:
     tslib "^2.8.0"
 
-"@thawgate/shared@file:services/shared":
-  version "0.1.0"
-  dependencies:
-    "@prisma/client" "^5.10.0"
-    "@solana/web3.js" "^1.95.0"
-    zod "^3.22.0"
-
 "@token-acl/sdk@0.2.7":
   version "0.2.7"
   resolved "https://registry.yarnpkg.com/@token-acl/sdk/-/sdk-0.2.7.tgz#1d408c77eda697ca2c8a143417185936929c5da1"
