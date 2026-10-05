@@ -1,5 +1,7 @@
 # Solana Stablecoin Standard (SSS) 
 
+> **Archived (2026-10-05):** this is the 2026-03 SSS bounty submission, kept until S16 replaces it with the ThawGate submission. Its claims predate ThawGate and were not verified: nothing here was audited, and the Trident "fuzz tests" it cites were stubs that never ran. See [docs/SECURITY.md](docs/SECURITY.md) for what has actually been reviewed and tested.
+
 **Bounty Submission: Production-Ready Stablecoin Framework**
 
 Welcome to the final submission for the Solana Stablecoin Standard (SSS) bounty. This repository represents a complete, modular, production-grade framework for emitting highly regulated stablecoins using SPL Token-2022 extensions, heavily audited and rigorously tested.
