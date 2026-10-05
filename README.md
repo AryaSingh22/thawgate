@@ -68,7 +68,7 @@ node quickstart.mjs
 
 The first run creates `issuer.json` (a new wallet) and asks the devnet faucet for 1 SOL. The faucet often refuses. Then the script prints the wallet's address and stops: send that address 0.2 devnet SOL from <https://faucet.solana.com>, and run `node quickstart.mjs` again. It ends with `freezeIfInvalid: frozen=true NO_CREDENTIAL` and `done`.
 
-What each step does, its sample output and the timed runs are in [sdk/README.md](sdk/README.md#quickstart-5-minutes-on-devnet-from-a-fresh-wallet). From an empty folder with the SDK package, the funded run took 39.1 s on Node 22 and 43.4 s on Node 20, not counting the funding ([LOG S11](docs/gatekit/LOG.md#s11--2026-10-03--10-04--sdk--cli-thawgatesdk-the-thawgate-binary-a-timed-quickstart)).
+**Measured:** these exact steps, run from a fresh clone with an empty home directory and nothing but this README, took 233.5 s from `git clone` to `done` on Node 22, not counting the funding. `yarn install` with an empty cache was 152.0 s of that, and the funded run 17.4 s ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)). What each step of the script does, and its earlier timings on Node 20 and 22, are in [sdk/README.md](sdk/README.md#quickstart-5-minutes-on-devnet-from-a-fresh-wallet).
 
 Next: the [`thawgate` CLI](cli/README.md) does the same from a shell, and the [console](#console) does it in a browser wallet.
 
@@ -78,7 +78,7 @@ Each number links to the log entry or the transactions that measured it.
 
 | What | Result | Evidence |
 |---|---|---|
-| Mints gated by ThawGate on devnet | 15, all created by this project's tests and demos. No external integrator yet. | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs) |
+| Mints gated by ThawGate on devnet | 16, all created by this project's tests and demos (the 16th by the README test). No external integrator yet. | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs) |
 | Credential revoked → account frozen by the keeper, no manual step | p50 2,863 ms over 10 runs; p50 2,042 ms over 10 runs after the S15a upgrade | [LOG S8](docs/gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper), [LOG S15a](docs/gatekit/LOG.md#s15a--2026-10-04--sss-token-fixes-in-one-devnet-upgrade-thawgate-reserves-post-legacy-e2e-green) |
 | Sanctions flag → blacklisted → frozen | p50 3,714.5 ms over 10 runs, on the labelled static list | [LOG S10](docs/gatekit/LOG.md#s10--2026-10-03--sanctions-screener-provider-result--blacklisted--frozen-by-the-keeper) |
 | A KYC'd holder trades; after the revoke the keeper freezes them and their next trade fails | in `demo_pool`, the demo venue: [swap](https://explorer.solana.com/tx/443r1ucqQhhE4w1UxJJryaydSEYKQFAS6FchTqDcagmVuNX9LfM8g2tJcXny7zrZNaT6mxRsjn5GaQeXed1quvz9?cluster=devnet), [keeper freeze](https://explorer.solana.com/tx/3N8zvh2j3WXJ3zgafYCtt47zNseJ7fWsM5kefns2B78Xs4Q1jsXunMYYXcYo3bqrUH7J7JfDeJj8vmGPAyTKsQzj?cluster=devnet), [refused swap](https://explorer.solana.com/tx/59dd4R7onZzpxsBEGdwg3oxSyLYhSGsaZTr7p93dqVVT4fB9oVyRtcActJh5pbW6sPUJNvKkGRkUB3eELNRHZfTJ?cluster=devnet) | [LOG S12-venue](docs/gatekit/LOG.md#s12-venue--2026-10-04--the-demo-venue-a-gated-token-trading-in-a-pool-on-devnet) |

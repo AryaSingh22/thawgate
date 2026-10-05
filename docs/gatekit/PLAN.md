@@ -243,8 +243,8 @@ Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fal
 ## Phase 4: publish (Thu 8 → Fri 9)
 
 ### S16 · Rebrand polish + docs
-- [ ] README: pitch line (MARKET.md §4), a 20-second GIF of unlock → revoke → frozen, architecture diagram (Token ACL → ThawGate policy → SAS/blacklist/allowlist/Range), 5-minute quickstart, program IDs, and "Built on" (Token ACL, SAS, S&A).
-- [ ] Docs:
+- [x] README: pitch line (MARKET.md §4), a 20-second GIF of unlock → revoke → frozen, architecture diagram (Token ACL → ThawGate policy → SAS/blacklist/allowlist/Range), 5-minute quickstart, program IDs, and "Built on" (Token ACL, SAS, S&A). **Done in S16:** a 19.8 s GIF; the diagram shows the screener instead of Range; "Built on" omits S&A, since nothing uses it; every number links to LOG or a tx.
+- [x] Docs (S16: plus GATE.md, POLICY.md and KEEPER.md; the S5/S8/S9 items are folded into INTEGRATING.md "Before you go live"):
   - `docs/` → `docs/thawgate/` (gate spec with reason codes, policy config, integrator guide "swap your gate in 2 instructions", keeper ops, reserves)
   - Integrator guide TODOs from S5:
     - Tightening a policy (raising `min_kyc_level`, switching to `AllowOnly`) makes holders who no longer comply permissionlessly freezable, by design (LOG.md S5).
@@ -253,8 +253,8 @@ Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fal
     - (S9) Treasury held by a PDA + BypassForPdas for mainnet; issuer wallets need credentials under SAS policies.
   - SSS docs move under `docs/examples/sss/`
   - SUBMISSION.md → replace with the new submission text
-- [ ] Finalize `DISCLOSURE.md` (fill the placeholders; link `git diff pre-worlds-fair..HEAD` stats).
-- **Done when:** a stranger can go from README to a devnet unlock without asking you. Test it with one integrator.
+- [x] Finalize `DISCLOSURE.md` (fill the placeholders; link `git diff pre-worlds-fair..HEAD` stats).
+- **Done when:** a stranger can go from README to a devnet unlock without asking you. Test it with one integrator. **Done 2026-10-06** (LOG.md S16): the README's quickstart blocks ran verbatim from a fresh clone with an empty HOME, with no guesses, in 233.5 s to `done` (not counting funding). No outside integrator has run it yet. The link check is clean (`scripts/docs/check-links.sh`).
 
 ### S17 · Release v0.1.0
 - [ ] Final devnet deploy; **verified builds** with `solana-verify` (Anchor 0.32 uses it for `anchor verify`); IDLs on-chain (0.32 uploads them on deploy by default).

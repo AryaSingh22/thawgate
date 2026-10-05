@@ -4,93 +4,106 @@ One entry per session: shipped / links / next. This is the "built during the hac
 
 Paths: since S16 the docs live in `docs/thawgate/` (ThawGate) and `docs/examples/sss/` (the SSS baseline). Entries before S16 keep the old `docs/*.md` paths, which were true when written.
 
-## ▶ S16 handoff (read first; remove when S16 ends)
-S15b is done (entry at the bottom). **C2 feature freeze from tag `c2-freeze`: only fixes from here on, no new features.**
-- **Review:** a manual security review (Claude Code, structured per the /security-review method) over `pre-worlds-fair..HEAD`. The `/security-review` and `/code-review` skills can't run here: the session's working directory isn't the repo.
-- **No program finding, so no upgrade.** Devnet is unchanged since S15a.
-- **Fixed (off-chain):**
-  - the SDK error map is built from the IDLs and pinned by a test (`da5e012`);
-  - CLI `init --preset` rejects unknown presets (`47f453a`);
-  - the Trident fuzz claims that never ran are removed, and a real gate target runs (`8d89314`);
-  - docs/SECURITY.md is rewritten (`e1cae27`): findings S15b-1…10, the S15 checklist, the four probes, fuzzing, and 23 known limitations.
+## ▶ S17 handoff (read first; remove when S17 ends)
+S16 is done (entry at the bottom). **The C2 feature freeze from tag `c2-freeze` still holds: only fixes, no new features.**
+- **Shipped:**
+  - docs moved into `docs/thawgate/` (ThawGate) and `docs/examples/sss/` (SSS baseline);
+  - new GATE.md, POLICY.md, INTEGRATING.md and KEEPER.md;
+  - the README rewritten (pitch, GIF, diagram, quickstart, program IDs, "Built on");
+  - SUBMISSION.md replaced; DISCLOSURE.md filled in.
+- **Done-when checks:**
+  - **Stranger test:** passed with no guesses, 233.5 s clone → `done`.
+  - **Link check:** clean.
+  - **CI:** see "CI on …" below.
+- **Devnet:** two GIF runs on vUSD and one stranger quickstart. No program changed.
+- **Tooling added:** `scripts/docs/`, for re-running both checks after the README changes in S17:
+  - `check-links.sh`: lychee offline and online, explorer links checked on chain, anchors checked against GitHub's rendering;
+  - `stranger-test.sh`;
+  - `explorer-check.js`, `gh-anchors.js`, `gate-mints.js`.
 
-**CI on `a4ed02d`** (the S15b push, `f92c990..a4ed02d`; checked 2026-10-06): **all five workflows green. Tag `c2-freeze` = `a4ed02d`, pushed.**
-- **Gate Tests** (37355271808): gate 55, story 7, keeper vitest 36 + e2e 8, screener vitest 45 + e2e 5, sdk 14, venue 3.
-- **Anchor Integration** (37355271872): 75 passing.
-- **TypeScript Tests** (37355271892): SDK vitest 137 (the new error-map pins included).
-- **Full CI** (37355271938), **CI** (37355271833).
+**CI on `e346dfd`** (the S16 docs push, `b9bdf35..e346dfd`): see the S16 entry. GitHub's hosted runners didn't pick the jobs up on the first attempt, so they were re-run with `gh run rerun --failed`.
 
-**S16** (PLAN.md S16: rebrand polish + docs; fixes only, per the freeze):
-- **README:** pitch line, a 20 s unlock → revoke → frozen GIF, architecture diagram, 5-minute quickstart, program IDs, "Built on".
-- **`docs/` → `docs/thawgate/`**, with the integrator guide.
-  - The S5 guide TODOs now sit in SECURITY.md Known limitations 6–9 (policy tightening, issuer credentials, ImmutableOwner on venue vaults, `transfer_authority` vs. policy authority). Also 11 (SAS revokes by close).
-  - Link to them; don't copy them.
-- **SUBMISSION.md:** replace it. It now carries an "Archived" note, because its 2026-03 claims ("heavily audited") were never true.
-- **DISCLOSURE.md:** finalize it.
-- **Console:** code-split the bundle (1.32 MB in one chunk).
+**S17** (PLAN.md S17: release v0.1.0; fixes only):
+- **Release items:**
+  - `solana-verify` verified builds;
+  - the IDLs on chain;
+  - `npm publish` of `@thawgate/sdk` and `@thawgate/cli` 0.1.0 with provenance;
+  - landing page;
+  - release notes;
+  - the attestor on a schedule through judging.
+- **After npm publish, the quickstart gets shorter.** Replace the README's clone/build/pack block with `npm i @thawgate/sdk @solana/web3.js` plus `curl` of `quickstart.mjs`. Update sdk/README ("until 0.1.0 is on npm") and cli/README. Then:
+  - re-run `scripts/docs/stranger-test.sh` (fund the printed address, then `stranger-test.sh rerun`, then `rm -rf /tmp/tg-stranger`) and `scripts/docs/check-links.sh <pushed sha>`;
+  - update the README/SUBMISSION quickstart time and LOG.
+- **Carried from S16:**
+  - **Console code-split:** the bundle is 1.32 MB in one chunk.
+  - **`@thawgate/shared` `file:` dependencies** in mint-service, indexer, compliance-service and webhook-service.
 - **Phantom / Solflare:** pending from the user; they report it, so don't ask.
+- **Ask the user:** DISCLOSURE.md says nothing about AI assistance. The commits carry Co-Authored-By trailers. Add a line only if the user wants one or Colosseum's rules ask.
 
-State on devnet (2026-10-05, unchanged since S15a; S15b sent no transactions):
-- **Programs:** all four `.so` sha256 equal DEPLOYMENT.md. The Trident target fuzzed the deployed gate's bytes (`09b46b84…`). `5BXg…` has 27.568158312 SOL.
-- **vUSD** `AsePwCcV…`:
-  - Supply is 104,001 and reserves 1,000,000, posted 2026-10-04 16:54 UTC. **Stale since 2026-10-05 16:54 UTC.**
-  - Re-post before any vUSD mint or screenshot, from a dir without the repo's `.env` (the CLI loads `.env` from its cwd):
+State on devnet (2026-10-06, after S16):
+- **Programs:** unchanged since S15a.
+- **Balances:** `5BXg…` 27.348138312 SOL, the keeper `4auu6t…` 0.04977, the demo credential's signer `5avMn…` (`~/.keys/thawgate/spike-payer.json`) 0.99473284.
+- **vUSD** `AsePwCcV…`: reserves 1,000,000, re-posted in S16. **Stale again after 2026-10-06 18:58 UTC.**
+  - Re-post from a dir without the repo's `.env`:
 
-    `HOME=/tmp/s15a-cli node ~/thawgate/cli/dist/index.js --json --rpc-url https://api.devnet.solana.com --keypair ~/.config/solana/sss-authority.json reserves post --mint AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw --amount 1000000000000`
-  - Its reserve account holds 4 landed `ReserveInsufficient` refusals (the `/reserves` history).
-  - Its 4 burner Minter roles are deactivated.
-- **S9 story mint** `D6Q5PA…` (reserve bump 248):
-  - reserves 2,000 tokens (supply 1,000), **stale since 2026-10-05 16:51 UTC**;
-  - its attestor `2da6…` (`~/.keys/thawgate/attestor.json`) has 0.009995 SOL.
-- **New mints from the S15a devnet e2e:**
-  - story `4K4t2Cnun4Wondgbfot6zVJsDZp5qs4jwWaNeRXaCWmB`;
-  - venue `22WkGAfayHstgPWetoGcJ8eUdbFTH5MgZQwb25dxam2m` (quote `CCeUk65Y…`, pool `DcMJWkaF…`);
-  - keeper `BSLZ8pPzJJLjLCLrYpGEUymDmztBkqQGFk8aoBvHKZsd`.
-
-  The keeper key `4auu6ttR…` has 0.04978 SOL.
-- **Unchanged:**
-  - the S14 wizard mints: `7B7FWJfA…` (complete, holder `64CZUvqU…` unlocked with 1,000) and `3e5Mgs6H…` (abandoned);
-  - the S13 console mints and the S11 quickstart mints.
+    `mkdir -p /tmp/s16-cli && cd /tmp/s16-cli && HOME=/tmp/s16-cli node ~/thawgate/cli/dist/index.js --json --rpc-url https://api.devnet.solana.com --keypair ~/.config/solana/sss-authority.json reserves post --mint AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw --amount 1000000000000`
+  - Its 6 token accounts:
+    - 2 thawed and compliant: the pool vault (owner `CrkVVB2g…`) and `5BXg…`;
+    - 4 frozen: alice and bob from S12, and the two S16 GIF burners `3YPjaUNe…` and `E7mQE9v4…`, both with 0 balance.
+- **S9 mint** `D6Q5PA…`: reserves 2,000, also stale after 2026-10-06 18:58 UTC.
+  - Re-post with the same command, plus `--keypair ~/.keys/thawgate/attestor.json --mint D6Q5PA7xzxbrZaRoiXGfMcbGsLCH35cneRweEMysXEoq --amount 2000000000`.
+  - The attestor `2da6…` has 0.00999 SOL.
+- **Gated mints:** 16 on devnet. The 16th is the stranger test's `2X27fLkQ…`; the other 15 are listed in the S16 entry.
 
 Open:
-- **New in S15b:**
-  - **Trident isn't in CI.** It would need a trident-cli 0.12.0 install plus a ~3-minute build. It also can't cover the `BypassForPdas` off-curve check, because TridentSVM has no curve syscall. Run it by hand after any gate change: `cd trident-tests && trident fuzz run --with-exit-code fuzz_0`.
-  - **The S7 items are now documented known gaps** (SECURITY.md limitation 20): the gate/sas fixture conversion (about 2–3 h) and the Both-mode test (about 45 min). Both are test-only, so they're allowed under the freeze.
-  - **`FeatureNotEnabled`'s IDL text still says hook-only** (limitation 19). Fix it only if another sss-token upgrade happens for a real fix.
-  - **`client.send` throws the raw error.** Callers pass it to `parseError` (docs/SDK.md). The console and CLI read the logs directly.
-- **New in S15a:**
-  - **Not run on devnet:** a blacklist or allowlist re-add and a transfer back (localnet only, `tests/gate/issuer.test.ts`).
-  - **The screener still never re-adds** a wallet an operator removed. That's by design (SANCTIONS.md); sss-token could now reactivate the entry.
-  - **The deploy script prints no signature for `extend`.** Read it from the ProgramData account's history.
-- **New in S14:**
-  - **Phantom and Solflare:** pending from the user (see the handoff above).
-  - **The console still can't add allowlist entries** (`compliance(mint).addToAllowlist`).
-  - **The Mint card's refusal texts** other than `ReserveInsufficient` haven't run.
-  - **The keeper indexes facts only for owners of thawed accounts.** `/decisions` fills frozen rows from chain reads and a live `explain`. A keeper endpoint for frozen owners would save the browser reads.
-  - **`/decisions` is slow on public devnet:** it reads each account's transactions one by one, about 65 s for the `pages` flow on vUSD's 4 rows. A keyed `VITE_RPC_URL` in `.env.local` (local only) is faster.
-  - **Bundle:** 1.32 MB in one chunk (S16: code-split).
-  - **From S13, not exercised yet:** "Change policy", the existing-credential path, resume after a reload, and the `/ops` panels.
-  - **CLI `enable-token-acl`** sends without a CU limit. It works (80–89k CU), but it could call `sendEnableTokenAcl`.
-- **Docker images aren't built locally** (no daemon in WSL). Full CI's docker-health builds them.
-- **New in S12-venue:**
-  - **Orca Token Badge:** still not issued. If one arrives, the S2 Orca steps (SPIKES.md) run on devnet unchanged, and S18 can trade there.
-  - **demo-pool has no withdraw and no LP shares** (single LP, devnet test liquidity).
-  - `scripts/rehearse-deploy-devnet-acl.sh` wasn't re-run. With step [4], it also deploys demo_pool on its rehearsal validator.
-- **`@thawgate/shared` is still a `file:` dependency** in mint-service, indexer, compliance-service and webhook-service. Switch them to `"0.1.0"` and rewrite the dependency in each Dockerfile, as mint-service does for the SDK (S16/S17).
-- **npm publish (S17):**
-  - Both packages are publish-ready, and the pack smoke runs in CI on Node 20 and 22.
-  - The quickstart README says "until 0.1.0 is on npm"; update it after publishing.
-- **Carried from S10:**
-  - Range is untested live; the S19 wording is in PLAN.md (SECURITY.md limitation 4).
-  - Keeper self-trigger on SAS logs and the trigger-label race. The RPC cost is SECURITY.md limitation 14.
-  - Screener ops: no compose entry, state in memory, one provider (limitation 5).
-- **Carried from S9 and earlier:**
-  - Treasury PDA + BypassForPdas for mainnet (S16 docs; limitation 7).
-  - Attestor health and metrics (limitation 13).
+- **New in S16:**
+  - **The GIF's revoke → frozen times** (1,759 and 1,793 ms) come from 2 runs. They're an illustration; the p50s come from S8 and S15a.
+  - **`evidence/` keeps old links**, untouched by rule. `scripts/docs/check-links.sh` skips it.
+  - **DISCLOSURE.md's diff totals** were measured at `56bb798`; later commits are docs only. Re-run at S20 if wanted (command in the file).
+- **From S15b:**
+  - Trident isn't in CI. Run it by hand after any gate change: `cd trident-tests && trident fuzz run --with-exit-code fuzz_0`.
+  - The S7 gate/sas fixture conversion and the Both-mode test (SECURITY.md limitation 20).
+  - `FeatureNotEnabled`'s IDL text (limitation 19).
+  - `client.send` throws the raw error.
+- **From S15a:**
+  - No devnet run yet of a re-add or a transfer back.
+  - The screener never re-adds a wallet an operator removed (by design).
+  - The deploy script prints no signature for `extend`.
+- **From S14 and S13:**
+  - **Console:** no allowlist editor; the Mint card's other refusal texts are untested; `/decisions` is slow on public devnet; "Change policy", the existing-credential path and resume after reload aren't exercised.
+  - **CLI:** `enable-token-acl` sends without a CU limit.
+  - **Keeper:** indexes facts only for owners of thawed accounts.
+- **Earlier:**
+  - The Orca Token Badge (none issued).
+  - demo-pool has no withdraw.
+  - The rehearsal script wasn't re-run.
+  - Docker images aren't built locally.
+  - Range is untested live (SECURITY.md limitation 4).
+  - Keeper SAS-trigger cost (limitation 14).
+  - Screener ops (limitation 5).
+  - The treasury PDA for mainnet (limitation 7).
+  - Attestor health (limitation 13).
   - `cargo fmt` fails workspace-wide.
   - The build-in-public thread (user).
 
 Gotchas:
+- **New in S16:**
+  - **GitHub anchors:**
+    - `POST /markdown` renders headings without ids.
+    - The contents API with `Accept: application/vnd.github.html+json` returns the real `user-content-…` ids. `scripts/docs/gh-anchors.js` uses it.
+    - lychee 0.24.2's offline fragment check agreed with GitHub on all 151 links, `·` / `→` headings included.
+  - **lychee isn't installed.** Get the release binary:
+    `gh release download lychee-v0.24.2 -R lycheeverse/lychee -p "lychee-x86_64-unknown-linux-musl.tar.gz*"` into `/tmp/lychee`, check its `.sha256`, untar, then `LYCHEE=<path> scripts/docs/check-links.sh <sha>`.
+  - **GlobeNewswire** (RESEARCH.md) refuses non-browser clients (HTTP/2 `INTERNAL_ERROR`, HTTP/1.1 hangs). It loads in headless Edge, so the script excludes it.
+  - **CI "failure" can be infrastructure.** On `e346dfd`, 4 workflows showed cancelled jobs: "The job was not acquired by Runner of type hosted even after multiple attempts", and the anchor build was cancelled mid-step. Read the annotations (`gh api …/check-runs/<job id>/annotations`) before debugging, then `gh run rerun <id> --failed -R AryaSingh22/thawgate`.
+  - **The GIF flow** (`console.mjs gif`):
+    - needs the keeper on the mint (`KEEPER_MINTS=<mint>`) and the console with `VITE_BURNER_WALLET=1`;
+    - attests and revokes as `--kyc-keypair` (default `spike-payer.json` = `5avMn…`, the signer of vUSD's credential `BYSdZK…`);
+    - cuts the waits with Windows `ffmpeg` (WinGet, on PATH);
+    - a viewport under ~880 px tall hides the result panel under the caption bar.
+  - **Before starting a keeper on a mint,** check that no thawed holder is already freezable: `/tmp/s16-vusd-holders.js`-style `explain` over the mint's accounts. Otherwise its first sweep changes state.
+  - **`sed` through `bash -lc '…'` mangled a script again.** Use the Write tool for scripts.
+  - **The stranger test's yarn install** with an empty cache takes ~150 s and ~2 GB in `/tmp`. Delete it afterwards; the vhdx doesn't shrink.
 - **New in S15b:**
   - **`/security-review` and `/code-review` refuse** because the session's working directory (the Windows folder) isn't the git repo. To run the skills, open `~/thawgate` as the workspace. Otherwise do a manual review and label it as one.
   - **`git rm` stages at once, and the next commit takes the deletion along.** In S15b the Trident stub deletions landed in `da5e012` (the SDK commit), and history was left as is. Commit removals together with what replaces them.
@@ -1551,6 +1564,49 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - **Revoke → frozen:** 1,759 ms in run 2 and 1,793 ms in run 1 (run 1's freeze [4TpaQYNr…](https://explorer.solana.com/tx/4TpaQYNrxdooJbdsfrq26oovF8jqN1eY1qfafNSSKsP7EGbn4ohKe9Ls6dZQhRpXVaYiVr5iu4iNx3e8Mcq4rEf6?cluster=devnet), 11 slots). Measured from the revoke CLI returning (it waits for `confirmed`) to the first `confirmed` read of the account as frozen, polled every 100 ms. Two runs: an illustration, not a p50.
   - **Cost:** each run is a 0.01 SOL burner plus fees; the attestation rent comes back on revoke. The keeper paid two freezes and logged nothing at warn or error.
 - **Gated mints on devnet** (read-only, `/tmp/s16-gate-mints.js`: Token ACL `MintConfig`s with `gating_program` = ThawGate at offset 68, the RESEARCH.md §1.4 query):
-  - **15 mints**, all with permissionless thaw and freeze on (slot 507,833,597, 2026-10-05 19:14 UTC).
-  - Each of the 15 traces to an earlier entry here (S7b, S8, S9, S10 ×2, S11 ×2, S12-venue, S13 ×2, S14 ×2, S15a ×3). None is an external integrator's.
-- **Shipped: README, SUBMISSION.md, DISCLOSURE.md** (this push).
+  - **15 mints** before the stranger test (slot 507,833,597, 2026-10-05 19:14 UTC); **16** after it (slot 507,837,993), the 16th being its `2X27fLkQ…`. All have permissionless thaw and freeze on.
+  - Each of the first 15 traces to an earlier entry here (S7b, S8, S9, S10 ×2, S11 ×2, S12-venue, S13 ×2, S14 ×2, S15a ×3). None is an external integrator's.
+- **Shipped: README, SUBMISSION.md, DISCLOSURE.md** (`56bb798`, `e346dfd`; pushed `b9bdf35..e346dfd`).
+- **Stranger test: passed on the first run, with no guesses** (`/tmp/s16-stranger.sh`, deleted with the clone).
+  - **Method:**
+    - The runner fetched the README from GitHub `main` (`e346dfd`) and executed the bash blocks of its "Quickstart (devnet)" section **verbatim**, line by line, timed.
+    - Fresh `/tmp/tg-stranger`, `HOME` an empty folder (no keys, no yarn or npm cache). `PATH` was `/usr/local/bin:/usr/bin:/bin`: Node 22.17.0, yarn 1.22.22, npm 10.9.2 and git 2.34.1, the README's prerequisites, already installed.
+    - **The one stand-in:** the faucet refused, as the README says it often does, and the wallet was funded with 0.2 SOL by transfer from `5BXg…` ([5QawDa1n…](https://explorer.solana.com/tx/5QawDa1nw5SrumGKGLYe59hpK5TfH6aqoiCRj5XxsBiVtrvpUmSVVs4NmqnvDE32x359AWSvijJEbvSKLkFGiYi6?cluster=devnet)) instead of faucet.solana.com. That isn't counted.
+  - **Timings (s):**
+
+    | Step | s |
+    |---|---|
+    | `git clone` | 3.3 |
+    | `yarn install --frozen-lockfile` (empty cache) | 152.0 |
+    | `yarn workspace @thawgate/sdk build` | 11.7 |
+    | `npm pack` | 8.3 |
+    | `npm init -y` + `npm i` tarball + web3.js | 34.2 |
+    | first `node quickstart.mjs` (faucet refused, exit 1, as documented) | 5.8 |
+    | funded `node quickstart.mjs` | 17.4 |
+    | `mkdir`, `cp`, the runner's own overhead | 0.8 |
+    | **total, clone → `done`** | **233.5** |
+
+  - **Funded run** (issuer `BeBwHECG…`, stablecoin `2X27fLkQ…`): 0.023509 SOL spent; one public-RPC 429 retry.
+    - unlock alice at 7.9 s: [62n7o9HG…](https://explorer.solana.com/tx/62n7o9HGT1TQJEoZFWNN8yMn8jBtaLNY9udAzfSKT6vgYhzRmtkdCqx7NSpNCL44maT9LGJzoWe5UfiuxihbuyUF?cluster=devnet);
+    - `freezeIfInvalid` → frozen `NO_CREDENTIAL`: [252CAnfF…](https://explorer.solana.com/tx/252CAnfFpgRQWrcocQiDEcKKy8dNE6Xu8Rfy5V5cTdprTkL7K1bkU1rfUALonF5dZjWgT7xT6fVXKrWwJiS9nM6i?cluster=devnet).
+  - **Install output:** 3 yarn peer-dependency warnings and no error.
+  - **Cleanup:** the clone (2.1 GB) was deleted afterwards. The WSL vhdx doesn't shrink by itself.
+- **Link check** (lychee 0.24.2, prebuilt musl binary, sha256 `73657a11…6fc5` matched the release's; in `/tmp`, not committed), over every tracked `.md` except `evidence/`:
+  - **offline** (`--offline --include-fragments`): 0 errors;
+  - **online** (`GITHUB_TOKEN` from `gh`, explorer links excluded): 1 real failure, fixed. MARKET.md's `solagent-pay` repo now 404s; the link became a dated note. The GlobeNewswire link in RESEARCH.md errors for non-browser clients (HTTP/2 `INTERNAL_ERROR`; HTTP/1.1 hangs) but loads in headless Edge (200, the 21.co title), so it's kept and excluded from the run;
+  - **explorer links checked on chain** (`/tmp/s16-explorer-check.js`): all 205 devnet transaction signatures (`getSignatureStatuses`, history search) and 6 addresses exist;
+  - **anchors against GitHub's own rendering** (`/tmp/s16-gh-anchors.js`, contents API HTML at `e346dfd`): all 151 `file#anchor` links resolve. lychee's offline fragment check agreed.
+  - Baseline before S16: 4 broken links (RESEARCH.md → the retired oracle code, SUBMISSION.md → a missing evidence file).
+- **Shipped: `scripts/docs/`** (closing commit). The S16 checks, kept in the repo for S17–S20:
+  - `check-links.sh`: all four checks above, exit 1 on any failure; it passed against `e346dfd`;
+  - `stranger-test.sh`;
+  - `explorer-check.js`, `gh-anchors.js`, `gate-mints.js`.
+- **Not done** (carried in the S17 handoff): the console code-split and the `@thawgate/shared` `file:` dependencies.
+- **CI on `e346dfd`.** Every job that got a runner passed:
+  - Gate Tests (37363379918, rerun): gate 55, story 7, keeper e2e 8, screener e2e 5, SDK 14, venue 3.
+  - Anchor Integration (37363380006, rerun): 75 passing.
+  - TypeScript Tests (37363380066): SDK vitest 137.
+  - Full CI (37363380103, second rerun): green.
+  - CI (37363379953): Rust Checks and both pack smokes green. **TypeScript Checks never got a runner in 3 attempts** ("The job was not acquired by Runner of type hosted even after multiple attempts"). The closing push runs it again.
+- **Links:** commits `8d8bf21`, `3c1bab3`, `34006ca`, `56bb798`, `e346dfd`, and the closing commit; the devnet transactions above.
+- **Next:** S17, per the handoff at the top of this file.

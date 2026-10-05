@@ -36,7 +36,8 @@ How it fits together: the [README diagram](README.md#how-it-works). Spec: [GATE.
 | A never-KYC'd wallet's unlock is refused on chain, with its reason | [`TG:DENY:NO_CREDENTIAL`](https://explorer.solana.com/tx/4PUF6qeSmyXLCnTmAtSbzUnozigU4ofKGKvJhtNVRUehfcb22XLmLwMRx1qQQ1fvtL88F9UnGkzZpJAnUEFgt1Pk?cluster=devnet) ([LOG S12-venue](docs/gatekit/LOG.md#s12-venue--2026-10-04--the-demo-venue-a-gated-token-trading-in-a-pool-on-devnet)) |
 | A sanctions flag blacklists the wallet, and the keeper freezes it | screener [blacklist](https://explorer.solana.com/tx/yd14WhkM9HSEyWzZ2RQNgW97SzgXdqN16QEANtH3bKTkA4vzAVdvpH8wCJwt848rqTefaXSXALQNnJCshJ6zqZx?cluster=devnet) → keeper [freeze](https://explorer.solana.com/tx/52vd7nN9b2Df3hrjASbTK1UE3FjEVsEcu5dkniSsV9Ygib31udgzF2biF7ers2TReSX6Tmd9eqtpStsyyYTQzuwX?cluster=devnet), on the static list labelled as the fallback ([LOG S10](docs/gatekit/LOG.md#s10--2026-10-03--sanctions-screener-provider-result--blacklisted--frozen-by-the-keeper)) |
 | A mint past attested reserves is refused, and the refusal is recorded on chain | [`ReserveInsufficient`](https://explorer.solana.com/tx/5uyH7QMRWCmTvkL394A8HhFXBptKjG7wm5WvAqkbTVndizkcHefBjBn7QH6R736s7LUgXjHB8jFzMHHaQsJC7Sdc?cluster=devnet) ([LOG S14](docs/gatekit/LOG.md#s14--2026-10-04--console-ii-mint-action-decisions-and-reserves-on-devnet)) |
-| Mints gated by ThawGate | 15, all from this project's tests and demos; no external integrator yet ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)) |
+| Mints gated by ThawGate | 16, all from this project's tests and demos; no external integrator yet ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)) |
+| The README quickstart, run from a fresh clone by following only the README | its [unlock](https://explorer.solana.com/tx/62n7o9HGT1TQJEoZFWNN8yMn8jBtaLNY9udAzfSKT6vgYhzRmtkdCqx7NSpNCL44maT9LGJzoWe5UfiuxihbuyUF?cluster=devnet) and [freeze](https://explorer.solana.com/tx/252CAnfFpgRQWrcocQiDEcKKy8dNE6Xu8Rfy5V5cTdprTkL7K1bkU1rfUALonF5dZjWgT7xT6fVXKrWwJiS9nM6i?cluster=devnet) ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)) |
 
 ## Measured numbers
 
@@ -47,7 +48,8 @@ How it fits together: the [README diagram](README.md#how-it-works). Spec: [GATE.
 | Expiry → frozen (devnet, 15 s sweep) | block time 5 s after the expiry | [LOG S8](docs/gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper) |
 | Gate cost (localnet) | 26,191–40,426 CU per thaw transaction, gate frame 3,385–5,400, **once per account** | [LOG S6b](docs/gatekit/LOG.md#s6b--2026-09-29--sss-token-token-acl-mode-and-the-hook-on-a-validator-legacy-seize-sdk-presets) |
 | Transfer cost after the thaw (localnet) | 3,557 CU, against 27,627 CU with the SSS hook | [LOG S6b](docs/gatekit/LOG.md#s6b--2026-09-29--sss-token-token-acl-mode-and-the-hook-on-a-validator-legacy-seize-sdk-presets) |
-| SDK quickstart from an empty folder (devnet, 9 transactions) | 39.1 s on Node 22, 43.4 s on Node 20, not counting funding | [LOG S11](docs/gatekit/LOG.md#s11--2026-10-03--10-04--sdk--cli-thawgatesdk-the-thawgate-binary-a-timed-quickstart) |
+| README quickstart from a fresh clone (devnet, Node 22) | 233.5 s from `git clone` to `done`, of which `yarn install` (empty cache) 152.0 s and the funded run 17.4 s; funding not counted | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs) |
+| SDK quickstart from an empty folder with the SDK package (devnet, 9 transactions) | 39.1 s on Node 22, 43.4 s on Node 20, not counting funding | [LOG S11](docs/gatekit/LOG.md#s11--2026-10-03--10-04--sdk--cli-thawgatesdk-the-thawgate-binary-a-timed-quickstart) |
 | Fuzzing the gate (Trident) | 4 runs × 99,600 flows, four invariants, no failure | [LOG S15b](docs/gatekit/LOG.md#s15b--2026-10-05--security-review-trident-on-the-gate-c2-feature-freeze) |
 | CI | five workflows green on the C2 freeze commit | [LOG S15b](docs/gatekit/LOG.md#s15b--2026-10-05--security-review-trident-on-the-gate-c2-feature-freeze) |
 
@@ -60,7 +62,7 @@ How it fits together: the [README diagram](README.md#how-it-works). Spec: [GATE.
 - **The keeper must run.** Between a revoke and the freeze, a holder can still transfer, and if no keeper runs, nothing on chain bounds that window. Anyone can run one, or freeze by hand.
 - **Reserves are an attestor-signed number**, not a proof-of-reserve feed.
 - **Issuer wallets need a credential** under a SAS policy, or a PDA treasury allowlisted under `BypassForPdas`.
-- **No external integrator yet.** All 15 gated devnet mints come from this project's own tests and demos.
+- **No external integrator yet.** All 16 gated devnet mints come from this project's own tests and demos.
 - **Not on npm yet.** The quickstart builds the SDK package from the repo; v0.1.0 is planned.
 
 ## Disclosure
