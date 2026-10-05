@@ -1615,3 +1615,48 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - CI (37363379953): Rust Checks and both pack smokes green. **TypeScript Checks never got a runner in 3 attempts** ("The job was not acquired by Runner of type hosted even after multiple attempts"). The closing push runs it again.
 - **Links:** commits `8d8bf21`, `3c1bab3`, `34006ca`, `56bb798`, `e346dfd`, and the closing commit; the devnet transactions above.
 - **Next:** S17, per the handoff at the top of this file.
+
+## S17 · 2026-10-06 · Release v0.1.0
+- **Decisions (plan mode, approved):**
+  - Fixes only (C2 freeze), plus a reproducible rebuild of the unchanged programs.
+  - vUSD's reserve attestor moves from `5BXg…` (an upgrade authority, never a CI secret) to the S9 mint's attestor `2da6…`, so one secret serves both mints.
+  - The judging-period keeper is a scheduled GitHub Actions sweep, not a hosted service.
+- **Phantom test (run and reported by the user, 2026-10-05): passed.**
+  - **Setup:** Phantom on devnet, wallet `FndWpwC6…8xUY`, mint [`7S7vWX79…`](https://explorer.solana.com/address/7S7vWX798BK5My8cf4ycRm8Xbes7iV7KEr2CvG4AYEPw?cluster=devnet).
+  - **The wizard, all signed in Phantom:**
+    - create the mint: [32ubffmS…](https://explorer.solana.com/tx/32ubffmS6W5JZt4cMVKU2dmXrLfDX4U9tpoXF9fv76uJ44N9MEi3YBgBzZ1fPCGTC2XbdYpuxFVhdN7sJrkB3M3x?cluster=devnet);
+    - minter and reserves: [5iheABrg…](https://explorer.solana.com/tx/5iheABrgwsP8a2mefn3cNhuSmJuVL7DbKxr7UaYuV3jukWLScP8rBXDjkdcyoKGgSWJ9R4BHhc2bXSjcJ7wg79u4?cluster=devnet);
+    - the policy with a self-issued credential and schema;
+    - enable Token ACL: [5ee5Li2e…](https://explorer.solana.com/tx/5ee5Li2eMcx23qY7678XjDua6xy3Y5SXCN5q7waaVQhyywxKVd8NNKLE2h55cmvNHPiaA1mDC6956i9igtzt8Jsa?cluster=devnet).
+  - **Unlock:** `TG:ALLOW:KYC`, [5pB8ndEt…](https://explorer.solana.com/tx/5pB8ndEtC3ZRSeUDiQeytoP4taQxoCM3XfvAHmVZdq8VB3Na8JxgrUsHkShrQaeReKrrnhyhKWKPJdH2CypWs3QF?cluster=devnet).
+  - **Mint 1000 before the unlock:** refused `AccountFrozen`, with a clear message.
+  - **Mint 1000 after the unlock:** minted, [4YvqTpb7…](https://explorer.solana.com/tx/4YvqTpb7uSsK1iTSJqeAn37T4LFDhjTYZ52nHZEQmGCrq4K2CQsNKjkaBYgr6QX3iMfH6gmESDw5AKRXnMTyxzd4?cluster=devnet).
+  - **Mint 2,000,000:** refused.
+  - The user gave shortened signatures. The full ones come from a read-only `getSignaturesForAddress` on the mint (`/tmp/s17-phantom-txs.js`); the five above are every transaction that touches the mint. The two refusals were simulations: nothing landed.
+  - **UX defects the user found** (fixed below):
+    - Attest dumped the raw "Allocate: … already in use" simulation when the attestation already existed (the same self-issued credential, reused across mints).
+    - The Reserve report URI's placeholder looked like a filled value, and the Create button was disabled with no reason shown. In the code, Create was disabled only while a step was sending; a validation problem appeared only in the notice at the top of the page.
+    - Raw simulation logs filled the page.
+- **Shipped: console fixes** (`frontend/src`):
+  - **Attest** reads the wallet's attestation first. If it exists, the step shows "already attested (kyc_level N, expires …)", or says it expired and must be revoked first. A send that fails because the account appeared meanwhile shows the same. A ref guards against a double send; the button reads "Sending…" and the inputs lock while it runs.
+  - **Create stablecoin** is disabled while the form is invalid, with the reason under the button ("Can't create yet: Reserve report URI: 1-200 bytes."). The URI field is labelled required, and its placeholder no longer looks like a value.
+  - **Errors:** `errorParts` splits an error into a summary and its program logs. web3.js's `SendTransactionError` also carried the logs in its message, so they used to print twice. `<ErrorText>` folds the logs under a closed "show details" in the wizard steps, Attest, the Mint card (refusals too), Holders and the Decisions wallet check. `errorMessage` now returns the summary only.
+  - **Code split:** each page is a `React.lazy` chunk. The entry chunk went from 1,316,674 B (the S16 build) to 618,861 B. The SDK and Anchor (225,597 B) load with the first page, and recharts (395,367 B) only on the legacy `/ops` page. `polyfills.ts` is still the first import.
+  - **Checked on devnet** (headless Edge, burner wallet, scratch script; `npm run build` green):
+    - every route renders with no page error;
+    - Create is disabled with the reason shown on an empty URI, and enabled once it's filled;
+    - the wizard ran end to end; mint [`5MyCNJbx…`](https://explorer.solana.com/address/5MyCNJbxAqLXtnTh4iTPt5v5xGVwGHyKJpC5cDuZi2tY?cluster=devnet), burner funded with 0.05 SOL ([2v1JcjbT…](https://explorer.solana.com/tx/2v1JcjbTcbuksUqMWyRmMdeAindGDapkFEsBJRR8tto73PDPQ84UhhzM2newYUQPjqXK4mVqAERtvQX6WpUPH6BH?cluster=devnet));
+    - attest 1 landed ([4tFd2Zbq…](https://explorer.solana.com/tx/4tFd2ZbQzxVPzj34r8Hmz6EhKC3j5PSj25J8RMjHB38hPdZ2ezohvoF6XumxhjHgoERFgqFMu3w7XJj7FxLzeZaR?cluster=devnet)); the label read "Sending…" and the input was locked;
+    - attest 2 on the same wallet showed "already attested (kyc_level 1, expires 2027-10-05 22:30 UTC)": no error, no transaction;
+    - a mint to the issuer's own frozen account was refused in the simulation ("Refused: the recipient's account is locked", `AccountFrozen`), with its 30 log lines under a closed "show details".
+- **Shipped: `@thawgate/shared` by version** (carried from S16):
+  - mint-service, indexer, compliance-service and webhook-service depend on `"0.1.0"`, so yarn links the workspace package. The copies yarn 1 had made under each service's `node_modules` are gone, and `yarn.lock` lost its `file:` entry.
+  - Each Dockerfile rewrites the dependency back to `file:../shared` before `npm install`, as mint-service already did for the SDK. `yarn typecheck` is green; Full CI's docker-health job builds the images.
+- **Shipped: release tooling:**
+  - `Cargo.toml` `[workspace.metadata.cli] solana = "3.0.14"`: solana-verify reads it to pick its build image;
+  - `.github/workflows/verifiable-build.yml` and `publish.yml`;
+  - `scripts/deploy-devnet-acl.sh`: `SO_DIR`, and an upgrade path for the gate and demo_pool;
+  - `publishConfig` (public, provenance) and a LICENSE in `sdk/` and `cli/`. The pack smoke is green, and LICENSE is in both tarballs.
+  - **Deploy-script dry runs (read-only):** against `target/deploy`, all four programs report `same`. Against a copy with one gate byte flipped and demo_pool padded by 300,000 B, the gate plans an upgrade and demo_pool an extend plus an upgrade; nothing was sent.
+  - **Public devnet RPC (read-only probe):** serves `getProgramAccounts` on the gate (19 policies) and on Token ACL (19 MintConfigs gated by ThawGate). It refuses it on Token-2022 ("excluded from account secondary indexes"), which the keeper's resync needs, so the scheduled keeper needs a keyed devnet RPC.
+  - **solana-verify 0.5.2's Linux binary** needs glibc 2.39: it runs on CI's Ubuntu 24.04, not in WSL Ubuntu 22.04 (2.35). Locally, 0.4.9 is installed.

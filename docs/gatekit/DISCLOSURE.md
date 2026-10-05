@@ -79,7 +79,7 @@ Each line links to the build-log entry with its commits, tests and devnet transa
 
 The code row by area (insertions): `tests` 4,684 · `frontend` 3,569 · `sdk` 2,780 · `scripts` 2,370 · `services/keeper` 2,151 · `services/compliance-service` 1,774 · `programs/thawgate-gate` 1,638 · `programs/sss-token` 1,511 · `trident-tests` 1,390 · `cli` 620 · `services/attestor` 577 · `programs/demo-pool` 302 · the rest under 230 each. The deletions include the retired `programs/oracle-module` (230) and `services/oracle-service` (146).
 
-Later commits add only the S16 docs and log. Re-run the command with `HEAD` for the current totals.
+Later commits add the S16 docs and the S17 release work (console fixes, release and ops workflows, the site, docs and logs). Re-run the command with `HEAD` for the current totals.
 
 ## Third-party code
 
@@ -87,3 +87,7 @@ Later commits add only the S16 docs and log. Re-run the command with `HEAD` for 
 - **Devnet dumps** of Token ACL, the ABL gate, SAS, Subscriptions & Allowances and Token-2022 are in `tests/fixtures/` ([README](../../tests/fixtures/README.md)), for localnet tests.
 - **Libraries:** Anchor, the SPL crates (`spl-token-2022`, `spl-tlv-account-resolution`, `spl-discriminator`), `solana-curve25519`, `@solana/web3.js`, Trident; `@token-acl/sdk` and `sas-lib` in tests only, to pin the hand-built instructions byte for byte.
 - **Vendored constants, not code:** the gate copies Token ACL's discriminators and seeds, sss-token's registry layout and SAS's attestation layout, each pinned by tests (see [GATE.md](../thawgate/GATE.md)).
+
+## AI assistance
+
+Built with Claude Code as a pair-programmer; every design decision, review and devnet action was directed and approved by me. Session logs: docs/gatekit/LOG.md.
