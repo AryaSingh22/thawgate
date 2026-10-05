@@ -21,7 +21,12 @@ S16 is done (entry at the bottom). **The C2 feature freeze from tag `c2-freeze` 
   - `stranger-test.sh`;
   - `explorer-check.js`, `gh-anchors.js`, `gate-mints.js`.
 
-**CI on `e346dfd`** (the S16 docs push, `b9bdf35..e346dfd`): see the S16 entry. GitHub's hosted runners didn't pick the jobs up on the first attempt, so they were re-run with `gh run rerun --failed`.
+**CI on `4ed1ca7`** (the S16 closing push, `e346dfd..4ed1ca7`; checked 2026-10-06): **all five workflows green.**
+- **Gate Tests** (37369091908, rerun): gate 55, story 7, keeper e2e 8, screener e2e 5, SDK 14, venue 3.
+- **Anchor Integration** (37369091930): 75 passing.
+- **TypeScript Tests** (37369199256, rerun): SDK vitest 137.
+- **Full CI** (37369091938, rerun) and **CI** (37369091922, second rerun).
+- Each rerun was for jobs GitHub's hosted runners never picked up ("not acquired by Runner of type hosted"). No job that ran failed. `e346dfd`'s CI is in the S16 entry.
 
 **S17** (PLAN.md S17: release v0.1.0; fixes only):
 - **Release items:**
