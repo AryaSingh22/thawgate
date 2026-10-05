@@ -36,7 +36,7 @@ Contents:
 
 | ID | Area | Finding | Severity | Status |
 |---|---|---|---|---|
-| S15b-1 | docs | This file, `docs/ARCHITECTURE.md` and the archived `SUBMISSION.md` claimed Trident fuzzing ("mathematically verified", "0-crash results"). The `trident-tests/` files were stub functions with no harness and never ran (LOG.md S0). | High (false claim) | **Fixed:** claims removed; a real Trident target on the gate now runs ([Fuzzing](#fuzzing)) |
+| S15b-1 | docs | This file, `docs/examples/sss/ARCHITECTURE.md` and the archived `SUBMISSION.md` claimed Trident fuzzing ("mathematically verified", "0-crash results"). The `trident-tests/` files were stub functions with no harness and never ran (LOG.md S0). | High (false claim) | **Fixed:** claims removed; a real Trident target on the gate now runs ([Fuzzing](#fuzzing)) |
 | S15b-2 | SDK | `ERROR_CODE_MAP` was hand-numbered with the old SSS codes: 6005 `TokensPaused` became a `QuotaExceededError`, 6007 `MinterQuotaExceeded` read "Role not found", and nothing past 6024 was mapped. `parseError` also missed Anchor's `AnchorError` shape. | Medium | **Fixed:** the map is built from the IDLs (`sdk/src/errors.ts`), classes are chosen by error name, and `sdk/tests/errors.test.ts` pins every code |
 | S15b-3 | CLI | `thawgate init --preset <x>` created an SSS-1 mint for any `x` other than `sss2` (a typo or `acl` included). Same class as the `--period` bug fixed in `554716a`. | Low | **Fixed:** only `sss1` and `sss2` are accepted |
 | S15b-4 | gate / SAS | Pausing the schema, or removing the attestation's signer from the credential, doesn't stop the gate accepting an attestation already issued. This matches SAS's own rules. | Info | Known limitation 11 |

@@ -44,7 +44,7 @@ Toolchain: Anchor 0.32.2 (Anchor.toml pins it), Rust stable ≥ 1.89 (needed for
 
 `demo_pool` is the **demo venue; any protocol that separates pool init from deposit works the same way (Orca proven on localnet in S2)**. Always present it with that label (`programs/demo-pool/README.md`, S12-venue). Test: `SKIP_BUILD=1 yarn test:venue`.
 
-Don't change program IDs or `declare_id!` unless the session plan says so. `oracle_module` (`HEuTBAak…`, authority `5BXg…`) was retired in S9: it's out of the workspace and still deployed on devnet, unused. The reserve check is in sss-token (`docs/RESERVES.md`).
+Don't change program IDs or `declare_id!` unless the session plan says so. `oracle_module` (`HEuTBAak…`, authority `5BXg…`) was retired in S9: it's out of the workspace and still deployed on devnet, unused. The reserve check is in sss-token (`docs/thawgate/RESERVES.md`).
 
 ## Keypairs (WSL paths; never print, cat or commit their contents)
 - `5BXg…` upgrades **sss_token + thawgate_gate** (and the retired oracle_module): `~/.config/solana/sss-authority.json`. It's a copy of Windows `C:\Users\ARYA\.config\solana\id.json`.

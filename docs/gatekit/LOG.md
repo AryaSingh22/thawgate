@@ -2,6 +2,8 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
+Paths: since S16 the docs live in `docs/thawgate/` (ThawGate) and `docs/examples/sss/` (the SSS baseline). Entries before S16 keep the old `docs/*.md` paths, which were true when written.
+
 ## ▶ S16 handoff (read first; remove when S16 ends)
 S15b is done (entry at the bottom). **C2 feature freeze from tag `c2-freeze`: only fixes from here on, no new features.**
 - **Review:** a manual security review (Claude Code, structured per the /security-review method) over `pre-worlds-fair..HEAD`. The `/security-review` and `/code-review` skills can't run here: the session's working directory isn't the repo.

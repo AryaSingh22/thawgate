@@ -96,7 +96,7 @@ Every earlier sss-token code keeps its number. The new ones are appended, and `p
 
 ## Attestor service (`services/attestor`)
 
-A small process that reads a JSON source and posts `attest_reserves` when the source is newer than what's on chain. See [services/attestor/README.md](../services/attestor/README.md).
+A small process that reads a JSON source and posts `attest_reserves` when the source is newer than what's on chain. See [services/attestor/README.md](../../services/attestor/README.md).
 
 ```json
 { "mint": "<address>", "reserves": "1000000000", "asOf": "2026-10-01T00:00:00Z", "reportUri": "https://…" }

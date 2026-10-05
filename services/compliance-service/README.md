@@ -7,7 +7,7 @@ Two programs in one package:
 | `dist/index.js` (`yarn start`, :3003) | The SSS REST API: blacklist queries, the compliance event history, CSV export, the audit trail. It reads Postgres through Prisma (`@thawgate/shared`). | Postgres (docker compose) |
 | `dist/screener/main.js` (`yarn start:screener`, :3006) | **The sanctions screener (S10):** screens every holder of a ThawGate mint against a risk provider and sends sss-token `add_to_blacklist` for flagged wallets. The keeper then freezes their other accounts. | the keeper's HTTP index, an RPC, a Blacklister key; no Postgres |
 
-The design, the trust assumption and the fail-safe rules are in [docs/SANCTIONS.md](../../docs/SANCTIONS.md).
+The design, the trust assumption and the fail-safe rules are in [docs/thawgate/SANCTIONS.md](../../docs/thawgate/SANCTIONS.md).
 
 ## Screener
 

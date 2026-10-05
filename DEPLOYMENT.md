@@ -126,7 +126,7 @@ The gate is a first deploy. sss-token and the transfer hook are upgrades of the 
 
 **Correction (S9, 2026-10-01):** this table used to list `4pA2fQxH...` for sss-token and `3xY9kL...` for the hook. Neither appears in the on-chain history. The signatures above are the only March 2026 entries in each program's ProgramData history (`getSignaturesForAddress`, read 2026-10-01). They match RESEARCH.md §9.
 
-**oracle-module was retired in S9.** It's out of the workspace, and the reserve check lives in sss-token ([docs/RESERVES.md](docs/RESERVES.md)). The program stays deployed on devnet, unused. Closing it would be irreversible, so it was left in place.
+**oracle-module was retired in S9.** It's out of the workspace, and the reserve check lives in sss-token ([docs/thawgate/RESERVES.md](docs/thawgate/RESERVES.md)). The program stays deployed on devnet, unused. Closing it would be irreversible, so it was left in place.
 
 ## How to Deploy and Verify
 

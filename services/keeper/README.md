@@ -62,7 +62,7 @@ The image is built with `npm install --legacy-peer-deps`, because npm 10 crashes
   - `_freeze_latency_seconds{trigger}`, a histogram from trigger seen to freeze confirmed
   - `_sweeps_total`, `_last_sweep_timestamp_seconds`, `_last_sweep_cluster_time_seconds`, `_sweep_duration_seconds`
   - `_tracked_{mints,token_accounts,owners}`, `_ws_connected{stream}`, `_triggers_total{source}`, `_fee_payer_lamports`
-- `GET /mints`: every tracked mint with its decoded policy and its counts of token accounts (all, thawed). The sanctions screener (`services/compliance-service`, `docs/SANCTIONS.md`) discovers mints and holders here instead of indexing them a second time.
+- `GET /mints`: every tracked mint with its decoded policy and its counts of token accounts (all, thawed). The sanctions screener (`services/compliance-service`, `docs/thawgate/SANCTIONS.md`) discovers mints and holders here instead of indexing them a second time.
 - `GET /mints/:mint`: the index for one mint: token accounts, owners, and their last reads. A mint excluded by `KEEPER_MINTS` / `KEEPER_SKIP_MINTS` isn't tracked and returns 404. Each owner of a thawed account has a `verdict` at the last sweep's cluster time (`clusterTime`):
   - `compliant:<CODE>`, with the code the gate's thaw would log (`KYC`, `PDA_ALLOWLISTED`, `ALLOWLISTED`, `CLEAN`);
   - `freezable:<REASON>`, a freeze candidate (`NO_CREDENTIAL`, `BLACKLISTED`, …);

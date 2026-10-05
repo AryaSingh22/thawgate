@@ -117,7 +117,7 @@ thawgate --keypair ~/.config/solana/seizer.json seize \
 ```
 
 ### Automatic sanctions screening (ThawGate mints, S10)
-The screener (`services/compliance-service`, `dist/screener/main.js`) blacklists holders that a risk provider flags, and the keeper freezes their other accounts. Seizing stays the manual step above. Full description: [SANCTIONS.md](SANCTIONS.md).
+The screener (`services/compliance-service`, `dist/screener/main.js`) blacklists holders that a risk provider flags, and the keeper freezes their other accounts. Seizing stays the manual step above. Full description: [SANCTIONS.md](../../thawgate/SANCTIONS.md).
 
 1. Grant the screener key the Blacklister role on the mint (MasterAuthority): `thawgate grant-role --mint <MINT> --holder <SCREENER_PUBKEY> --role blacklister`.
 2. Fund the key: fees, plus the rent of each entry (218 B: 1,757,680 lamports on devnet).
@@ -176,9 +176,9 @@ curl http://localhost:3002/health
 curl http://localhost:3003/health
 ```
 
-The oracle service (port 3004) was retired in S9. The reserve attestor (`services/attestor`) runs on its own, outside compose, and has no HTTP API ([RESERVES.md](RESERVES.md)).
+The oracle service (port 3004) was retired in S9. The reserve attestor (`services/attestor`) runs on its own, outside compose, and has no HTTP API ([RESERVES.md](../../thawgate/RESERVES.md)).
 
-The sanctions screener (port 3006) also runs outside compose for now: `curl http://localhost:3006/health` ([SANCTIONS.md](SANCTIONS.md)).
+The sanctions screener (port 3006) also runs outside compose for now: `curl http://localhost:3006/health` ([SANCTIONS.md](../../thawgate/SANCTIONS.md)).
 
 ### Stopping Services Gracefully
 

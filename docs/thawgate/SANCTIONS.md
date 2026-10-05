@@ -79,7 +79,7 @@ yarn workspace @thawgate/compliance-service build
 SCREENER_KEYPAIR=~/.keys/thawgate/screener.json node services/compliance-service/dist/screener/main.js   # the keeper must be running (:3005)
 ```
 
-Grant the role once per mint, as the MasterAuthority: `thawgate grant-role --mint <MINT> --holder <SCREENER_PUBKEY> --role blacklister`. The environment is in [services/compliance-service/README.md](../services/compliance-service/README.md).
+Grant the role once per mint, as the MasterAuthority: `thawgate grant-role --mint <MINT> --holder <SCREENER_PUBKEY> --role blacklister`. The environment is in [services/compliance-service/README.md](../../services/compliance-service/README.md).
 
 **HTTP (:3006):**
 - `GET /health`: 200 while keeper polls are on time; names the provider and whether it is the fallback.

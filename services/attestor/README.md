@@ -1,6 +1,6 @@
 # ThawGate reserve attestor (`@thawgate/attestor`)
 
-Posts a mint's reserves to sss-token `attest_reserves` from a JSON source, so `mint_tokens` can refuse a mint above them ([docs/RESERVES.md](../../docs/RESERVES.md)).
+Posts a mint's reserves to sss-token `attest_reserves` from a JSON source, so `mint_tokens` can refuse a mint above them ([docs/thawgate/RESERVES.md](../../docs/thawgate/RESERVES.md)).
 
 ## Source
 

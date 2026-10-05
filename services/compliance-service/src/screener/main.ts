@@ -1,5 +1,5 @@
 /**
- * Entry point of the sanctions screener (see docs/SANCTIONS.md and the environment in ./config.ts).
+ * Entry point of the sanctions screener (see docs/thawgate/SANCTIONS.md and the environment in ./config.ts).
  *
  *   node dist/screener/main.js                  run: poll the keeper, screen holders, blacklist flagged wallets.
  *   node dist/screener/main.js probe <address>  print one provider result and exit (no keypair, no transaction).

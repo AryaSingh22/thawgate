@@ -20,7 +20,7 @@
 //! Run (trident-cli 0.12.0, after `anchor build`; it loads `target/deploy/thawgate_gate.so`):
 //!     cd trident-tests && trident fuzz run --with-exit-code fuzz_0
 //! 1,000 iterations × 100 flows (Trident splits the iterations over the CPU threads, rounding down). Pass a seed
-//! from a run's `MASTER SEED` line as the second argument to replay it. Results: docs/SECURITY.md "Fuzzing".
+//! from a run's `MASTER SEED` line as the second argument to replay it. Results: docs/thawgate/SECURITY.md "Fuzzing".
 use fuzz_accounts::*;
 use trident_fuzz::fuzzing::*;
 mod fuzz_accounts;

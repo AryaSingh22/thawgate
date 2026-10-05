@@ -150,4 +150,4 @@ Query the immutable history of all compliance actions.
 
 ## 4. Reserve attestor (no HTTP API)
 
-The oracle service on port 3004 was retired in S9 (2026-10). Its endpoints returned fixed values and never called a program. Its replacement, `services/attestor`, has no HTTP API. It reads a JSON source and posts sss-token `attest_reserves`, which `mint_tokens` checks. See [RESERVES.md](RESERVES.md) and [services/attestor/README.md](../services/attestor/README.md).
+The oracle service on port 3004 was retired in S9 (2026-10). Its endpoints returned fixed values and never called a program. Its replacement, `services/attestor`, has no HTTP API. It reads a JSON source and posts sss-token `attest_reserves`, which `mint_tokens` checks. See [RESERVES.md](../../thawgate/RESERVES.md) and [services/attestor/README.md](../../../services/attestor/README.md).

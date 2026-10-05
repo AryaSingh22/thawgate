@@ -29,7 +29,7 @@ The on-chain system consists of three Anchor programs:
 
 1. **`sss-token`**: The core standard program implementing the 16 instructions for minting, role management, pausing, and SSS-2 compliance actions.
 2. **`transfer-hook`**: A Token-2022 Transfer Hook extension program that blocks transfers if the token is paused or if either the source or destination wallet is blacklisted.
-3. **`thawgate-gate`**: The Token ACL gate (ThawGate). Before S9 this slot held `oracle-module`, a stub that never read a feed. It was retired in S9; `sss-token` `mint_tokens` now checks attested reserves itself ([RESERVES.md](RESERVES.md)).
+3. **`thawgate-gate`**: The Token ACL gate (ThawGate). Before S9 this slot held `oracle-module`, a stub that never read a feed. It was retired in S9; `sss-token` `mint_tokens` now checks attested reserves itself ([RESERVES.md](../../thawgate/RESERVES.md)).
 
 ## Account/PDA Layout
 
@@ -44,7 +44,7 @@ All Program Derived Addresses (PDAs) are strictly derived from the **mint addres
 | `BlacklistEntry` | `["blacklist", mint, wallet_authority]` | 45 | Compliance blacklist (uses wallet owner, not token account). |
 | `AllowlistEntry` | `["allowlist", mint, wallet_authority]` | 29 | Regulatory gating for SSS-3 transfers. |
 | `ExtraAccountMetaList` | `["extra-account-metas", mint]` | Variable | Transfer hook metadata mapping for Token-2022. |
-| `ReserveAttestation` | `["reserve_attestation", mint]` | 373 | Attested reserves (base units) that `mint_tokens` checks ([RESERVES.md](RESERVES.md)). |
+| `ReserveAttestation` | `["reserve_attestation", mint]` | 373 | Attested reserves (base units) that `mint_tokens` checks ([RESERVES.md](../../thawgate/RESERVES.md)). |
 
 ## Transfer Hook Data Flow
 
@@ -114,6 +114,6 @@ SSS employs a strict Role-Based Access Control (RBAC) model.
 | **Immutability of Extensions** | Token-2022 extensions (like `TransferHook` and `PermanentDelegate`) are locked permanently via `StablecoinConfig` flags during initialization. |
 | **Audit Trails** | `RoleRecord` and `BlacklistEntry` accounts are **never deleted**. When a role is revoked or a blacklist lifted, an `active` boolean is flipped to `false`. This preserves historical on-chain evidence of all compliance actions. |
 | **Supply Protection** | Minting uses Rust checked math (`checked_add`) to prevent overflow exploits. A compromised Minter key mints at most its quota per period, inside the reserve cap; a quota of 0 means unlimited. |
-| **Reserve check** | `mint_tokens` refuses `mint.supply + amount > reserves` (`ReserveInsufficient`) and an attestation older than `max_staleness` (`ReserveStale`). Acl/Both mints need an attestation ([RESERVES.md](RESERVES.md)). |
-| **Sanctions screening** | Off chain: the screener (`services/compliance-service`) sends `add_to_blacklist` for holders a risk provider flags, signed by a Blacklister-role key; the keeper freezes the rest. The gate trusts the entry, not the provider ([SANCTIONS.md](SANCTIONS.md)). |
-| **Fuzz Testing** | One Trident target, on the ThawGate gate's `can_thaw` / `can_freeze` (`trident-tests/fuzz_0`; results and gaps in [SECURITY.md](SECURITY.md#fuzzing)). sss-token, the hook and demo-pool are not fuzzed. |
+| **Reserve check** | `mint_tokens` refuses `mint.supply + amount > reserves` (`ReserveInsufficient`) and an attestation older than `max_staleness` (`ReserveStale`). Acl/Both mints need an attestation ([RESERVES.md](../../thawgate/RESERVES.md)). |
+| **Sanctions screening** | Off chain: the screener (`services/compliance-service`) sends `add_to_blacklist` for holders a risk provider flags, signed by a Blacklister-role key; the keeper freezes the rest. The gate trusts the entry, not the provider ([SANCTIONS.md](../../thawgate/SANCTIONS.md)). |
+| **Fuzz Testing** | One Trident target, on the ThawGate gate's `can_thaw` / `can_freeze` (`trident-tests/fuzz_0`; results and gaps in [SECURITY.md](../../thawgate/SECURITY.md#fuzzing)). sss-token, the hook and demo-pool are not fuzzed. |
