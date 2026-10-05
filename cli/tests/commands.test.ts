@@ -11,6 +11,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { loadConfig, saveConfig, CLIConfig } from "../src/config";
+import { parsePreset } from "../src/commands";
 import { PublicKey } from "@solana/web3.js";
 
 // Use a temp directory for config tests
@@ -255,10 +256,12 @@ describe("CLI Audit Log", () => {
 });
 
 describe("CLI Error Handling", () => {
-    it("unknown preset is detected", () => {
-        const known = ["sss1", "sss2"];
-        const input = "unknown";
-        expect(known.includes(input)).toBe(false);
+    it("init --preset takes sss1 or sss2 only (anything else used to create an SSS-1 mint)", () => {
+        expect(parsePreset("sss1")).toBe("sss1");
+        expect(parsePreset("SSS2")).toBe("sss2");
+        for (const bad of ["unknown", "acl", "sss3", ""]) {
+            expect(() => parsePreset(bad)).toThrow(/Valid presets: sss1, sss2/);
+        }
     });
 
     it("missing required arg is detected", () => {

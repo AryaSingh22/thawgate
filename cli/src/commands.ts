@@ -184,6 +184,7 @@ export function registerCommands(program: Command): void {
                 decimals = customConfig.decimals ?? decimals;
                 if (customConfig.preset) preset = customConfig.preset;
             }
+            preset = parsePreset(preset);
 
             if (!name || !symbol) {
                 console.error("❌ --name and --symbol are required (or provide --custom <path>)");
@@ -981,6 +982,18 @@ function parseRoleType(role: string): RoleType {
         );
     }
     return result;
+}
+
+/**
+ * Checks `init`'s preset. Anything but "sss2" used to fall through to an SSS-1 mint, so a typo or "acl" silently
+ * created a different kind of stablecoin (found in S15b).
+ */
+export function parsePreset(preset: string): "sss1" | "sss2" {
+    const p = String(preset).toLowerCase();
+    if (p !== "sss1" && p !== "sss2") {
+        throw new Error(`Invalid preset: ${preset}. Valid presets: sss1, sss2 (for an SSS-ACL mint gated by ThawGate, use create-stablecoin)`);
+    }
+    return p;
 }
 
 /**
