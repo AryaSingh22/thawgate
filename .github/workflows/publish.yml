@@ -1,0 +1,77 @@
+name: Publish npm
+
+# A tag vX.Y.Z publishes @thawgate/sdk, then @thawgate/cli (which depends on it), at X.Y.Z with npm provenance:
+# npm records that this workflow, at this commit, built the package. A rerun skips a version npm already has.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    name: npm publish (sdk, cli)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22: the workspace install needs >= 22.12 (the published packages run on Node 20 too; CI's pack smoke).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+          registry-url: https://registry.npmjs.org
+
+      - name: The tag matches both package versions
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          for p in sdk cli; do
+            pv=$(node -p "require('./$p/package.json').version")
+            [ "$pv" = "$v" ] || { echo "$p/package.json is $pv, the tag is $GITHUB_REF_NAME"; exit 1; }
+          done
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build the SDK and the CLI
+        run: yarn workspace @thawgate/sdk build && yarn workspace @thawgate/cli build
+
+      - name: Pack smoke (the packed tarballs in an empty project)
+        run: scripts/sdk-pack-smoke.sh
+
+      - name: Publish @thawgate/sdk
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if npm view "@thawgate/sdk@$VERSION" version > /dev/null 2>&1; then
+            echo "@thawgate/sdk@$VERSION is already on npm: skip"
+          else
+            cd sdk && npm publish --provenance --access public
+          fi
+
+      - name: Wait until npm serves @thawgate/sdk@${{ env.VERSION }}
+        run: |
+          for _ in $(seq 1 30); do
+            npm view "@thawgate/sdk@$VERSION" version 2> /dev/null && exit 0
+            sleep 10
+          done
+          echo "@thawgate/sdk@$VERSION is not visible after 300 s"
+          exit 1
+
+      - name: Publish @thawgate/cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if npm view "@thawgate/cli@$VERSION" version > /dev/null 2>&1; then
+            echo "@thawgate/cli@$VERSION is already on npm: skip"
+          else
+            cd cli && npm publish --provenance --access public
+          fi

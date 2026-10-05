@@ -1,0 +1,103 @@
+name: Verifiable build
+
+# solana-verify builds the four programs in Docker (solanafoundation/solana-verifiable-build:3.0.14, pinned by digest;
+# Cargo.toml [workspace.metadata.cli] picks the version), one `--library-name` build each, the way
+# `solana-verify verify-from-repo` rebuilds them. The job prints each program's executable hash next to the hash of
+# the bytes deployed on devnet, and uploads the .so files: scripts/deploy-devnet-acl.sh deploys exactly these
+# (SO_DIR=<the downloaded artifact>).
+#
+# OtterSec's remote verifier (the explorer's "verified" badge) covers mainnet only, and ThawGate is devnet-only, so
+# this hash match is the check anyone can rerun: `solana-verify verify-from-repo -u devnet …` (DEPLOYMENT.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_match:
+        description: "Fail unless every program's devnet bytes equal this build"
+        type: boolean
+        default: false
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SOLANA_VERIFY_VERSION: "0.5.2"
+  DEVNET_RPC: https://api.devnet.solana.com
+
+jobs:
+  build:
+    name: solana-verify build
+    # The solana-verify 0.5.2 release binary needs glibc 2.39 (Ubuntu 24.04).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install solana-verify ${{ env.SOLANA_VERIFY_VERSION }} (release binary, sha256 checked)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin" && cd "$RUNNER_TEMP/bin"
+          gh release download "v$SOLANA_VERIFY_VERSION" -R Ellipsis-Labs/solana-verifiable-build -p "solana-verify-$SOLANA_VERIFY_VERSION-linux*"
+          sha256sum -c "solana-verify-$SOLANA_VERIFY_VERSION-linux.sha256"
+          mv "solana-verify-$SOLANA_VERIFY_VERSION-linux" solana-verify
+          chmod +x solana-verify
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          ./solana-verify --version
+
+      # No target/ cache: every run builds from a clean tree.
+      - name: Build (one --library-name build per program, as verify-from-repo does)
+        run: |
+          for lib in sss_token transfer_hook thawgate_gate demo_pool; do
+            echo "::group::solana-verify build --library-name $lib"
+            solana-verify build --library-name "$lib"
+            echo "::endgroup::"
+          done
+          ls -l target/deploy/*.so
+
+      - name: Hashes vs devnet
+        env:
+          REQUIRE_MATCH: ${{ (github.event_name == 'push' || inputs.require_match) && '1' || '0' }}
+        run: |
+          mkdir -p verified-so
+          {
+            echo "### Verifiable build of \`${GITHUB_SHA}\` vs devnet"
+            echo
+            echo "| Program | Program ID | .so bytes | sha256 | executable hash (solana-verify) | devnet hash | match |"
+            echo "|---|---|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          mismatches=0
+          for lib in sss_token transfer_hook thawgate_gate demo_pool; do
+            so="target/deploy/$lib.so"
+            id=$(grep -oP 'declare_id!\("\K[^"]+' "programs/${lib//_/-}/src/lib.rs")
+            bytes=$(stat -c%s "$so")
+            sha=$(sha256sum "$so" | cut -d' ' -f1)
+            exe=$(solana-verify get-executable-hash "$so" | tail -n 1)
+            chain=$(solana-verify get-program-hash -u "$DEVNET_RPC" "$id" | tail -n 1)
+            if [ "$exe" = "$chain" ]; then match=yes; else match=no; mismatches=$((mismatches + 1)); fi
+            cp "$so" verified-so/
+            echo "$lib $id $bytes $sha $exe" >> verified-so/hashes.txt
+            echo "| $lib | \`$id\` | $bytes | \`$sha\` | \`$exe\` | \`$chain\` | $match |" >> "$GITHUB_STEP_SUMMARY"
+            echo "$lib: executable $exe, devnet $chain, match $match"
+          done
+          (cd verified-so && sha256sum *.so > SHA256SUMS)
+          echo "commit $GITHUB_SHA, solana-verify $SOLANA_VERIFY_VERSION, image solanafoundation/solana-verifiable-build:3.0.14" >> verified-so/hashes.txt
+          if [ "$mismatches" -gt 0 ]; then
+            echo "$mismatches program(s) differ from devnet."
+            [ "$REQUIRE_MATCH" = 1 ] && exit 1
+          fi
+          exit 0
+
+      # Only the .so files and their hashes: target/deploy also holds program keypairs, which never leave the runner.
+      - name: Upload the .so files
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-so
+          path: verified-so/
+          if-no-files-found: error

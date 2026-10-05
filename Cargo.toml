@@ -14,6 +14,11 @@ spl-token-2022 = { version = "8", features = ["no-entrypoint"] }
 spl-transfer-hook-interface = "0.10"
 spl-tlv-account-resolution = "0.10"
 
+# solana-verify picks its build image from this: solanafoundation/solana-verifiable-build:3.0.14, the CI toolchain
+# (.github/workflows/verifiable-build.yml).
+[workspace.metadata.cli]
+solana = "3.0.14"
+
 [profile.release]
 overflow-checks = true
 lto = "fat"
