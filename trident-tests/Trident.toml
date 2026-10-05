@@ -1,0 +1,8 @@
+[fuzz.metrics]
+enabled = true
+
+
+[[fuzz.programs]]
+address = "THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ"
+program = "../target/deploy/thawgate_gate.so"
+ 
