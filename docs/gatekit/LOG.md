@@ -1521,3 +1521,36 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
 - **Links:** commits `da5e012`, `47f453a`, `8d89314`, `e1cae27`, and this log with PLAN.md (`a4ed02d`). No devnet transactions.
 - **CI on `a4ed02d`:** all five workflows green (Gate Tests 37355271808, Anchor Integration 37355271872 at 75 passing, TypeScript Tests 37355271892, Full CI 37355271938, CI 37355271833). **Tag `c2-freeze` = `a4ed02d`, pushed: the C2 feature freeze starts here.**
 - **Next:** S16, per the handoff at the top of this file.
+
+## S16 · 2026-10-06 · Rebrand polish and docs
+- **Decisions (plan mode, approved):**
+  - Fixes only (C2 freeze). The only code changes are a new `gif` flow in the screenshot script and two comment paths.
+  - The console code-split, the `@thawgate/shared` dependencies and npm publish move to S17.
+  - The GIF is recorded with `scripts/screenshots` in the console on vUSD, with the keeper running.
+  - Push before the stranger test, so the stranger clones the README from GitHub.
+- **Reserves re-posted first** (`thawgate reserves post`, public RPC, the same amounts; fresh until 2026-10-06 18:58 UTC):
+  - vUSD, 1,000,000 vUSD: [22y5FjbE…](https://explorer.solana.com/tx/22y5FjbESXmW4VGLhsmhq5mPiwiYCvrZqkW5NP2t25KqFZ5dSdsN79UmWXdKM2vixBue5jMG1LYDP2bFnMpdwm6j?cluster=devnet);
+  - the S9 mint `D6Q5PA…`, 2,000 tokens, by its attestor `2da6…`: [5VPRbmZo…](https://explorer.solana.com/tx/5VPRbmZo3vsqGiDUq9EkGZzvTYpv5MBCMyZpz95AHpyCkVv2EPFKV95DzVx4D5rEvmAi7Cm8ZQXXUt9dbXeuGXtA?cluster=devnet).
+- **Shipped: docs layout** (`8d8bf21`):
+  - `docs/thawgate/` holds RESERVES, SANCTIONS and SECURITY;
+  - `docs/examples/sss/` holds the SSS baseline docs;
+  - every link is fixed; RESEARCH.md's links to code retired in S9 now point at the `pre-worlds-fair` tag.
+- **Shipped: new docs** (`3c1bab3`):
+  - GATE.md (spec and reason codes), POLICY.md, INTEGRATING.md (the integrator guide, with the S5/S8/S9 items folded in) and KEEPER.md;
+  - an index for each docs folder.
+- **Shipped: the GIF** (`34006ca` script, `56bb798` README):
+  - `console.mjs gif` on vUSD, run twice. Run 1's result panel sat under the caption bar, so it was re-recorded taller.
+  - **Pre-check** (read-only, `/tmp/s16-vusd-holders.js`): vUSD had 4 token accounts. The 2 thawed ones (the pool vault's PDA owner and `5BXg…`) were `compliant`, so the keeper's first sweep froze nothing else.
+  - **Committed GIF:** run 2, 19.8 s, 960×704, 1.56 MB; the waits are cut. Holder `E7mQE9v4…`:
+    - denied `NO_CREDENTIAL` (simulated);
+    - attest [363BgzkB…](https://explorer.solana.com/tx/363BgzkbVRpwKXMXMNnsuurd6BU9o1YKtMjGPHS5htVYvaxLsvYDDUocNox8xYHPvPPSRW38Jx1cWeKecwtTCNpy?cluster=devnet) (signed by `5avMn…`, the self-issued demo credential's signer);
+    - unlock [51FXELY3…](https://explorer.solana.com/tx/51FXELY3DfujaGXh4CgZBmbSCoJrxnv7jHKewir6omoLVS8YPCD965P5X6ncQB9YaEEspKrHWEf8cJ5893R7j7tk?cluster=devnet) (`TG:ALLOW:KYC`);
+    - revoke [64otzREA…](https://explorer.solana.com/tx/64otzREAhWeDbjU1CR2awWUA2fhnHxKKdFEsoVtdUnAcAo7aJpQwxRsFLspgM8BUbRWNfv7vW4x7MQiBjH6HwRvQ?cluster=devnet);
+    - keeper freeze [3CLEESaz…](https://explorer.solana.com/tx/3CLEESazrqHicop8HFFHWRNWjdQPhySKaziPtB39SJBTuekJ1hw3W6k2SoYEi9W7VmUypsAKiigFY7e3WenosJhA?cluster=devnet) (fee payer `4auu6t…`, `TG:ALLOW:NO_CREDENTIAL`, 49,113 CU, 9 slots after the revoke);
+    - denied again, account `(frozen)`.
+  - **Revoke → frozen:** 1,759 ms in run 2 and 1,793 ms in run 1 (run 1's freeze [4TpaQYNr…](https://explorer.solana.com/tx/4TpaQYNrxdooJbdsfrq26oovF8jqN1eY1qfafNSSKsP7EGbn4ohKe9Ls6dZQhRpXVaYiVr5iu4iNx3e8Mcq4rEf6?cluster=devnet), 11 slots). Measured from the revoke CLI returning (it waits for `confirmed`) to the first `confirmed` read of the account as frozen, polled every 100 ms. Two runs: an illustration, not a p50.
+  - **Cost:** each run is a 0.01 SOL burner plus fees; the attestation rent comes back on revoke. The keeper paid two freezes and logged nothing at warn or error.
+- **Gated mints on devnet** (read-only, `/tmp/s16-gate-mints.js`: Token ACL `MintConfig`s with `gating_program` = ThawGate at offset 68, the RESEARCH.md §1.4 query):
+  - **15 mints**, all with permissionless thaw and freeze on (slot 507,833,597, 2026-10-05 19:14 UTC).
+  - Each of the 15 traces to an earlier entry here (S7b, S8, S9, S10 ×2, S11 ×2, S12-venue, S13 ×2, S14 ×2, S15a ×3). None is an external integrator's.
+- **Shipped: README, SUBMISSION.md, DISCLOSURE.md** (this push).

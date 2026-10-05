@@ -19,7 +19,7 @@ Markers as in [RESEARCH.md](RESEARCH.md): **[M]** measured, **[C]** cited, **TOD
 | Stablecorp (QCAD) | Canadian-dollar stablecoin issuer, on Solana since 2023-09-22 [C] ([PR](https://www.prweb.com/releases/stablecorp-to-enable-payments-and-ultra-low-cost-cad--usd-on-chain-fx-with-qcad-on-solana-301935754.html)) | — | Live | **Prospect**, not a competitor |
 | Bridge / Brale / M0 / Paxos | Issuance-as-a-service (licensing, custody, mint/burn rails) [C] ([defiprime map](https://defiprime.com/stablecoin-issuance-infrastructure-2026)) | Off-chain + their own contracts | Live | Not competing on-chain gates. Possible distribution partners later |
 | [onchain-agent-wallets](https://github.com/nirholas/onchain-agent-wallets) | MCP server giving agents SPL-delegate allowances + x402 | SPL Token delegate | Created 2026-08-19, 5 stars [M] | Adjacent. Generic tokens; no compliance |
-| [solagent-pay](https://github.com/altaranexus-ship-it/solagent-pay) | Session-PDA budgets for agents + x402 | Own program | Created 2026-09-17, 0 stars [M] | Adjacent, likely a hackathon entry. GateKit uses the audited Subscriptions & Allowances program instead |
+| solagent-pay (`github.com/altaranexus-ship-it/solagent-pay`; the repo returned 404 on 2026-10-06, so it's deleted or private now) | Session-PDA budgets for agents + x402 | Own program | Created 2026-09-17, 0 stars [M] | Adjacent, likely a hackathon entry. GateKit uses the audited Subscriptions & Allowances program instead |
 | Range | Risk/sanctions API, Switchboard-verified on-chain | — | Live [C] | **Data partner** for the sanctions policy |
 | Sumsub / Civic / RNS.ID | SAS credential issuers | — | Live [C] | **Distribution partners**: "your credential now unlocks regulated tokens" |
 
