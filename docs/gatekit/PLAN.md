@@ -228,17 +228,17 @@ Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fal
 - **Done when:** both pages are live on the dev server against devnet data; take screenshots for the README. **Done 2026-10-04** (LOG.md S14).
 
 ### Wed 7 · S15 Security + test hardening (C2: feature freeze at start)
-- [ ] Run `/security-review` and `/code-review high` on the gate and sss-token diffs. Fix or document every finding.
-- [ ] Checklist:
+- [x] Run `/security-review` and `/code-review high` on the gate and sss-token diffs. Fix or document every finding. **Done in S15b** (2026-10-05) as a manual security review (Claude Code, structured per the /security-review method); the skills can't run from this session's working directory. No program finding; three off-chain fixes; the rest are SECURITY.md known limitations.
+- [x] Checklist (all hold; evidence in SECURITY.md "Checklist"):
   - gate never trusts accounts it doesn't derive
   - flag-account check only where state is written
   - `can_freeze` can't be griefed
   - policy authority bound to MintConfig
   - ImmutableOwner enforced
   - reserve check uses `mint.supply`
-- [ ] Try the Trident fuzz target on the gate. If it still won't run, **say so in the docs**; don't claim it.
+- [x] Try the Trident fuzz target on the gate. If it still won't run, **say so in the docs**; don't claim it. **It runs** (S15b): `trident-tests/fuzz_0`, 4 runs × 99,600 flows, no failure. The `BypassForPdas` curve path isn't covered (TridentSVM has no curve syscall). SECURITY.md "Fuzzing".
 - [x] **Blacklist re-add** (user, S11): either `remove_from_blacklist` closes the entry or `add_to_blacklist` reactivates an inactive one. Ship it in **one sss-token upgrade** together with the reserve-PDA bump fix (`mint_tokens` CU depends on the bump; check the address with `create_program_address` and the stored bump; LOG.md S9). Today an inactive entry blocks a second blacklist ("already in use"; SECURITY.md known limitation 4). **Done in S15a** (2026-10-04, devnet slot 507431803): `add_to_blacklist` reactivates. The same upgrade covers the allowlist re-add, `transfer_authority` back to a previous holder, and the stored bumps in `mint_tokens`. S15 is split; the items above are S15b.
-- **Done when:** the findings are closed or listed in `SECURITY.md` "Known limitations". Tag `c2-freeze`.
+- **Done when:** the findings are closed or listed in `SECURITY.md` "Known limitations". Tag `c2-freeze`. **Done 2026-10-05** (LOG.md S15b); the tag goes on the S15b push once CI is green.
 
 ## Phase 4: publish (Thu 8 → Fri 9)
 

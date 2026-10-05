@@ -2,55 +2,39 @@
 
 One entry per session: shipped / links / next. This is the "built during the hackathon" evidence for DISCLOSURE.md. Only measured results go here.
 
-## ▶ S15b handoff (read first; remove when S15b ends)
-S15a is done (entry at the bottom):
-- **One sss-token upgrade on devnet** (slot 507431803):
-  - blacklist and allowlist re-add, and `transfer_authority` back to a previous holder;
-  - `mint_tokens` uses the stored bumps: about 21.5k CU whatever the mint's address.
-- **`thawgate reserves post`.**
-- **Legacy e2e:** 75 / 0 locally (3 runs).
+## ▶ S16 handoff (read first; remove when S16 ends)
+S15b is done (entry at the bottom). **C2 feature freeze from tag `c2-freeze`: only fixes from here on, no new features.**
+- **Review:** a manual security review (Claude Code, structured per the /security-review method) over `pre-worlds-fair..HEAD`. The `/security-review` and `/code-review` skills can't run here: the session's working directory isn't the repo.
+- **No program finding, so no upgrade.** Devnet is unchanged since S15a.
+- **Fixed (off-chain):**
+  - the SDK error map is built from the IDLs and pinned by a test (`da5e012`);
+  - CLI `init --preset` rejects unknown presets (`47f453a`);
+  - the Trident fuzz claims that never ran are removed, and a real gate target runs (`8d89314`);
+  - docs/SECURITY.md is rewritten (`e1cae27`): findings S15b-1…10, the S15 checklist, the four probes, fuzzing, and 23 known limitations.
 
-**CI on `986f33b`** (the S15a push, `444d65f..986f33b`; checked 2026-10-04): **all five workflows green.**
-- **Anchor Integration** (37219222556): **75 passing, 0 failing**, green for the first time since the S1 migration.
-- **Gate Tests** (37219222643): gate 55, story 7, keeper 8, screener 5, sdk 14, venue 3.
-- **Full CI** (37219222547), **CI** (37219222549), **TypeScript Tests** (37219222548).
+**CI on the S15b push:** see the "CI for" line in the S15b entry.
 
-**S15b, the rest of S15** (PLAN.md S15; C2 feature freeze; tag `c2-freeze` when done):
-- Run `/security-review` and `/code-review high` on the gate and sss-token diffs, S15a's included (`444d65f..HEAD`). Fix or document every finding (SECURITY.md "Known limitations").
-- Work through the PLAN checklist:
-  - the gate never trusts accounts it doesn't derive;
-  - the flag-account check happens only where state is written;
-  - `can_freeze` can't be griefed;
-  - the policy authority is bound to MintConfig;
-  - ImmutableOwner is enforced;
-  - the reserve check uses `mint.supply`.
-- Try the Trident fuzz target on the gate. If it still won't run, say so in the docs.
-- **Review surfaces:**
-  - **From S14:**
-    - the keeper's `access-control-allow-origin: *` (read-only endpoints);
-    - the Mint card's "Send anyway" (skips preflight on purpose, one fee);
-    - the CLI's other string-to-enum options, which were like `minters add`'s `--period` before `554716a`.
-  - **New in S15a:**
-    - **`sdk/src/errors.ts` `ERROR_CODE_MAP` has the old SSS numbering.** 6005 (`TokensPaused`) becomes a `QuotaExceededError`, 6007 (`MinterQuotaExceeded`) "Role not found", and nothing past 6024 is mapped. `client.send` doesn't call `parseError`, so only instruction-building errors reach it. Generate the map from the IDL's `errors`. Found in S15a, not fixed.
-    - The S15a program changes:
-      - `reserve_bump` / `stored_bump` (`state/reserve_attestation.rs`);
-      - the three `init_if_needed` accounts with an `!active` constraint (blacklist entry, allowlist entry, `new_master_role`).
-- **A program fix in S15b needs another sss-token upgrade.**
-  - S15a's cost: 746 txs and 0.0038 SOL in fees.
-  - No extend while the `.so` stays ≤ 715,192 bytes; today it's 712,768.
-- **Phantom and Solflare still haven't been run** (user). Run the wizard once with Phantom on devnet and note whether it warns on `initialize`.
+**S16** (PLAN.md S16: rebrand polish + docs; fixes only, per the freeze):
+- **README:** pitch line, a 20 s unlock → revoke → frozen GIF, architecture diagram, 5-minute quickstart, program IDs, "Built on".
+- **`docs/` → `docs/thawgate/`**, with the integrator guide.
+  - The S5 guide TODOs now sit in SECURITY.md Known limitations 6–9 (policy tightening, issuer credentials, ImmutableOwner on venue vaults, `transfer_authority` vs. policy authority). Also 11 (SAS revokes by close).
+  - Link to them; don't copy them.
+- **SUBMISSION.md:** replace it. It now carries an "Archived" note, because its 2026-03 claims ("heavily audited") were never true.
+- **DISCLOSURE.md:** finalize it.
+- **Console:** code-split the bundle (1.32 MB in one chunk).
+- **Phantom / Solflare:** pending from the user; they report it, so don't ask.
 
-State on devnet (2026-10-04, after S15a):
-- **Programs:** sss-token upgraded (`dd61933b…`, slot 507431803); the gate, the hook and demo-pool are unchanged. All four `.so` sha256 equal DEPLOYMENT.md. `5BXg…` has 27.568158312 SOL.
+State on devnet (2026-10-05, unchanged since S15a; S15b sent no transactions):
+- **Programs:** all four `.so` sha256 equal DEPLOYMENT.md. The Trident target fuzzed the deployed gate's bytes (`09b46b84…`). `5BXg…` has 27.568158312 SOL.
 - **vUSD** `AsePwCcV…`:
-  - Supply is 104,001 and reserves 1,000,000, **as of 2026-10-04 16:54 UTC, stale after 2026-10-05 16:54 UTC**.
-  - Re-post before any vUSD mint or screenshot, from a dir without the repo's `.env` (the CLI loads `.env` from its cwd), as S15a did:
+  - Supply is 104,001 and reserves 1,000,000, posted 2026-10-04 16:54 UTC. **Stale since 2026-10-05 16:54 UTC.**
+  - Re-post before any vUSD mint or screenshot, from a dir without the repo's `.env` (the CLI loads `.env` from its cwd):
 
     `HOME=/tmp/s15a-cli node ~/thawgate/cli/dist/index.js --json --rpc-url https://api.devnet.solana.com --keypair ~/.config/solana/sss-authority.json reserves post --mint AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw --amount 1000000000000`
   - Its reserve account holds 4 landed `ReserveInsufficient` refusals (the `/reserves` history).
   - Its 4 burner Minter roles are deactivated.
 - **S9 story mint** `D6Q5PA…` (reserve bump 248):
-  - reserves 2,000 tokens (supply 1,000), fresh until 2026-10-05 16:51 UTC;
+  - reserves 2,000 tokens (supply 1,000), **stale since 2026-10-05 16:51 UTC**;
   - its attestor `2da6…` (`~/.keys/thawgate/attestor.json`) has 0.009995 SOL.
 - **New mints from the S15a devnet e2e:**
   - story `4K4t2Cnun4Wondgbfot6zVJsDZp5qs4jwWaNeRXaCWmB`;
@@ -63,12 +47,17 @@ State on devnet (2026-10-04, after S15a):
   - the S13 console mints and the S11 quickstart mints.
 
 Open:
+- **New in S15b:**
+  - **Trident isn't in CI.** It would need a trident-cli 0.12.0 install plus a ~3-minute build. It also can't cover the `BypassForPdas` off-curve check, because TridentSVM has no curve syscall. Run it by hand after any gate change: `cd trident-tests && trident fuzz run --with-exit-code fuzz_0`.
+  - **The S7 items are now documented known gaps** (SECURITY.md limitation 20): the gate/sas fixture conversion (about 2–3 h) and the Both-mode test (about 45 min). Both are test-only, so they're allowed under the freeze.
+  - **`FeatureNotEnabled`'s IDL text still says hook-only** (limitation 19). Fix it only if another sss-token upgrade happens for a real fix.
+  - **`client.send` throws the raw error.** Callers pass it to `parseError` (docs/SDK.md). The console and CLI read the logs directly.
 - **New in S15a:**
   - **Not run on devnet:** a blacklist or allowlist re-add and a transfer back (localnet only, `tests/gate/issuer.test.ts`).
   - **The screener still never re-adds** a wallet an operator removed. That's by design (SANCTIONS.md); sss-token could now reactivate the entry.
   - **The deploy script prints no signature for `extend`.** Read it from the ProgramData account's history.
 - **New in S14:**
-  - **Phantom and Solflare:** see the handoff above.
+  - **Phantom and Solflare:** pending from the user (see the handoff above).
   - **The console still can't add allowlist entries** (`compliance(mint).addToAllowlist`).
   - **The Mint card's refusal texts** other than `ReserveInsufficient` haven't run.
   - **The keeper indexes facts only for owners of thawed accounts.** `/decisions` fills frozen rows from chain reads and a live `explain`. A keeper endpoint for frozen owners would save the browser reads.
@@ -86,17 +75,27 @@ Open:
   - Both packages are publish-ready, and the pack smoke runs in CI on Node 20 and 22.
   - The quickstart README says "until 0.1.0 is on npm"; update it after publishing.
 - **Carried from S10:**
-  - Range is untested live; the S19 wording is in PLAN.md.
-  - Keeper self-trigger on SAS logs; the trigger-label race.
-  - Screener ops: no compose entry, state in memory, one provider.
+  - Range is untested live; the S19 wording is in PLAN.md (SECURITY.md limitation 4).
+  - Keeper self-trigger on SAS logs and the trigger-label race. The RPC cost is SECURITY.md limitation 14.
+  - Screener ops: no compose entry, state in memory, one provider (limitation 5).
 - **Carried from S9 and earlier:**
-  - Treasury PDA + BypassForPdas for mainnet (S16).
-  - Attestor health and metrics.
+  - Treasury PDA + BypassForPdas for mainnet (S16 docs; limitation 7).
+  - Attestor health and metrics (limitation 13).
   - `cargo fmt` fails workspace-wide.
-  - The gate/sas fixture conversion and the Both-mode test.
   - The build-in-public thread (user).
 
 Gotchas:
+- **New in S15b:**
+  - **`/security-review` and `/code-review` refuse** because the session's working directory (the Windows folder) isn't the git repo. To run the skills, open `~/thawgate` as the workspace. Otherwise do a manual review and label it as one.
+  - **`git rm` stages at once, and the next commit takes the deletion along.** In S15b the Trident stub deletions landed in `da5e012` (the SDK commit), and history was left as is. Commit removals together with what replaces them.
+  - **Trident 0.12 (`trident fuzz run`):**
+    - Flow assertion failures print only on its progress bar, which is hidden without a TTY. The harness's `check!` prints them to stderr.
+    - "Instruction Panicked" means `ProgramFailedToComplete`.
+    - `--with-exit-code` fails the run on any panicked transaction.
+    - Iterations are split over the CPU threads, rounding down: 996 of 1,000 on 12 threads.
+    - TridentSVM 0.2 has no `sol_curve_validate_point` (the program fails with "unsupported BPF instruction").
+    - The target loads `target/deploy/thawgate_gate.so`, so run `anchor build` after gate changes. The first build takes ~3 min; a scratch `CARGO_TARGET_DIR` grew to 2.8 GB.
+  - **The SDK's IDLs are the error map.** After an `anchor build` that changes `errors.rs`, copy the IDLs to `sdk/src/` (CI cmp's them) and update the name pins in `sdk/tests/errors.test.ts`.
 - **New in S15a:**
   - **`anchor.workspace.X` is cached.** The Program keeps the provider of the first test file that loaded it (`tests/unit`, at "processed"). To use another provider, build `new Program(anchor.workspace.X.idl, provider)`, as `tests/integration` now does.
   - **Back-to-back `anchor test` runs** can fail with "rpc port 8899 is already in use" while the last validator shuts down. Wait a few seconds.
@@ -1444,3 +1443,74 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - the devnet txs above;
   - commits `f4830cc` (sss-token), `df728c2` (tests), `a768826` (screener), `cd522dc` (cli), `4104e8b` (docs), and this log with DEPLOYMENT.md.
 - **Next:** S15b, per the handoff at the top of this file.
+
+## S15b · 2026-10-05 · Security review, Trident on the gate, C2 feature freeze
+- **Decisions (plan mode, approved):**
+  - **The review is manual.**
+    - `/security-review` refused to run: the session's working directory is the Windows folder, not the repo (`/code-review` would refuse the same way).
+    - The user chose a **manual security review (Claude Code, structured per the /security-review method)**, labelled that way everywhere. The skills are never claimed to have run.
+  - **Phantom:** the user reports it separately; don't ask.
+  - **SAS semantics decide the SAS probe.** SAS doesn't treat a paused schema or a removed signer as revoking an attestation, so the gate stays as it is. It's documented, with the issuer-side mitigation (close the attestations).
+  - **S7 items:** the fixture conversion plus the Both-mode test come to more than the 1 h budget, so both are listed as known gaps.
+- **Review result: no program finding, no upgrade.**
+  - **Scope:** `pre-worlds-fair..HEAD` at `f92c990`, all nine areas:
+    - the gate, sss-token, the hook and demo-pool;
+    - the keeper, the screener and the attestor;
+    - the SDK and CLI, and the console.
+  - **Upstream sources read:**
+    - SAS master `94a923cb`: `ChangeSchemaStatus` pauses only issuance; `ChangeAuthorizedSigners` doesn't touch attestations; the README's verifier rule is owner + credential + schema + expiry, which is what the gate checks.
+    - Token ACL master `1ac1b11e`: `invoke_can_thaw_permissionless` uses the extra-metas account only at the canonical PDA and resolves every extra by key. So the gate's extras are derived.
+  - **Off-chain findings, fixed:**
+    - the false Trident claims;
+    - the SDK error map;
+    - CLI `init --preset`.
+  - **Documented as limitations:**
+    - SAS revocation semantics;
+    - the keeper-down bound;
+    - keeper SAS-trigger RPC cost;
+    - the allowlist policy without `enable_allowlist`;
+    - the attestor's source trust;
+    - the demo-pool pair squatting;
+    - a stale IDL text.
+
+    The table is in docs/SECURITY.md.
+- **Shipped:**
+  - **SDK** (`da5e012`):
+    - `SSS_TOKEN_ERRORS` and `THAWGATE_GATE_ERRORS` are built from the IDLs;
+    - the class is chosen by IDL name;
+    - `parseError` reads AnchorError, a numeric code, or send logs (the program that raised the error, not the outer one);
+    - `errors.test.ts` pins every name by code; docs/SDK.md's table is rewritten.
+    - That commit also carries the deletion of the old `trident-tests/fuzz_tests` stubs and the root `Trident.toml` (staged earlier by mistake).
+  - **CLI** (`47f453a`): `parsePreset` accepts only sss1/sss2. The tautological CLI test now calls it.
+  - **Trident** (`8d89314`): `trident-tests/fuzz_0` on the gate, trident-cli 0.12.0. It found nothing; four invariants are checked on every flow.
+
+    | Run | Seed | Flows sent | Curve path, not sent | Exit |
+    |---|---|---|---|---|
+    | 1 | `6b38a9ef…` | 96,348 | 3,252 | 0 |
+    | 2 | `b183f8ee…` | 96,439 | 3,161 | 0 |
+    | 3 | `3b8ff0cd…` | 96,417 | 3,183 | 0 |
+    | 4 (repo) | `f0ab756b…` | 96,499 | 3,101 | 0 |
+
+    - Each run: 996 iterations × 100 flows = 99,600 flows, in 5–7 s once built; the first build took 3 min 07 s.
+    - **Mutation check:** treating an inactive blacklist entry as a flag fails every iteration (996 failures, exit 1).
+    - **The curve path aborts under TridentSVM** with "unsupported BPF instruction". That happened on all 3,158 curve-path flows of an earlier run, and on no other flow. So those flows are labelled and not sent.
+    - The fuzzed `.so` is the deployed gate (`09b46b84…`).
+    - Timebox: about 20 of the 45 minutes.
+  - **Docs** (`e1cae27`):
+    - SECURITY.md is rewritten: review, checklist, probes, fuzzing, roles, reserve, screener, 23 known limitations.
+    - ARCHITECTURE.md: the Trident and quota claims are fixed.
+    - SUBMISSION.md gets an "Archived" note.
+- **Checks:**
+  - **TypeScript:** `yarn typecheck` clean. vitest: SDK 137 (12 files), CLI 44.
+  - **Localnet:** `SKIP_BUILD=1 yarn test:sdk` 14 passing.
+  - **Pack smoke:** `scripts/sdk-pack-smoke.sh` ok on Node 22 and Node 20.20.0.
+  - **Console:** `npm run build` ok, after reinstalling the SDK copy.
+  - **Rust:** `cargo test -p thawgate-gate` 30 passed; programs unchanged.
+  - **CLI by hand:** `init --preset acl` exits 1 before any RPC call.
+- **Not exercised (honesty):**
+  - the skills themselves;
+  - Phantom and Solflare;
+  - Trident on the curve path, on Token ACL in front of the gate, or on sss-token, the hook and demo-pool;
+  - the S7 fixture conversion and the Both-mode test.
+- **Links:** commits `da5e012`, `47f453a`, `8d89314`, `e1cae27`, and this log with PLAN.md. No devnet transactions.
+- **Next:** S16, per the handoff at the top of this file.
