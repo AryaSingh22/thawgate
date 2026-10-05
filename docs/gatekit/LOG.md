@@ -12,7 +12,11 @@ S15b is done (entry at the bottom). **C2 feature freeze from tag `c2-freeze`: on
   - the Trident fuzz claims that never ran are removed, and a real gate target runs (`8d89314`);
   - docs/SECURITY.md is rewritten (`e1cae27`): findings S15b-1…10, the S15 checklist, the four probes, fuzzing, and 23 known limitations.
 
-**CI on the S15b push:** see the "CI for" line in the S15b entry.
+**CI on `a4ed02d`** (the S15b push, `f92c990..a4ed02d`; checked 2026-10-06): **all five workflows green. Tag `c2-freeze` = `a4ed02d`, pushed.**
+- **Gate Tests** (37355271808): gate 55, story 7, keeper vitest 36 + e2e 8, screener vitest 45 + e2e 5, sdk 14, venue 3.
+- **Anchor Integration** (37355271872): 75 passing.
+- **TypeScript Tests** (37355271892): SDK vitest 137 (the new error-map pins included).
+- **Full CI** (37355271938), **CI** (37355271833).
 
 **S16** (PLAN.md S16: rebrand polish + docs; fixes only, per the freeze):
 - **README:** pitch line, a 20 s unlock → revoke → frozen GIF, architecture diagram, 5-minute quickstart, program IDs, "Built on".
@@ -1512,5 +1516,6 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - Phantom and Solflare;
   - Trident on the curve path, on Token ACL in front of the gate, or on sss-token, the hook and demo-pool;
   - the S7 fixture conversion and the Both-mode test.
-- **Links:** commits `da5e012`, `47f453a`, `8d89314`, `e1cae27`, and this log with PLAN.md. No devnet transactions.
+- **Links:** commits `da5e012`, `47f453a`, `8d89314`, `e1cae27`, and this log with PLAN.md (`a4ed02d`). No devnet transactions.
+- **CI on `a4ed02d`:** all five workflows green (Gate Tests 37355271808, Anchor Integration 37355271872 at 75 passing, TypeScript Tests 37355271892, Full CI 37355271938, CI 37355271833). **Tag `c2-freeze` = `a4ed02d`, pushed: the C2 feature freeze starts here.**
 - **Next:** S16, per the handoff at the top of this file.
