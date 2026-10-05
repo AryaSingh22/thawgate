@@ -1,162 +1,156 @@
 # ThawGate
 
-[![Tests passing](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)](#)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](#)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+> **ThawGate: KYC and sanctions gates for Solana's Token ACL. Wallets unlock a regulated token themselves with a valid credential and lose access when it is revoked. No transfer hook, so the token keeps working in DeFi.**
 
-> A modular, production-grade stablecoin framework for Solana using Token-2022 extensions.
+**Status: unaudited, devnet only.** Nothing is deployed to mainnet. Read [SECURITY.md](docs/thawgate/SECURITY.md) and its known limitations before you build on it.
 
-## Overview
+[![Gate Tests](https://github.com/AryaSingh22/thawgate/actions/workflows/gate-test.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/gate-test.yml)
+[![Anchor Integration](https://github.com/AryaSingh22/thawgate/actions/workflows/anchor-test.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/anchor-test.yml)
+[![TypeScript Tests](https://github.com/AryaSingh22/thawgate/actions/workflows/ts-tests.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/ts-tests.yml)
+[![Full CI](https://github.com/AryaSingh22/thawgate/actions/workflows/full-ci.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/full-ci.yml)
+[![CI](https://github.com/AryaSingh22/thawgate/actions/workflows/ci.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/ci.yml)
 
-SSS provides tiered stablecoin configurations with built-in compliance, role-based access control, and real-time transfer enforcement via Token-2022 extensions.
+![A holder is denied, gets attested, unlocks their own account, is revoked, is frozen by the keeper, and is denied again](docs/thawgate/media/unlock-revoke-frozen.gif)
 
-## Core Features (SSS-1, SSS-2, SSS-3)
+*Recorded on devnet with the ThawGate console, a burner wallet and vUSD, whose policy names a **self-issued demo credential** (no KYC provider issued it). Waits are cut. The keeper froze the account 1.8 s after the revoke. Transactions: [attest](https://explorer.solana.com/tx/363BgzkbVRpwKXMXMNnsuurd6BU9o1YKtMjGPHS5htVYvaxLsvYDDUocNox8xYHPvPPSRW38Jx1cWeKecwtTCNpy?cluster=devnet) → [unlock](https://explorer.solana.com/tx/51FXELY3DfujaGXh4CgZBmbSCoJrxnv7jHKewir6omoLVS8YPCD965P5X6ncQB9YaEEspKrHWEf8cJ5893R7j7tk?cluster=devnet) → [revoke](https://explorer.solana.com/tx/64otzREAhWeDbjU1CR2awWUA2fhnHxKKdFEsoVtdUnAcAo7aJpQwxRsFLspgM8BUbRWNfv7vW4x7MQiBjH6HwRvQ?cluster=devnet) → [keeper freeze](https://explorer.solana.com/tx/3CLEESazrqHicop8HFFHWRNWjdQPhySKaziPtB39SJBTuekJ1hw3W6k2SoYEi9W7VmUypsAKiigFY7e3WenosJhA?cluster=devnet) ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)).*
 
-| Feature | SSS-1 Minimal | SSS-2 Compliant | SSS-3 Experimental |
-|---------|--------------|-----------------|--------------------|
-| Mint / Burn | ✅ | ✅ | ✅ |
-| Freeze / Thaw | ✅ | ✅ | ✅ |
-| Pause / Unpause | ✅ | ✅ | ✅ |
-| Permanent Delegate | ❌ | ✅ | ✅ |
-| Transfer Hook | ❌ | ✅ | ✅ |
-| Blacklist Enforcement | ❌ | ✅ | ✅ |
-| Token Seizure | ❌ | ✅ | ✅ |
-| Confidential Transfers | ❌ | ❌ | ✅ |
-| Transfer Allowlist | ❌ | ❌ | ✅ |
+## How it works
 
-## Quick Start
-
-**[sdk/README.md](sdk/README.md) has a timed quickstart:** a fresh devnet wallet creates its own SAS KYC credential and a stablecoin gated by it, then a holder is refused, gets attested, unlocks, is minted to, loses the credential and is frozen. 39–43 s measured on Node 22 and 20, plus funding the wallet.
-
-### 1. SDK Usage
-```typescript
-import { SolanaStablecoin } from "@thawgate/sdk";
-
-const tg = SolanaStablecoin.fromConfig({ rpcUrl: "https://api.devnet.solana.com" }, issuerKeypair);
-const { mint } = await tg.createStablecoin({
-  name: "My Stablecoin", symbol: "MYUSD",
-  policy: { checkBlacklist: true, sas: { credential, schema, minKycLevel: 1 } },
-  reserves: { amount: 1_000_000n * 10n ** 6n, reportUri: "https://…/reserves.json" },
-});
-const why = await tg.gate.explain(mint, holder);            // { status: "denied", code: "NO_CREDENTIAL", reason: "…" }
-await tg.send(await tg.gate.createAtaAndThaw(mint, holder)); // once the holder is attested
+```mermaid
+flowchart LR
+    H["Holder, app or anyone"] -- "thaw_permissionless" --> ACL["Token ACL<br/>(sRFC 37)"]
+    K["Keeper"] -- "freeze_permissionless" --> ACL
+    ACL -- "can_thaw / can_freeze (CPI)" --> G["ThawGate gate<br/>mint's policy"]
+    G -- reads --> SAS["SAS attestation<br/>(nonce = wallet)"]
+    G -- reads --> BL["Issuer blacklist"]
+    G -- reads --> AL["Issuer allowlist"]
+    SC["Sanctions screener"] -- "add_to_blacklist" --> BL
+    SAS -. "revoked or expired" .-> K
+    BL -. "wallet blacklisted" .-> K
+    ACL -- "thaw / freeze" --> T["Token-2022 account<br/>(starts frozen)"]
+    I["sss-token, the example issuer"] -- "mint_tokens, capped by" --> R["Reserve attestation"]
+    AT["Attestor"] -- "attest_reserves" --> R
 ```
 
-### 2. CLI Usage
+- A Token ACL mint uses DefaultAccountState = Frozen, so **every token account starts frozen**.
+- **A holder unlocks their own account** with Token ACL's `thaw_permissionless`. Token ACL asks ThawGate, which reads the mint's policy: a live [SAS](https://attest.solana.com) attestation for the wallet, the issuer's blacklist, the issuer's allowlist. The account must have ImmutableOwner. Anyone can pay; the issuer signs nothing.
+- **A holder who stops complying** (credential revoked or expired, blacklisted, or below a tightened policy) becomes freezable by **anyone**, and the keeper freezes them. The [sanctions screener](docs/thawgate/SANCTIONS.md) blacklists wallets a risk provider flags.
+- **No transfer hook.** The check runs once per account, at thaw. After that, a transfer is plain Token-2022: 3,557 CU on an sss-token Token ACL mint, against 27,627 CU on an sss-token mint with the SSS transfer hook (localnet, [LOG S6b](docs/gatekit/LOG.md#s6b--2026-09-29--sss-token-token-acl-mode-and-the-hook-on-a-validator-legacy-seize-sdk-presets)).
+- **Every decision is logged** as `TG:ALLOW:<CODE>` or `TG:DENY:<CODE>`, and `explain()` gives the same reason before anything is sent.
+- **The example issuer caps minting at attested reserves** ([RESERVES.md](docs/thawgate/RESERVES.md)).
+
+The spec is [GATE.md](docs/thawgate/GATE.md). To integrate, start with [INTEGRATING.md](docs/thawgate/INTEGRATING.md).
+
+## Quickstart (devnet)
+
+One script, from a fresh wallet: your own test KYC credential, a stablecoin gated by it, a holder refused, attested, unlocked, minted to, revoked and frozen. Every step is a real devnet transaction.
+
+**You need:** Node ≥ 22.12 (to build the SDK from this repo; the built SDK runs on Node 20 and 22), yarn 1 (`npm i -g yarn`) and git.
+
+`@thawgate/sdk` isn't on npm yet (v0.1.0 is planned), so build its package from this repo first:
+
 ```bash
-# npm publish is planned for v0.1.0 (S17); until then: yarn install && yarn workspace @thawgate/cli build, then node cli/dist/index.js
-thawgate --keypair issuer.json create-stablecoin --name "My Stablecoin" --symbol MYUSD --blacklist on \
-  --sas-credential <CREDENTIAL> --sas-schema <SCHEMA> --min-kyc 1 --reserves 1000000000000 --report-uri https://…
-thawgate explain --mint <MINT> --wallet <HOLDER>
-thawgate unlock --mint <MINT> --owner <HOLDER>
-thawgate status --mint <MINT>
+git clone https://github.com/AryaSingh22/thawgate && cd thawgate
+yarn install --frozen-lockfile
+yarn workspace @thawgate/sdk build
+cd sdk && npm pack && cd ../..        # creates thawgate/sdk/thawgate-sdk-0.1.0.tgz
 ```
-Commands and environment: [cli/README.md](cli/README.md).
 
-### 3. Docker (Backend Services)
+Then run the quickstart in a new folder next to the clone:
+
 ```bash
-docker compose up -d
+mkdir thawgate-quickstart && cd thawgate-quickstart
+npm init -y
+npm i ../thawgate/sdk/thawgate-sdk-0.1.0.tgz @solana/web3.js
+cp ../thawgate/sdk/examples/quickstart.mjs .
+node quickstart.mjs
 ```
 
-### 4. Console (devnet, browser wallet)
-`frontend/` is the ThawGate console. Everything runs client-side through `@thawgate/sdk`, signed by Phantom or Solflare.
-- `/issuer` is a wizard: create the stablecoin (mint + reserves), choose a policy (blacklist, allowlist mode, SAS credential: existing or a new self-issued test one), then enable Token ACL. Each step shows its transaction and resumes after a failure.
-- **Mint tokens** (on `/issuer`) mints as a Minter of any SSS-ACL stablecoin. It simulates first. A refusal comes back in plain words with the program's numbers, e.g. `ReserveInsufficient`: "Minting 950,000 vUSD would take the supply from 104,000 vUSD to 1,054,000 vUSD, above the 1,000,000 vUSD of attested reserves". "Send anyway" lands the refused transaction on chain as a public record (one fee).
-- `/holders` has "Unlock my wallet". It shows the gate's reason in words plus its `TG:` code.
-- `/decisions` (no wallet) shows, for each wallet of a mint: allowed or denied, the `TG:` code and its sentence, the credential's signer and expiry, the blacklist and allowlist entries, and the last thaw or freeze the gate decided on chain. "Re-check live" simulates the gate again (`explain`). The wallet list comes from the keeper's index (`GET /mints/:mint`, `VITE_KEEPER_URL`, default `http://localhost:3005`). The page never calls `getProgramAccounts`.
-- `/reserves` (no wallet) shows supply against attested reserves, the as-of time and staleness, the attestor, the report link, and the history of mints the program refused that landed on chain.
+The first run creates `issuer.json` (a new wallet) and asks the devnet faucet for 1 SOL. The faucet often refuses. Then the script prints the wallet's address and stops: send that address 0.2 devnet SOL from <https://faucet.solana.com>, and run `node quickstart.mjs` again. It ends with `freezeIfInvalid: frozen=true NO_CREDENTIAL` and `done`.
+
+What each step does, its sample output and the timed runs are in [sdk/README.md](sdk/README.md#quickstart-5-minutes-on-devnet-from-a-fresh-wallet). From an empty folder with the SDK package, the funded run took 39.1 s on Node 22 and 43.4 s on Node 20, not counting the funding ([LOG S11](docs/gatekit/LOG.md#s11--2026-10-03--10-04--sdk--cli-thawgatesdk-the-thawgate-binary-a-timed-quickstart)).
+
+Next: the [`thawgate` CLI](cli/README.md) does the same from a shell, and the [console](#console) does it in a browser wallet.
+
+## What's live on devnet
+
+Each number links to the log entry or the transactions that measured it.
+
+| What | Result | Evidence |
+|---|---|---|
+| Mints gated by ThawGate on devnet | 15, all created by this project's tests and demos. No external integrator yet. | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs) |
+| Credential revoked → account frozen by the keeper, no manual step | p50 2,863 ms over 10 runs; p50 2,042 ms over 10 runs after the S15a upgrade | [LOG S8](docs/gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper), [LOG S15a](docs/gatekit/LOG.md#s15a--2026-10-04--sss-token-fixes-in-one-devnet-upgrade-thawgate-reserves-post-legacy-e2e-green) |
+| Sanctions flag → blacklisted → frozen | p50 3,714.5 ms over 10 runs, on the labelled static list | [LOG S10](docs/gatekit/LOG.md#s10--2026-10-03--sanctions-screener-provider-result--blacklisted--frozen-by-the-keeper) |
+| A KYC'd holder trades; after the revoke the keeper freezes them and their next trade fails | in `demo_pool`, the demo venue: [swap](https://explorer.solana.com/tx/443r1ucqQhhE4w1UxJJryaydSEYKQFAS6FchTqDcagmVuNX9LfM8g2tJcXny7zrZNaT6mxRsjn5GaQeXed1quvz9?cluster=devnet), [keeper freeze](https://explorer.solana.com/tx/3N8zvh2j3WXJ3zgafYCtt47zNseJ7fWsM5kefns2B78Xs4Q1jsXunMYYXcYo3bqrUH7J7JfDeJj8vmGPAyTKsQzj?cluster=devnet), [refused swap](https://explorer.solana.com/tx/59dd4R7onZzpxsBEGdwg3oxSyLYhSGsaZTr7p93dqVVT4fB9oVyRtcActJh5pbW6sPUJNvKkGRkUB3eELNRHZfTJ?cluster=devnet) | [LOG S12-venue](docs/gatekit/LOG.md#s12-venue--2026-10-04--the-demo-venue-a-gated-token-trading-in-a-pool-on-devnet) |
+| A mint past attested reserves is refused (`ReserveInsufficient`) | the refusal landed on chain: [tx](https://explorer.solana.com/tx/5uyH7QMRWCmTvkL394A8HhFXBptKjG7wm5WvAqkbTVndizkcHefBjBn7QH6R736s7LUgXjHB8jFzMHHaQsJC7Sdc?cluster=devnet) | [LOG S14](docs/gatekit/LOG.md#s14--2026-10-04--console-ii-mint-action-decisions-and-reserves-on-devnet) |
+| Gate cost per thaw (localnet) | 26,191–40,426 CU per transaction, gate frame 3,385–5,400, once per account | [LOG S6b](docs/gatekit/LOG.md#s6b--2026-09-29--sss-token-token-acl-mode-and-the-hook-on-a-validator-legacy-seize-sdk-presets) |
+| Fuzzing the gate's thaw/freeze decision (Trident) | 4 runs × 99,600 flows, no invariant failure | [LOG S15b](docs/gatekit/LOG.md#s15b--2026-10-05--security-review-trident-on-the-gate-c2-feature-freeze) |
+| CI | all five workflows green on the C2 freeze commit | [Gate Tests](https://github.com/AryaSingh22/thawgate/actions/runs/37355271808), [Anchor Integration](https://github.com/AryaSingh22/thawgate/actions/runs/37355271872), [TypeScript](https://github.com/AryaSingh22/thawgate/actions/runs/37355271892), [Full CI](https://github.com/AryaSingh22/thawgate/actions/runs/37355271938), [CI](https://github.com/AryaSingh22/thawgate/actions/runs/37355271833) |
+
+**Range** (the sanctions risk provider): adapter built, tested against mocks; the demo uses the labelled static list. No live Range call has been made.
+
+## Program IDs (devnet)
+
+| Program | ID | Role |
+|---|---|---|
+| ThawGate gate | [`THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ`](https://explorer.solana.com/address/THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ?cluster=devnet) | The Token ACL gating program ([GATE.md](docs/thawgate/GATE.md)) |
+| sss-token | [`HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ`](https://explorer.solana.com/address/HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ?cluster=devnet) | The example issuer: the SSS baseline, extended with a Token ACL mode and reserve-capped minting ([docs/examples/sss/](docs/examples/sss/README.md)) |
+| transfer_hook | [`2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv`](https://explorer.solana.com/address/2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv?cluster=devnet) | The SSS hook, for sss-token's legacy hook mode only |
+| demo_pool | [`9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS`](https://explorer.solana.com/address/9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS?cluster=devnet) | The demo venue; any protocol that separates pool init from deposit works the same way ([README](programs/demo-pool/README.md)) |
+| Token ACL | [`TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP`](https://explorer.solana.com/address/TACLkU6CiCdkQN2MjoyDkVg2yAH9zkxiHDsiztQ52TP?cluster=devnet) | Solana Foundation, not ours |
+| SAS | [`22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG`](https://explorer.solana.com/address/22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG?cluster=devnet) | Solana Attestation Service, not ours |
+
+Each of our programs has a single-key upgrade authority on devnet ([SECURITY.md limitation 2](docs/thawgate/SECURITY.md#known-limitations)). Deployments and their hashes: [DEPLOYMENT.md](DEPLOYMENT.md).
+
+## Built on
+- [Token ACL](https://github.com/solana-foundation/token-acl) (sRFC 37), the Solana Foundation's permissioned-token program. ThawGate is a gating program for it.
+- [Solana Attestation Service](https://github.com/solana-foundation/solana-attestation-service) (SAS): the KYC credential is a SAS attestation whose nonce is the holder's wallet.
+- Token-2022 extensions: DefaultAccountState, ImmutableOwner, Pausable, PermanentDelegate.
+- [Anchor](https://github.com/solana-foundation/anchor) 0.32.2.
+- The author's pre-hackathon [Solana Stablecoin Standard](https://github.com/solanabr/solana-stablecoin-standard) bounty entry, which became the example issuer. What existed before the hackathon and what was built during it: [DISCLOSURE.md](docs/gatekit/DISCLOSURE.md).
+
+## Docs
+- **ThawGate** ([docs/thawgate/](docs/thawgate/README.md)): [integrator guide](docs/thawgate/INTEGRATING.md), [gate spec and reason codes](docs/thawgate/GATE.md), [policy configuration](docs/thawgate/POLICY.md), [keeper operations](docs/thawgate/KEEPER.md), [reserves](docs/thawgate/RESERVES.md), [sanctions](docs/thawgate/SANCTIONS.md), [security](docs/thawgate/SECURITY.md).
+- **Packages:** [@thawgate/sdk](sdk/README.md), [`thawgate` CLI](cli/README.md), [keeper](services/keeper/README.md), [attestor](services/attestor/README.md), [sanctions screener](services/compliance-service/README.md).
+- **The example issuer (SSS):** [docs/examples/sss/](docs/examples/sss/README.md).
+- **Build log, plan and research:** [docs/gatekit/](docs/gatekit/LOG.md). The submission text is [SUBMISSION.md](SUBMISSION.md).
+
+## Console
+
+`frontend/` is the ThawGate console. It runs client-side on devnet with Phantom or Solflare, through `@thawgate/sdk`:
+- `/issuer`: a wizard that creates a stablecoin, sets its policy and enables Token ACL, plus a Mint card that refuses past reserves in plain words;
+- `/holders`: "Unlock my wallet", with the gate's reason and `TG:` code;
+- `/decisions` (no wallet): for each wallet of a mint, allowed or denied and why, with the last gate decision on chain;
+- `/reserves` (no wallet): supply against attested reserves, and the refused mints.
+
 ```bash
 yarn install && yarn workspace @thawgate/sdk build   # the console installs the built SDK from ../sdk
 cd frontend && npm install && npm run dev            # http://localhost:3000
-# /decisions also wants a keeper (it sends CORS headers, so the browser can read it):
-KEEPER_MINTS=<mint> KEEPER_KEYPAIR=<fee payer keypair> node services/keeper/dist/main.js
-```
-Screenshots: `docs/thawgate/screenshots/` (`s13-*`: wizard and unlock; `s14-*`: reserves, decisions, mint and its refusal, on vUSD). `scripts/screenshots/console.mjs` retakes them with headless Edge and burner wallets on devnet (Windows; usage in its header).
-**RPC: never put a keyed RPC URL (Helius, …) in the frontend.** Every `VITE_*` variable is compiled into the public JavaScript bundle. The console uses public devnet (`api.devnet.solana.com`) by default. For a faster RPC on your own machine only, set `VITE_RPC_URL` in `frontend/.env.local` (gitignored; see `frontend/.env.example`). `npm run build` refuses to build with a keyed `VITE_RPC_URL`.
-
-## Architecture Layers
-
-```
-Layer 3 (Standards)   ┌──────────┐  ┌──────────┐  ┌──────────┐
-                      │  SSS-1   │  │  SSS-2   │  │  SSS-3   │
-                      │ (Basic)  │  │(Compliant│  │ (Exper.) │
-                      └────┬─────┘  └────┬─────┘  └────┬─────┘
-                           │              │             │
-Layer 2 (Modules)    ┌─────┴──────────────┴─────────────┴─────┐
-                     │ Role Mgmt │ Compliance │ Reserve Check │
-                     │ Quota     │ Blacklist  │ ZK Transfers  │
-                     │ Pause     │ Seizure    │ Allowlist     │
-                     └────────────┬───────────┴───────────────┘
-                                  │
-Layer 1 (Base SDK)   ┌────────────┴───────────────────────────┐
-                     │           SolanaStablecoin             │
-                     │       Token-2022 CPI Operations        │
-                     │             PDA Derivation             │
-                     └────────────────────────────────────────┘
 ```
 
-## API Services Map
+`/decisions` also reads a keeper (`VITE_KEEPER_URL`, default `http://localhost:3005`). Never put a keyed RPC URL in the frontend: every `VITE_*` variable ends up in the public bundle. Screenshots are in [docs/thawgate/screenshots/](docs/thawgate/screenshots/).
 
-| Service | Port | Description |
-|---------|------|-------------|
-| `mint-service` | 3001 | Mint/burn API with quota management |
-| `webhook-service` | 3002 | Webhook registration & delivery |
-| `compliance-service` | 3003 | Blacklisting and regulatory monitoring |
-| `compliance-service` screener | 3006 | Sanctions screening: flagged holders → `add_to_blacklist` → keeper freeze ([docs/SANCTIONS.md](docs/SANCTIONS.md)) |
-| `keeper` | 3005 | Freeze crank: freezes accounts the ThawGate gate lets anyone freeze ([services/keeper/README.md](services/keeper/README.md)) |
-| `attestor` | – | Posts a mint's reserves to `attest_reserves` from a JSON source ([docs/RESERVES.md](docs/RESERVES.md)) |
-
-## Repository Structure
+## Repository
 
 ```
-thawgate/
-├── programs/
-│   ├── sss-token/           # Main Anchor program (16 instructions)
-│   ├── transfer-hook/       # Compliance enforcement hook
-│   └── thawgate-gate/       # Token ACL gate (ThawGate)
-├── sdk/                     # TypeScript SDK (@thawgate/sdk)
-├── cli/                     # CLI (@thawgate/cli, binary `thawgate`)
-├── services/
-│   ├── mint-service/        # Mint/burn API (Fastify)
-│   ├── webhook-service/     # Webhook delivery service
-│   ├── compliance-service/  # AML/KYC enforcement service
-│   └── attestor/            # Reserve attestor (attest_reserves)
-├── tests/                   # Anchor integration + unit tests
-├── evidence/                # Raw test outputs and screenshots
-├── scripts/                 # Deploy, verify, and setup scripts
-└── docs/                    # Full specification documentation
+programs/thawgate-gate/   the Token ACL gate (ThawGate)
+programs/sss-token/       the example issuer (SSS baseline + Token ACL mode + reserves)
+programs/transfer-hook/   the SSS transfer hook (legacy hook mode)
+programs/demo-pool/       the demo venue
+sdk/  cli/                @thawgate/sdk and the thawgate CLI
+services/keeper/          freeze crank
+services/attestor/        reserve attestor
+services/compliance-service/  SSS compliance API + the sanctions screener
+services/{mint-service,indexer,webhook-service,shared}/  SSS backend services
+frontend/                 the console
+tests/                    localnet and devnet suites (fixtures: devnet program dumps)
+trident-tests/            the gate's fuzz target
+docs/                     thawgate/, examples/sss/, gatekit/ (log, plan, research)
+evidence/                 pre-hackathon test logs, kept unchanged
 ```
 
-## Test Suites & Evidence
-
-All test runs, logs, and screenshots are captured in the `evidence/` directory.
-
-- **Cargo / Rust Units**: 219 passed
-- **Anchor Integration**: not yet run on Anchor 0.32; see [docs/gatekit/LOG.md](docs/gatekit/LOG.md)
-- **Vitest SDK**: 15 passing
-- **Vitest CLI**: 8 passing
-- **Vitest Security**: 15 passing
-- **TypeScript**: `tsc --noEmit` 0 errors across 4 workspaces
-
-## Bonus Features Showcased
-
-1. **Terminal UI (TUI)**: A fully functional TUI application for operators tracking mints, roles, and blacklists.
-2. **Console** (`frontend/`): the issuer wizard and Mint action, the holder's "Unlock my wallet", and two public pages, `/decisions` (why each wallet is allowed or denied) and `/reserves` (supply vs. attested reserves, refused mints). On devnet with a browser wallet ([Quick Start §4](#4-console-devnet-browser-wallet)). The older SSS service panels are at `/ops`.
-3. **Reserve-backed mint**: `mint_tokens` refuses to mint above the attested reserves or on a stale attestation ([docs/RESERVES.md](docs/RESERVES.md)). It replaced the oracle-module stub in S9.
-4. **Sanctions screening**: a risk provider's flag blacklists the wallet and the keeper freezes its accounts, with no manual step ([docs/SANCTIONS.md](docs/SANCTIONS.md)). Range is used when `RANGE_API_KEY` is set; otherwise a static list, labelled as the fallback.
-
-## Documentation Reference
-
-- [Architecture Details](docs/ARCHITECTURE.md)
-- [Deployment Guide](DEPLOYMENT.md)
-- [SSS-1 Byte-Level Spec](docs/SSS-1.md)
-- [SSS-2 Compliance Spec](docs/SSS-2.md)
-- [SSS-3 Experimental Spec](docs/SSS-3.md)
-- [Operations Runbook](docs/OPERATIONS.md)
-- [Compliance Framework](docs/COMPLIANCE.md)
-- [API Reference](docs/API.md)
-- [Security Model](docs/SECURITY.md)
+Building and testing: [CLAUDE.md](CLAUDE.md#commands) has the commands (`anchor build`, `yarn test:gate`, …).
 
 ## License
 
-MIT © Solana Stablecoin Standard Contributors
+MIT. See [LICENSE](LICENSE).
