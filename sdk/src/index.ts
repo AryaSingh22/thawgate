@@ -128,7 +128,11 @@ export {
     ConfigError,
     AccountNotFoundError,
     parseError,
+    programError,
+    SSS_TOKEN_ERRORS,
+    THAWGATE_GATE_ERRORS,
 } from "./errors";
+export type { ProgramErrorInfo } from "./errors";
 
 // Errors — spec-required names (HIGH-005)
 export {

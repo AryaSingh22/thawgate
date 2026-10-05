@@ -2,9 +2,12 @@
  * @module errors
  * @description Error class hierarchy for the SSS SDK.
  *
- * Maps on-chain Anchor error codes to typed JavaScript errors with
- * human-readable messages and recovery suggestions.
+ * Maps on-chain Anchor error codes to typed JavaScript errors. The code → name → message tables come from the
+ * programs' IDLs (`src/idl.json`, `src/gate/idl.json`), which CI compares byte for byte with its own `anchor build`.
  */
+
+import SSS_TOKEN_IDL from "./idl.json";
+import GATE_IDL from "./gate/idl.json";
 
 /**
  * Base error class for all SSS SDK errors.
@@ -14,6 +17,10 @@ export class SSSError extends Error {
     public readonly code?: number;
     /** The original error that caused this one. */
     public readonly cause?: Error;
+    /** The program's name for the error, from its IDL (e.g. `"ReserveInsufficient"`), when a program raised it. */
+    public readonly errorName?: string;
+    /** The program that raised it (base58), when known. */
+    public readonly program?: string;
 
     constructor(message: string, code?: number, cause?: Error) {
         super(message);
@@ -106,9 +113,10 @@ export class QuotaExceededError extends SSSError {
     /** The amount that was attempted. */
     public readonly attempted: bigint;
 
-    constructor(limit: bigint, used: bigint, attempted: bigint) {
+    /** `message` replaces the default text, e.g. when the amounts aren't known (a program error). */
+    constructor(limit: bigint, used: bigint, attempted: bigint, message?: string) {
         super(
-            `Minter quota exceeded: limit=${limit}, used=${used}, attempted=${attempted}`,
+            message ?? `Minter quota exceeded: limit=${limit}, used=${used}, attempted=${attempted}`,
         );
         this.name = "QuotaExceededError";
         this.limit = limit;
@@ -141,41 +149,85 @@ export class AccountNotFoundError extends SSSError {
 // Error Code Mapping
 // ============================================================================
 
-/**
- * Maps Anchor error codes from the SSS-Token program to SDK error classes.
- *
- * Error codes start at 6000 (Anchor convention).
- */
-const ERROR_CODE_MAP: Record<number, (logs?: string[]) => SSSError> = {
-    6000: () => new AuthorizationError("Not authorized — missing required role", 6000),
-    6001: () => new TokenPausedError(),
-    6002: () => new SSSError("Already paused", 6002),
-    6003: () => new SSSError("Not paused", 6003),
-    6004: () => new SSSError("Invalid amount — must be greater than zero", 6004),
-    6005: () => new QuotaExceededError(0n, 0n, 0n),
-    6006: () => new SSSError("Invalid role type", 6006),
-    6007: () => new SSSError("Role not found", 6007),
-    6008: () => new SSSError("Role not active", 6008),
-    6009: () => new SSSError("Invalid mint address", 6009),
-    6010: () => new SSSError("Name too long (max 32 characters)", 6010),
-    6011: () => new SSSError("Symbol too long (max 10 characters)", 6011),
-    6012: () => new SSSError("URI too long (max 200 characters)", 6012),
-    6013: () => new SSSError("Reason too long (max 200 characters)", 6013),
-    6014: () => new FeatureNotEnabledError("transfer_hook/permanent_delegate"),
-    6015: () => new SSSError("Permanent delegate not enabled", 6015),
-    6016: () => new SSSError("Invalid configuration", 6016),
-    6017: () => new SSSError("Arithmetic overflow", 6017),
-    6018: () => new SSSError("Arithmetic underflow", 6018),
-    6019: () => new BlacklistedError("unknown"),
-    6020: () => new SSSError("Account not blacklisted", 6020),
-    6021: () => new SSSError("Blacklist entry required for this operation", 6021),
-    6022: () => new SSSError("Blacklister role not found", 6022),
-    6023: () => new AuthorizationError("Seize not authorized — requires Seizer role", 6023),
-    6024: () => new SSSError("Account not frozen", 6024),
+/** One error a program declares in its IDL. */
+export interface ProgramErrorInfo {
+    /** The declaring program (base58, the IDL's `address`). */
+    program: string;
+    code: number;
+    name: string;
+    msg: string;
+}
+
+type IdlErrors = { address: string; errors?: readonly { code: number; name: string; msg?: string }[] };
+
+function errorTable(idl: IdlErrors): Readonly<Record<number, ProgramErrorInfo>> {
+    const rows = (idl.errors ?? []).map((e) => [e.code, Object.freeze({ program: idl.address, code: e.code, name: e.name, msg: e.msg ?? e.name })]);
+    return Object.freeze(Object.fromEntries(rows));
+}
+
+/** sss-token's errors by code, from its IDL. */
+export const SSS_TOKEN_ERRORS = errorTable(SSS_TOKEN_IDL);
+/** The ThawGate gate's errors by code, from its IDL. */
+export const THAWGATE_GATE_ERRORS = errorTable(GATE_IDL);
+
+const TABLES: Readonly<Record<string, Readonly<Record<number, ProgramErrorInfo>>>> = {
+    [SSS_TOKEN_IDL.address]: SSS_TOKEN_ERRORS,
+    [GATE_IDL.address]: THAWGATE_GATE_ERRORS,
 };
 
+/** The IDL entry for `code` raised by `program` (base58); undefined for a program or code the SDK doesn't know. */
+export function programError(program: string, code: number): ProgramErrorInfo | undefined {
+    return TABLES[program]?.[code];
+}
+
+/** Errors that mean "the signer lacks the role or key for this", by IDL name. */
+const AUTHORIZATION_ERRORS = new Set([
+    "NotAuthorized",
+    "MinterNotFound",
+    "BurnerNotFound",
+    "BlacklisterNotFound",
+    "PauserNotFound",
+    "SeizeNotAuthorized",
+    "NotReserveAttestor",
+    "NotFreezeAuthority",
+    "NotPolicyAuthority",
+]);
+
+/** The SDK class for a program error, chosen by its IDL name (never by number, which moves when errors are added). */
+function fromProgramError(info: ProgramErrorInfo, cause?: Error): SSSError {
+    let err: SSSError;
+    if (info.program === SSS_TOKEN_IDL.address && info.name === "TokensPaused") err = new TokenPausedError(info.msg);
+    else if (info.program === SSS_TOKEN_IDL.address && info.name === "MinterQuotaExceeded") err = new QuotaExceededError(0n, 0n, 0n, info.msg);
+    else if (info.program === SSS_TOKEN_IDL.address && info.name === "FeatureNotEnabled") {
+        // The IDL text names only the transfer hook; the program also raises it for Token ACL compliance, the allowlist
+        // and confidential transfers.
+        err = new FeatureNotEnabledError("compliance (transfer hook or Token ACL), allowlist or confidential transfers");
+    } else if (AUTHORIZATION_ERRORS.has(info.name)) err = new AuthorizationError(info.msg);
+    else err = new SSSError(info.msg, undefined, cause);
+    return Object.assign(err, { code: info.code, errorName: info.name, program: info.program });
+}
+
+/** The first `Program <id> failed: custom program error: 0x…` line: the program that raised the error (outer
+ * programs repeat the same code as it propagates up through the CPIs). */
+function failedProgram(logs: unknown): { program: string; code: number } | undefined {
+    if (!Array.isArray(logs)) return undefined;
+    for (const line of logs) {
+        const m = typeof line === "string" ? /^Program (\w+) failed: custom program error: 0x([0-9a-fA-F]+)$/.exec(line) : null;
+        if (m) return { program: m[1], code: parseInt(m[2], 16) };
+    }
+    return undefined;
+}
+
+const base58Of = (p: unknown): string | undefined =>
+    typeof p === "string" ? p : typeof (p as { toBase58?: unknown })?.toBase58 === "function" ? (p as { toBase58(): string }).toBase58() : undefined;
+
 /**
- * Parses an Anchor program error into a typed SSSError.
+ * Parses an error from a program call into a typed SSSError.
+ *
+ * Reads, in order: an Anchor `AnchorError` (`error.errorCode.number` and `program`); a numeric `code` (Anchor's
+ * `ProgramError`, raised by the SDK's sss-token calls); the transaction logs (`logs`, as on web3.js's
+ * `SendTransactionError` from `client.send`). Codes are looked up in the raising program's IDL; a program the SDK
+ * doesn't know (Token-2022, Token ACL, …) is left unmapped. A code without a program is read as sss-token's.
  *
  * @param error - The raw error from Anchor/web3.js
  * @returns A typed SSSError instance
@@ -183,22 +235,22 @@ const ERROR_CODE_MAP: Record<number, (logs?: string[]) => SSSError> = {
 export function parseError(error: unknown): SSSError {
     if (error instanceof SSSError) return error;
 
-    // Extract Anchor error code
-    const err = error as Record<string, unknown>;
-    const code =
-        typeof err?.code === "number"
-            ? err.code
-            : typeof (err?.error as Record<string, unknown>)?.code === "number"
-                ? (err.error as Record<string, unknown>).code as number
-                : undefined;
+    const err = (error ?? {}) as Record<string, any>;
+    const cause = error instanceof Error ? error : undefined;
+    const failed = failedProgram(err.logs ?? err.transactionLogs);
+    const anchorCode = err.error?.errorCode?.number;
+    const code: number | undefined =
+        typeof anchorCode === "number"
+            ? anchorCode
+            : typeof err.code === "number"
+                ? err.code
+                : typeof err.error?.code === "number"
+                    ? err.error.code
+                    : failed?.code;
+    const program = base58Of(err.program) ?? failed?.program ?? SSS_TOKEN_IDL.address;
 
-    if (code !== undefined && ERROR_CODE_MAP[code]) {
-        const logs =
-            err?.logs && Array.isArray(err.logs)
-                ? (err.logs as string[])
-                : undefined;
-        return ERROR_CODE_MAP[code](logs);
-    }
+    const info = code !== undefined ? programError(program, code) : undefined;
+    if (info) return fromProgramError(info, cause);
 
     // Fallback: wrap in generic SSSError
     const message =
@@ -206,11 +258,7 @@ export function parseError(error: unknown): SSSError {
             ? err.message
             : "Unknown SSS error";
 
-    return new SSSError(
-        message,
-        code,
-        error instanceof Error ? error : undefined,
-    );
+    return new SSSError(message, code, cause);
 }
 
 // ============================================================================

@@ -149,11 +149,17 @@ try {
 }
 ```
 
-| Error Class | Code | Description |
+`parseError` reads an Anchor `AnchorError`, a numeric `code`, or a send error's logs (`Program <id> failed: custom program error: 0x…`). It looks the code up in the raising program's IDL (`SSS_TOKEN_ERRORS`, `THAWGATE_GATE_ERRORS`, `programError(program, code)`). Every mapped error carries `code`, `errorName` (the IDL name, e.g. `"ReserveInsufficient"`) and `program`, and its message is the IDL's. `client.send` throws the raw error; pass it to `parseError` yourself. An error from a program the SDK doesn't know (Token-2022, Token ACL) stays unmapped.
+
+The class is chosen by the error's name, not its number:
+
+| Error Class | sss-token errors (code) | Description |
 |-------------|------|-------------|
-| `AuthorizationError` | 6000 | Missing required role |
-| `TokenPausedError` | 6001 | Operations paused |
-| `QuotaExceededError` | 6005 | Minter quota exceeded |
-| `FeatureNotEnabledError` | 6014 | SSS-2 feature not enabled |
-| `BlacklistedError` | 6019 | Account is blacklisted |
+| `AuthorizationError` | `NotAuthorized` (6000), `MinterNotFound` (6006), `BurnerNotFound` (6008), `BlacklisterNotFound` (6013), `SeizeNotAuthorized` (6014), `PauserNotFound` (6015), `NotReserveAttestor` (6038); gate `NotFreezeAuthority`, `NotPolicyAuthority` | The signer lacks the role or key |
+| `TokenPausedError` | `TokensPaused` (6005) | Operations paused |
+| `QuotaExceededError` | `MinterQuotaExceeded` (6007) | Minter quota exceeded (amounts not known from the error: 0) |
+| `FeatureNotEnabledError` | `FeatureNotEnabled` (6002) | Compliance (hook or Token ACL), allowlist or confidential transfers not enabled for this mint |
+| `SSSError` | every other program error, e.g. `ReserveInsufficient` (6035), `ReserveStale` (6036) | Check `errorName` |
 | `AccountNotFoundError` | — | PDA not found on-chain |
+
+`sdk/tests/errors.test.ts` pins these names and codes against the IDLs.
