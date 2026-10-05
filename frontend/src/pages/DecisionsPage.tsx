@@ -5,9 +5,9 @@ import { Explanation, GatePolicy, SolanaStablecoin, findAllowlistPda, findBlackl
 import { describe } from "@thawgate/sdk/reasons";
 
 import { GateDecisionTx, lastGateDecision, readAttestation, readCredential } from "../chainLogs";
-import { AddressLink, Field, TxLink } from "../components";
-import { DEMO_CREDENTIAL, DEMO_MINT, KEEPER_URL } from "../config";
-import { errorMessage, parseKey, utcTime } from "../lib";
+import { AddressLink, ErrorText, Field, TxLink } from "../components";
+import { DEMO_CREDENTIAL, DEMO_MINT, KEEPER_URL, NO_PUBLIC_KEEPER } from "../config";
+import { ErrorParts, errorMessage, errorParts, parseKey, utcTime } from "../lib";
 import { useSdk } from "../useSdk";
 import { HEADLINES, tgCode } from "./HoldersPage";
 
@@ -303,14 +303,24 @@ export function DecisionsPage() {
     );
 }
 
+const KEEPER_DOC = "https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/KEEPER.md";
+
 function KeeperPanel({ state }: { state: KeeperState }) {
     if (state.kind === "ok") return null;
     if (state.kind === "loading") return <p className="muted">Reading the keeper's index ({KEEPER_URL})…</p>;
     return (
         <div className="notice">
-            {state.kind === "untracked"
-                ? `The keeper at ${KEEPER_URL} doesn't track this mint (it tracks ThawGate-gated mints, or the ones in KEEPER_MINTS).`
-                : `The keeper at ${KEEPER_URL} isn't reachable (${state.message}). Start it (services/keeper, README) or set VITE_KEEPER_URL.`}{" "}
+            {state.kind === "untracked" ? (
+                `The keeper at ${KEEPER_URL} doesn't track this mint (it tracks ThawGate-gated mints, or the ones in KEEPER_MINTS).`
+            ) : NO_PUBLIC_KEEPER ? (
+                <>
+                    This page reads a keeper's holder index, and this console has none to read: during judging the ThawGate keeper runs as a scheduled
+                    sweep with no public HTTP API (<a href={KEEPER_DOC}>KEEPER.md</a>). To see the index, run a keeper yourself (services/keeper) on
+                    localhost:3005.
+                </>
+            ) : (
+                `The keeper at ${KEEPER_URL} isn't reachable (${state.message}). Start it (services/keeper, README) or set VITE_KEEPER_URL.`
+            )}{" "}
             You can still check single wallets live below.
         </div>
     );
@@ -496,7 +506,7 @@ function LastTxCell({ lastTx }: { lastTx: GateDecisionTx | null | "error" | unde
 /** A live explain for any wallet, tracked by the keeper or not. */
 function CheckWallet({ sdk, mint }: { sdk: SolanaStablecoin; mint: PublicKey }) {
     const [wallet, setWallet] = useState("");
-    const [result, setResult] = useState<Explanation | { error: string } | null>(null);
+    const [result, setResult] = useState<Explanation | { error: ErrorParts } | null>(null);
     const [busy, setBusy] = useState(false);
 
     async function check(event: FormEvent) {
@@ -508,7 +518,7 @@ function CheckWallet({ sdk, mint }: { sdk: SolanaStablecoin; mint: PublicKey }) 
         try {
             setResult(await sdk.gate.explain(mint, key));
         } catch (e) {
-            setResult({ error: errorMessage(e) });
+            setResult({ error: errorParts(e) });
         } finally {
             setBusy(false);
         }
@@ -529,7 +539,7 @@ function CheckWallet({ sdk, mint }: { sdk: SolanaStablecoin; mint: PublicKey }) 
                     {busy ? "Simulating…" : "Check"}
                 </button>
             </div>
-            {result && "error" in result ? <pre className="error-text">{result.error}</pre> : null}
+            {result && "error" in result ? <ErrorText {...result.error} /> : null}
             {result && !("error" in result) ? (
                 <div className="step-row">
                     <div className="step-line">

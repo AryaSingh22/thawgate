@@ -15,11 +15,27 @@ export function parseKey(value: string): PublicKey | null {
     }
 }
 
-/** A readable message from a wallet, RPC or program error. Simulation failures keep their last log lines. */
+/** A wallet, RPC or program error split into a readable summary and the program logs (empty when it has none). */
+export interface ErrorParts {
+    summary: string;
+    logs: string[];
+}
+
+export function errorParts(error: unknown): ErrorParts {
+    if (!(error instanceof Error)) return { summary: typeof error === "object" && error !== null ? JSON.stringify(error) : String(error), logs: [] };
+    const { logs, transactionLogs } = error as { logs?: unknown; transactionLogs?: unknown };
+    const list = Array.isArray(logs) ? logs : Array.isArray(transactionLogs) ? transactionLogs : [];
+    // web3.js's SendTransactionError also puts the logs (as JSON) and a "Catch the `SendTransactionError`" hint in its message.
+    const summary = error.message
+        .split(/\s*Logs:\s*\n/)[0]
+        .replace(/\s*Catch the `SendTransactionError`[\s\S]*$/, "")
+        .trim();
+    return { summary: summary || error.message, logs: list.map(String) };
+}
+
+/** A readable one-part message from a wallet, RPC or program error, without its logs (`errorParts` keeps them). */
 export function errorMessage(error: unknown): string {
-    if (!(error instanceof Error)) return typeof error === "object" && error !== null ? JSON.stringify(error) : String(error);
-    const logs = (error as { logs?: string[] }).logs;
-    return logs?.length ? `${error.message}\n${logs.slice(-6).join("\n")}` : error.message;
+    return errorParts(error).summary;
 }
 
 /** localStorage, ignoring failures (private windows, blocked storage). */

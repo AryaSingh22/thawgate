@@ -1,24 +1,30 @@
-import React, { useEffect, useState } from "react";
+import React, { Suspense, lazy, useEffect, useState } from "react";
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
-import { BURNER_WALLET, RPC_HOST } from "./config";
-import { DecisionsPage } from "./pages/DecisionsPage";
-import { HoldersPage } from "./pages/HoldersPage";
-import { IssuerPage } from "./pages/IssuerPage";
-import { ReservesPage } from "./pages/ReservesPage";
-import { OpsPage } from "./pages/ops/OpsPage";
+import { BURNER_WALLET, PUBLIC_SITE, RPC_HOST } from "./config";
 import { WalletProviders } from "./wallet";
 
+// One chunk per page, loaded on first visit.
+const IssuerPage = lazy(() => import("./pages/IssuerPage").then((m) => ({ default: m.IssuerPage })));
+const HoldersPage = lazy(() => import("./pages/HoldersPage").then((m) => ({ default: m.HoldersPage })));
+const DecisionsPage = lazy(() => import("./pages/DecisionsPage").then((m) => ({ default: m.DecisionsPage })));
+const ReservesPage = lazy(() => import("./pages/ReservesPage").then((m) => ({ default: m.ReservesPage })));
+const OpsPage = lazy(() => import("./pages/ops/OpsPage").then((m) => ({ default: m.OpsPage })));
+
+// The legacy services page needs the local backends, so the public build leaves it out.
 const NAV = [
     { to: "/issuer", label: "Issuer" },
     { to: "/holders", label: "Holders" },
     { to: "/decisions", label: "Decisions" },
     { to: "/reserves", label: "Reserves" },
-    { to: "/ops", label: "Services (legacy)" },
+    ...(PUBLIC_SITE ? [] : [{ to: "/ops", label: "Services (legacy)" }]),
 ];
+
+/** The router's base path: "/" in dev, "/thawgate/console" on GitHub Pages (vite `base`, CONSOLE_BASE). */
+const BASENAME = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
 
 /** The connected wallet's SOL, kept live through an account subscription. */
 function SolBalance() {
@@ -67,15 +73,17 @@ function Layout() {
                 <div className="notice">Burner wallet enabled (VITE_BURNER_WALLET=1): devnet tests only. Its key lives in this page and is lost on reload.</div>
             ) : null}
             <main className="page">
-                <Routes>
-                    <Route path="/" element={<Navigate to="/issuer" replace />} />
-                    <Route path="/issuer" element={<IssuerPage />} />
-                    <Route path="/holders" element={<HoldersPage />} />
-                    <Route path="/decisions" element={<DecisionsPage />} />
-                    <Route path="/reserves" element={<ReservesPage />} />
-                    <Route path="/ops" element={<OpsPage />} />
-                    <Route path="*" element={<Navigate to="/issuer" replace />} />
-                </Routes>
+                <Suspense fallback={<p className="muted">Loading…</p>}>
+                    <Routes>
+                        <Route path="/" element={<Navigate to="/issuer" replace />} />
+                        <Route path="/issuer" element={<IssuerPage />} />
+                        <Route path="/holders" element={<HoldersPage />} />
+                        <Route path="/decisions" element={<DecisionsPage />} />
+                        <Route path="/reserves" element={<ReservesPage />} />
+                        {PUBLIC_SITE ? null : <Route path="/ops" element={<OpsPage />} />}
+                        <Route path="*" element={<Navigate to="/issuer" replace />} />
+                    </Routes>
+                </Suspense>
             </main>
         </div>
     );
@@ -84,7 +92,7 @@ function Layout() {
 export default function App() {
     return (
         <WalletProviders>
-            <BrowserRouter>
+            <BrowserRouter basename={BASENAME}>
                 <Layout />
             </BrowserRouter>
         </WalletProviders>

@@ -528,6 +528,39 @@ a {
     word-break: break-word;
 }
 
+.error-block {
+    display: grid;
+    gap: 6px;
+    max-width: 100%;
+}
+
+.error-details summary {
+    cursor: pointer;
+    color: #8b949e;
+    font-size: 12px;
+}
+
+.step-error .error-details pre,
+.error-details pre {
+    max-height: 260px;
+    margin: 6px 0 0;
+    padding: 10px;
+    overflow: auto;
+    border: 1px solid rgba(139, 148, 158, 0.35);
+    border-radius: 8px;
+    background: rgba(139, 148, 158, 0.06);
+    color: #c9d1d9;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.form-reason {
+    margin: 0;
+    color: #f7c66f;
+    font-size: 13px;
+}
+
 .check {
     display: flex;
     align-items: center;

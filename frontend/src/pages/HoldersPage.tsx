@@ -3,14 +3,14 @@ import { useSearchParams } from "react-router-dom";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Explanation, GateVerdict, classifyGateLogs } from "@thawgate/sdk";
 
-import { AddressLink, Field, TxLink } from "../components";
-import { LAST_MINT_KEY, errorMessage, loadJson, parseKey, saveJson, tokenBalance } from "../lib";
+import { AddressLink, ErrorText, Field, TxLink } from "../components";
+import { ErrorParts, LAST_MINT_KEY, errorParts, loadJson, parseKey, saveJson, tokenBalance } from "../lib";
 import { useSdk } from "../useSdk";
 
 type Result =
     | { kind: "unlocked"; signature: string; tokenAccount: string; verdict: GateVerdict; balance: string | null }
     | { kind: "explained"; explanation: Explanation; balance: string | null }
-    | { kind: "error"; message: string };
+    | { kind: "error"; error: ErrorParts };
 
 /** `TG:ALLOW:KYC` / `TG:DENY:NO_CREDENTIAL` for a gate verdict, or null when the gate didn't decide. */
 export function tgCode(verdict: GateVerdict | null): string | null {
@@ -58,7 +58,7 @@ export function HoldersPage() {
             const balance = await tokenBalance(sdk.connection, mintKey, publicKey);
             setResult({ kind: "unlocked", signature, tokenAccount: sdk.gate.ata(mintKey, publicKey).toBase58(), verdict, balance });
         } catch (error) {
-            setResult({ kind: "error", message: errorMessage(error) });
+            setResult({ kind: "error", error: errorParts(error) });
         } finally {
             setBusy(false);
         }
@@ -105,7 +105,7 @@ function ResultPanel({ result }: { result: Result }) {
                     <h2>Something failed</h2>
                     <span className="badge danger">error</span>
                 </div>
-                <pre className="error-text">{result.message}</pre>
+                <ErrorText {...result.error} />
             </section>
         );
     }

@@ -16,10 +16,24 @@ import {
     sas,
 } from "@thawgate/sdk";
 
-import { Refusal, mintRefusal, sendWithoutPreflight } from "../chainLogs";
-import { AddressLink, Field, StepRow, StepState, TxLink } from "../components";
+import { Refusal, mintRefusal, readAttestation, sendWithoutPreflight } from "../chainLogs";
+import { AddressLink, ErrorText, Field, StepRow, StepState, TxLink, failedStep } from "../components";
 import { DEMO_CREDENTIAL, DEMO_SCHEMA } from "../config";
-import { LAST_MINT_KEY, MintInfo, duration, errorMessage, formatUnits, loadJson, mintInfo, parseKey, parseUnits, saveJson, utcTime } from "../lib";
+import {
+    ErrorParts,
+    LAST_MINT_KEY,
+    MintInfo,
+    duration,
+    errorMessage,
+    errorParts,
+    formatUnits,
+    loadJson,
+    mintInfo,
+    parseKey,
+    parseUnits,
+    saveJson,
+    utcTime,
+} from "../lib";
 import { useSdk } from "../useSdk";
 
 interface CoinForm {
@@ -151,7 +165,7 @@ export function IssuerPage() {
             setStep(id, { status: "done", signature });
             return true;
         } catch (error) {
-            setStep(id, { status: "failed", error: errorMessage(error) });
+            setStep(id, failedStep(error));
             return false;
         }
     }
@@ -297,6 +311,8 @@ export function IssuerPage() {
 
     const coinLocked = steps.initialize.status === "done" || busy;
     const policyLocked = !coinDone || progress.policyDone || busy;
+    // Shown next to the Create button, which stays disabled until the form is valid.
+    const coinProblem = steps.initialize.status === "done" ? null : validateCoin(coin);
 
     return (
         <div className="stack">
@@ -327,12 +343,12 @@ export function IssuerPage() {
                     <Field label="Initial reserves (whole tokens)" hint="The supply can never exceed the posted reserves.">
                         <input className="input" value={coin.reserves} disabled={coinLocked} onChange={(e) => setCoin({ reserves: e.target.value })} />
                     </Field>
-                    <Field label="Reserve report URI" hint="Link to the report behind the reserve figure (max 200 bytes).">
+                    <Field label="Reserve report URI (required)" hint="Link to the report behind the reserve figure, 1-200 bytes. Stored on chain with each post.">
                         <input
                             className="input"
                             value={coin.reportUri}
                             disabled={coinLocked}
-                            placeholder="https://example.com/reserves.json"
+                            placeholder="Paste a link to your reserve report"
                             onChange={(e) => setCoin({ reportUri: e.target.value })}
                         />
                     </Field>
@@ -352,9 +368,12 @@ export function IssuerPage() {
                 <StepRow label="Create the mint (initialize)" state={steps.initialize} onRetry={createCoin} />
                 <StepRow label="Minter and reserves (setup)" state={steps.setup} onRetry={createCoin} />
                 {!coinDone && steps.initialize.status !== "failed" && steps.setup.status !== "failed" ? (
-                    <button type="button" className="button primary" disabled={busy} onClick={createCoin}>
-                        {steps.initialize.status === "done" ? "Continue" : "Create stablecoin"}
-                    </button>
+                    <>
+                        <button type="button" className="button primary" disabled={busy || coinProblem !== null} onClick={createCoin}>
+                            {steps.initialize.status === "done" ? "Continue" : "Create stablecoin"}
+                        </button>
+                        {coinProblem && !busy ? <p className="form-reason">Can't create yet: {coinProblem}</p> : null}
+                    </>
                 ) : null}
             </section>
 
@@ -520,12 +539,40 @@ function AttestCard({ sdk, credential, schema }: { sdk: SolanaStablecoin; creden
     const [country, setCountry] = useState("IN");
     const [days, setDays] = useState("365");
     const [state, setState] = useState<StepState>({ status: "todo" });
+    // Set before the first await, so a second click before React re-renders can't send twice.
+    const sending = useRef(false);
+    const running = state.status === "running";
+
+    useEffect(() => setState({ status: "todo" }), [holder]);
+
+    /**
+     * The wallet's attestation under this credential and schema as a step state, or null when it has none. SAS keeps one
+     * attestation per wallet (its address is the PDA nonce), so a second create fails with "already in use".
+     */
+    async function existing(nonce: PublicKey): Promise<StepState | null> {
+        const pda = sas.findAttestationPda(new PublicKey(credential), new PublicKey(schema), nonce);
+        const info = await sdk.connection.getAccountInfo(pda, "confirmed");
+        if (!info) return null;
+        const found = readAttestation(info.data);
+        if (!found) return { status: "failed", error: `${pda.toBase58()} exists but isn't a SAS attestation.` };
+        const level = found.kycLevel ?? "?";
+        // SAS: live while expiry == 0 || expiry >= now.
+        if (found.expiry === 0) return { status: "done", note: `already attested (kyc_level ${level}, never expires)` };
+        if (found.expiry >= (await sdk.clusterTime())) return { status: "done", note: `already attested (kyc_level ${level}, expires ${utcTime(found.expiry)})` };
+        return {
+            status: "failed",
+            error: `Already attested (kyc_level ${level}), but it expired ${utcTime(found.expiry)}. Revoke it first (thawgate sas revoke), then issue a new one.`,
+        };
+    }
 
     async function attest() {
         const nonce = parseKey(holder);
-        if (!publicKey || !nonce) return;
+        if (!publicKey || !nonce || sending.current) return;
+        sending.current = true;
         setState({ status: "running" });
         try {
+            const found = await existing(nonce);
+            if (found) return setState(found);
             const expiry = Number(days) > 0 ? (await sdk.clusterTime()) + Number(days) * 86_400 : 0;
             const { instruction } = sas.createAttestationIx({
                 payer: publicKey,
@@ -538,7 +585,11 @@ function AttestCard({ sdk, credential, schema }: { sdk: SolanaStablecoin; creden
             });
             setState({ status: "done", signature: await sdk.send([instruction]), note: `attested ${nonce.toBase58().slice(0, 5)}…` });
         } catch (error) {
-            setState({ status: "failed", error: errorMessage(error) });
+            // Created meanwhile (another tab, or a confirmation that timed out after landing): show it, not the send error.
+            const found = await existing(nonce).catch(() => null);
+            setState(found ?? failedStep(error));
+        } finally {
+            sending.current = false;
         }
     }
 
@@ -554,21 +605,27 @@ function AttestCard({ sdk, credential, schema }: { sdk: SolanaStablecoin; creden
             </p>
             <div className="two-column">
                 <Field label="Wallet">
-                    <input className="input mono" value={holder} onChange={(e) => setHolder(e.target.value.trim())} placeholder="Holder wallet address" />
+                    <input
+                        className="input mono"
+                        value={holder}
+                        disabled={running}
+                        onChange={(e) => setHolder(e.target.value.trim())}
+                        placeholder="Holder wallet address"
+                    />
                 </Field>
                 <Field label="kyc_level">
-                    <input className="input" value={kycLevel} onChange={(e) => setKycLevel(e.target.value)} />
+                    <input className="input" value={kycLevel} disabled={running} onChange={(e) => setKycLevel(e.target.value)} />
                 </Field>
                 <Field label="Country">
-                    <input className="input" value={country} onChange={(e) => setCountry(e.target.value)} />
+                    <input className="input" value={country} disabled={running} onChange={(e) => setCountry(e.target.value)} />
                 </Field>
                 <Field label="Expires in (days, 0 = never)">
-                    <input className="input" value={days} onChange={(e) => setDays(e.target.value)} />
+                    <input className="input" value={days} disabled={running} onChange={(e) => setDays(e.target.value)} />
                 </Field>
             </div>
             <StepRow label="Attestation" state={state} />
-            <button type="button" className="button primary" disabled={!parseKey(holder) || state.status === "running"} onClick={attest}>
-                Issue attestation
+            <button type="button" className="button primary" disabled={!parseKey(holder) || running} onClick={attest}>
+                {running ? "Sending…" : "Issue attestation"}
             </button>
         </section>
     );
@@ -586,9 +643,11 @@ interface MintStatus {
 type MintOutcome =
     | { kind: "minted"; signature: string; amount: bigint }
     /** The simulation failed: nothing was sent. `ixs` can still be sent to record the refusal. */
-    | { kind: "refused"; refusal: Refusal; ixs: TransactionInstruction[] }
-    | { kind: "recorded"; signature: string; refusal: Refusal }
-    | { kind: "error"; message: string };
+    | { kind: "refused"; refusal: Refusal; ixs: TransactionInstruction[]; logs: string[] }
+    | { kind: "recorded"; signature: string; refusal: Refusal; logs: string[] }
+    | { kind: "error"; error: ErrorParts };
+
+const plainError = (summary: string): MintOutcome => ({ kind: "error", error: { summary, logs: [] } });
 
 /**
  * `mint_tokens` for any mint this wallet is a Minter of. The mint is simulated first: a refusal (reserves, quota, a
@@ -649,25 +708,25 @@ function MintCard({ sdk, defaultMint }: { sdk: SolanaStablecoin; defaultMint: st
         const to = parseKey(recipient);
         if (!publicKey || !mintKey || !to || !status) return;
         const base = parseUnits(amount, status.info.decimals);
-        if (!base) return setOutcome({ kind: "error", message: `Amount: a number above 0 with at most ${status.info.decimals} decimals.` });
+        if (!base) return setOutcome(plainError(`Amount: a number above 0 with at most ${status.info.decimals} decimals.`));
         setBusy(true);
         setOutcome(null);
         try {
             const ixs = await sdk.mintTokens(mintKey, publicKey, to, new BN(base.toString()));
             const sim = await sdk.gate.simulate(ixs, publicKey);
-            if (sim.payerMissing) return setOutcome({ kind: "error", message: "This wallet has no devnet SOL to pay the fee." });
+            if (sim.payerMissing) return setOutcome(plainError("This wallet has no devnet SOL to pay the fee."));
             if (sim.err !== null) {
                 const refusal = mintRefusal(sim.logs, status.info) ?? {
                     title: "Refused",
-                    sentence: `The simulation failed: ${JSON.stringify(sim.err)}. ${sim.logs.slice(-3).join(" ")}`,
+                    sentence: `The simulation failed: ${JSON.stringify(sim.err)}. The program logs are under "show details".`,
                     code: null,
                 };
-                return setOutcome({ kind: "refused", refusal, ixs });
+                return setOutcome({ kind: "refused", refusal, ixs, logs: [...sim.logs] });
             }
             setOutcome({ kind: "minted", signature: await sdk.send(ixs), amount: base });
             void refresh();
         } catch (error) {
-            setOutcome({ kind: "error", message: errorMessage(error) });
+            setOutcome({ kind: "error", error: errorParts(error) });
         } finally {
             setBusy(false);
         }
@@ -680,10 +739,10 @@ function MintCard({ sdk, defaultMint }: { sdk: SolanaStablecoin; defaultMint: st
             const { signature, err, logs } = await sendWithoutPreflight(sdk.connection, anchorWallet, outcome.ixs);
             // The chain can disagree with the simulation if reserves moved in between.
             if (err === null) setOutcome({ kind: "minted", signature, amount: 0n });
-            else setOutcome({ kind: "recorded", signature, refusal: mintRefusal(logs, status.info) ?? outcome.refusal });
+            else setOutcome({ kind: "recorded", signature, refusal: mintRefusal(logs, status.info) ?? outcome.refusal, logs: [...logs] });
             void refresh();
         } catch (error) {
-            setOutcome({ kind: "error", message: errorMessage(error) });
+            setOutcome({ kind: "error", error: errorParts(error) });
         } finally {
             setBusy(false);
         }
@@ -776,7 +835,7 @@ function MintOutcomePanel({
     busy: boolean;
     onRecord: () => void;
 }) {
-    if (outcome.kind === "error") return <pre className="error-text">{outcome.message}</pre>;
+    if (outcome.kind === "error") return <ErrorText {...outcome.error} />;
     if (outcome.kind === "minted") {
         return (
             <div className="step-row mint-outcome">
@@ -798,6 +857,12 @@ function MintOutcomePanel({
                 {onChain ? <TxLink signature={outcome.signature} /> : null}
             </div>
             <p>{outcome.refusal.sentence}</p>
+            {outcome.logs.length ? (
+                <details className="error-details">
+                    <summary>show details</summary>
+                    <pre>{outcome.logs.join("\n")}</pre>
+                </details>
+            ) : null}
             {onChain ? (
                 <p className="muted">
                     The failed transaction is on chain for anyone to check. It's listed under blocked mints on{" "}

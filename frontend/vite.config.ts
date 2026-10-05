@@ -11,6 +11,8 @@ export default defineConfig(({ command, mode }) => {
         throw new Error("VITE_RPC_URL carries an API key and would ship in the public bundle. Build without it (public devnet is the default).");
     }
     return {
+        // "/" by default; the GitHub Pages build serves the console under /thawgate/console/ (.github/workflows/pages.yml).
+        base: process.env.CONSOLE_BASE || "/",
         plugins: [react()],
         server: {
             port: 3000,
