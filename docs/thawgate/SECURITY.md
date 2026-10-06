@@ -234,3 +234,12 @@ The screener (`services/compliance-service`) blacklists wallets a risk provider 
 
 22. **Confidential transfers (SSS-3)** validate feature flags but rely on the raw SPL Confidential Transfer CPI. They're experimental.
 23. **Hook mode needs its ExtraAccountMetaList.** It must be initialized right after mint creation. Anyone may create a mint's list; since S6a it must name sss-token.
+
+**Dependencies**
+
+24. **`npm audit` reports advisories in transitive dependencies of `@thawgate/sdk` and `@thawgate/cli` 0.1.0.** None is in ThawGate's own code. On 2026-10-06 a fresh install (`npm audit`) listed 7 advisories in 4 packages, flagged across 14 packages (7 moderate, 7 high):
+    - **`@solana/web3.js` 1.x → `jayson`:** `uuid` ([GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq), moderate) and `stream-json` ([GHSA-528h-pc64-c93x](https://github.com/advisories/GHSA-528h-pc64-c93x), [GHSA-hqr4-qq8f-hg3x](https://github.com/advisories/GHSA-hqr4-qq8f-hg3x), [GHSA-mjw6-4jj6-33hc](https://github.com/advisories/GHSA-mjw6-4jj6-33hc), moderate).
+    - **`@solana/spl-token` → `@solana/buffer-layout-utils`:** `bigint-buffer` ([GHSA-3gc7-fjrx-p6mg](https://github.com/advisories/GHSA-3gc7-fjrx-p6mg), high).
+    - **`@coral-xyz/anchor` 0.32:** `toml` ([GHSA-82x6-q7mm-w9cf](https://github.com/advisories/GHSA-82x6-q7mm-w9cf), [GHSA-v5mp-jgw5-2x6j](https://github.com/advisories/GHSA-v5mp-jgw5-2x6j), high). npm offers no fix for this one.
+
+    Fixing them means moving off web3.js 1.x and Anchor's TS client, or overriding their dependencies. That wasn't done during the feature freeze. The SDK and CLI talk to the RPC you configure, so use one you trust.
