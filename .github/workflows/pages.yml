@@ -1,0 +1,100 @@
+name: Site (GitHub Pages)
+
+# https://aryasingh22.github.io/thawgate/: the landing page (site/), the console under /console/, and stats.json, the
+# count of devnet mints gated by ThawGate (scripts/docs/gate-mints.js: one getProgramAccounts on Token ACL, run here
+# against public devnet, never from the browser). The console is built without VITE_RPC_URL, so it talks to public
+# devnet only (vite.config.ts refuses a keyed URL, and the assemble step checks the bundle). Rebuilt on pushes that
+# touch the site, the console or the SDK, and every 6 hours for the count.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "frontend/**"
+      - "sdk/**"
+      - "scripts/docs/gate-mints.js"
+      - ".github/workflows/pages.yml"
+  schedule:
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Count the mints gated by ThawGate (public devnet, read-only)
+        run: |
+          mkdir -p _site
+          node scripts/docs/gate-mints.js > "$RUNNER_TEMP/mints.txt"
+          tail -n 1 "$RUNNER_TEMP/mints.txt" | node -e '
+            let s = "";
+            process.stdin.on("data", (d) => (s += d)).on("end", () => {
+              const stats = JSON.parse(s);
+              if (!Number.isInteger(stats.mints)) throw new Error("no count in the gate-mints.js output");
+              stats.generatedAt = new Date().toISOString();
+              stats.source = "scripts/docs/gate-mints.js";
+              process.stdout.write(JSON.stringify(stats, null, 2) + "\n");
+            });' > _site/stats.json
+          cat _site/stats.json
+
+      - name: Build the SDK and the console
+        env:
+          CONSOLE_BASE: /thawgate/console/
+          VITE_PUBLIC_SITE: "1"
+        run: |
+          yarn workspace @thawgate/sdk build
+          cd frontend && npm ci --no-audit --no-fund && npm run build
+
+      - name: Assemble the site
+        run: |
+          cp site/index.html site/style.css _site/
+          cp -r frontend/dist _site/console
+          # GitHub Pages answers unknown paths with 404.html: the console's page, so a deep link like /console/holders
+          # loads it; any other path goes back to the landing page.
+          node -e '
+            const fs = require("fs");
+            const html = fs.readFileSync("_site/console/index.html", "utf8");
+            const back = `<script>if (!location.pathname.startsWith("/thawgate/console/")) location.replace("/thawgate/");</script>`;
+            fs.writeFileSync("_site/404.html", html.replace("<head>", `<head>\n    ${back}`));'
+          # The public bundle must never carry a keyed RPC URL.
+          if grep -rEil "api[-_]?key=|helius-rpc" _site/console; then echo "a keyed RPC URL is in the bundle"; exit 1; fi
+          ls -la _site _site/console
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

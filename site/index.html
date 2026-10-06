@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ThawGate</title>
+    <meta name="description" content="ThawGate: KYC and sanctions gates for Solana's Token ACL. Wallets unlock a regulated token themselves with a valid credential and lose access when it is revoked. Devnet, unaudited." />
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+    <header class="top">
+        <div class="wrap">
+            <a class="brand" href="./">ThawGate <span>· devnet</span></a>
+            <nav class="links">
+                <a href="console/">Console</a>
+                <a href="#quickstart">Quickstart</a>
+                <a href="#docs">Docs</a>
+                <a href="https://www.npmjs.com/package/@thawgate/sdk">npm</a>
+                <a href="https://github.com/AryaSingh22/thawgate">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="wrap">
+        <div class="hero">
+            <h1>KYC and sanctions gates for Solana's Token ACL</h1>
+            <p class="lead">
+                Wallets unlock a regulated token themselves with a valid credential, and lose access when it is revoked. No transfer hook, so
+                the token keeps working in DeFi.
+            </p>
+            <div class="status">Unaudited · devnet only · nothing is deployed to mainnet</div>
+            <div class="actions">
+                <a class="button primary" href="console/">Open the console</a>
+                <a class="button" href="#quickstart">Quickstart</a>
+                <a class="button" href="https://github.com/AryaSingh22/thawgate">Source on GitHub</a>
+            </div>
+        </div>
+
+        <section aria-labelledby="count">
+            <h2 id="count">Mints using ThawGate</h2>
+            <div class="counter">
+                <div class="value" id="mint-count">–</div>
+                <div class="label">Token ACL mints on devnet whose gate is ThawGate</div>
+                <div class="note" id="mint-note">Reading the last count…</div>
+            </div>
+            <p class="muted">
+                Most of them are this project's own test and demo mints (each one is traced in the
+                <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md">build log</a>), plus any mint someone creates
+                in the console. A scheduled job counts them every 6 hours with one read of Token ACL's accounts and publishes the result as
+                <a href="stats.json">stats.json</a>; this page never queries an RPC itself.
+            </p>
+        </section>
+
+        <section aria-labelledby="how">
+            <h2 id="how">How it works</h2>
+            <ul class="points">
+                <li>A Token ACL mint uses DefaultAccountState = Frozen, so <strong>every token account starts frozen</strong>.</li>
+                <li>
+                    <strong>A holder unlocks their own account</strong> with Token ACL's <code>thaw_permissionless</code>. Token ACL asks
+                    ThawGate, which reads the mint's policy: a live <a href="https://attest.solana.com">SAS</a> attestation for the wallet, the
+                    issuer's blacklist, the issuer's allowlist. Anyone can pay; the issuer signs nothing.
+                </li>
+                <li>
+                    <strong>A holder who stops complying</strong> (credential revoked or expired, blacklisted, or below a tightened policy)
+                    becomes freezable by anyone, and the keeper freezes them.
+                </li>
+                <li>
+                    <strong>No transfer hook.</strong> The check runs once per account, at thaw. After that a transfer is plain Token-2022:
+                    3,557 CU on an sss-token Token ACL mint, against 27,627 CU with the SSS transfer hook (localnet,
+                    <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s6b--2026-09-29--sss-token-token-acl-mode-and-the-hook-on-a-validator-legacy-seize-sdk-presets">LOG S6b</a>).
+                </li>
+                <li>Every decision is logged as <code>TG:ALLOW:&lt;CODE&gt;</code> or <code>TG:DENY:&lt;CODE&gt;</code>, and <code>explain()</code> gives the same reason before anything is sent.</li>
+            </ul>
+        </section>
+
+        <section aria-labelledby="measured">
+            <h2 id="measured">Measured on devnet</h2>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>What</th>
+                            <th>Result</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Credential revoked → account frozen by a running keeper</td>
+                            <td>
+                                p50 2,026 ms and 2,321 ms over 10 runs each, with the keeper tracking every gated mint
+                                (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s17--2026-10-06--release-v010">LOG S17</a>);
+                                p50 2,042 ms after the S15a upgrade
+                                (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s15a--2026-10-04--sss-token-fixes-in-one-devnet-upgrade-thawgate-reserves-post-legacy-e2e-green">LOG S15a</a>);
+                                p50 2,863 ms before it (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper">LOG S8</a>)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Sanctions flag → blacklisted → frozen</td>
+                            <td>
+                                p50 3,714.5 ms over 10 runs, on a labelled static list
+                                (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s10--2026-10-03--sanctions-screener-provider-result--blacklisted--frozen-by-the-keeper">LOG S10</a>)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>A KYC'd holder trades; after the revoke they are frozen and their next trade fails</td>
+                            <td>
+                                in <code>demo_pool</code>, the demo venue
+                                (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s12-venue--2026-10-04--the-demo-venue-a-gated-token-trading-in-a-pool-on-devnet">LOG S12-venue</a>)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>A mint past attested reserves is refused (<code>ReserveInsufficient</code>)</td>
+                            <td>
+                                the refusal landed on chain
+                                (<a href="https://explorer.solana.com/tx/5uyH7QMRWCmTvkL394A8HhFXBptKjG7wm5WvAqkbTVndizkcHefBjBn7QH6R736s7LUgXjHB8jFzMHHaQsJC7Sdc?cluster=devnet">tx</a>,
+                                <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s14--2026-10-04--console-ii-mint-action-decisions-and-reserves-on-devnet">LOG S14</a>)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Gate cost per thaw (localnet)</td>
+                            <td>
+                                26,191–40,426 CU per transaction, gate frame 3,385–5,400, once per account
+                                (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md#s6b--2026-09-29--sss-token-token-acl-mode-and-the-hook-on-a-validator-legacy-seize-sdk-presets">LOG S6b</a>)
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section aria-labelledby="judging">
+            <h2 id="judging">While the project is being judged</h2>
+            <div class="ops">
+                <div class="card">
+                    <h3>Keeper: a sweep every 10 minutes</h3>
+                    <p>
+                        No keeper runs continuously. A scheduled GitHub Actions job runs it every 10 minutes for 150 s over every mint gated by
+                        ThawGate, yours included. So a holder who stops complying is frozen at the next run: within about 10 minutes plus
+                        GitHub's start delay, which GitHub doesn't bound. A keeper that runs all the time freezes in about 2 s
+                        (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/KEEPER.md#measured">KEEPER.md</a>).
+                    </p>
+                    <p class="muted">Anyone can freeze sooner: <code>thawgate freeze-if-invalid --token-account &lt;account&gt;</code>.</p>
+                </div>
+                <div class="card">
+                    <h3>Reserves: re-posted every 6 hours</h3>
+                    <p>
+                        The two demo mints (vUSD and the S9 mint) need a reserve post younger than 24 hours to mint. A scheduled job re-posts them
+                        every 6 hours, signed by their attestor key, which holds no other authority. GitHub may delay or skip scheduled runs.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section aria-labelledby="quickstart">
+            <h2 id="quickstart">Quickstart (devnet)</h2>
+            <p>
+                One script, from a fresh wallet: your own test KYC credential, a stablecoin gated by it, a holder refused, attested, unlocked,
+                minted to, revoked and frozen. Every step is a real devnet transaction. Node 20 or 22.
+            </p>
+            <pre><code>mkdir thawgate-quickstart &amp;&amp; cd thawgate-quickstart
+npm init -y
+npm i @thawgate/sdk @solana/web3.js
+curl -O https://raw.githubusercontent.com/AryaSingh22/thawgate/main/sdk/examples/quickstart.mjs
+node quickstart.mjs</code></pre>
+            <p class="muted">
+                The first run creates <code>issuer.json</code> and asks the faucet for SOL; if it refuses, send the printed address 0.2 devnet
+                SOL from <a href="https://faucet.solana.com">faucet.solana.com</a> and run it again. It ends with <code>done</code>.
+            </p>
+        </section>
+
+        <section aria-labelledby="programs">
+            <h2 id="programs">Programs (devnet)</h2>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Program</th>
+                            <th>ID</th>
+                            <th>Role</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>ThawGate gate</td>
+                            <td><a href="https://explorer.solana.com/address/THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ?cluster=devnet"><code>THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ</code></a></td>
+                            <td>The Token ACL gating program</td>
+                        </tr>
+                        <tr>
+                            <td>sss-token</td>
+                            <td><a href="https://explorer.solana.com/address/HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ?cluster=devnet"><code>HLvhfKVfGfKXVNS9tZ1q7SNS4w9mQmcjre758QFhbZDZ</code></a></td>
+                            <td>The example issuer, with reserve-capped minting</td>
+                        </tr>
+                        <tr>
+                            <td>transfer_hook</td>
+                            <td><a href="https://explorer.solana.com/address/2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv?cluster=devnet"><code>2wcwbEsw7rZ2t36qaDujHUc9HHrg3f5m4opcSHpixNUv</code></a></td>
+                            <td>The SSS hook, for sss-token's legacy mode only</td>
+                        </tr>
+                        <tr>
+                            <td>demo_pool</td>
+                            <td><a href="https://explorer.solana.com/address/9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS?cluster=devnet"><code>9oYxeFvSLhgq8rqh4BRJA1gRyMX53j7gt9jYzNZhLaKS</code></a></td>
+                            <td>The demo venue</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="muted">
+                <strong>Reproducible build, not "verified":</strong> the devnet bytes of all four programs equal <code>solana-verify build</code>
+                of commit <code>7e0cc40</code> in the pinned 3.0.14 image, in two CI runs (hashes and how to recheck them in
+                <a href="https://github.com/AryaSingh22/thawgate/blob/main/DEPLOYMENT.md">DEPLOYMENT.md</a>). The explorer's "verified" badge
+                comes from a verifier that only covers mainnet, so these programs don't carry it. The IDLs are on chain. Each program has a
+                single-key upgrade authority.
+            </p>
+        </section>
+
+        <section aria-labelledby="docs">
+            <h2 id="docs">Docs</h2>
+            <ul class="points">
+                <li><a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/INTEGRATING.md">Integrator guide</a>, <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/GATE.md">gate spec and reason codes</a>, <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/POLICY.md">policy configuration</a></li>
+                <li><a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/KEEPER.md">Keeper operations</a>, <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/RESERVES.md">reserves</a>, <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/SANCTIONS.md">sanctions</a>, <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/SECURITY.md">security and known limitations</a></li>
+                <li>Packages: <a href="https://www.npmjs.com/package/@thawgate/sdk">@thawgate/sdk</a>, <a href="https://www.npmjs.com/package/@thawgate/cli">@thawgate/cli</a> (the <code>thawgate</code> command)</li>
+                <li><a href="https://github.com/AryaSingh22/thawgate/releases">Releases</a>, <a href="https://github.com/AryaSingh22/thawgate/blob/main/DEPLOYMENT.md">deployments and hashes</a>, the <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md">build log</a></li>
+            </ul>
+        </section>
+    </main>
+
+    <footer>
+        <div class="wrap">
+            Built for the Colosseum World's Fair 2026 on the
+            <a href="https://github.com/solana-foundation/token-acl">Token ACL</a> (sRFC 37) and the
+            <a href="https://github.com/solana-foundation/solana-attestation-service">Solana Attestation Service</a>. What existed before the
+            hackathon, and how it was built: <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/DISCLOSURE.md">DISCLOSURE.md</a>.
+            MIT licensed.
+        </div>
+    </footer>
+
+    <script>
+        // The count comes from stats.json, written by the Pages workflow (scripts/docs/gate-mints.js); no RPC call here.
+        fetch("stats.json", { cache: "no-store" })
+            .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+            .then((s) => {
+                document.getElementById("mint-count").textContent = String(s.mints);
+                const when = new Date(s.clusterTime).toISOString().slice(0, 16).replace("T", " ");
+                document.getElementById("mint-note").textContent =
+                    `Counted at devnet slot ${s.slot.toLocaleString("en-US")} (${when} UTC). ${s.permissionlessFreeze} of them let anyone freeze a non-compliant holder.`;
+            })
+            .catch(() => {
+                document.getElementById("mint-note").textContent = "The last count could not be loaded.";
+            });
+    </script>
+</body>
+</html>
