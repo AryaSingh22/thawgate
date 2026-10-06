@@ -4,43 +4,47 @@ One entry per session: shipped / links / next. This is the "built during the hac
 
 Paths: since S16 the docs live in `docs/thawgate/` (ThawGate) and `docs/examples/sss/` (the SSS baseline). Entries before S16 keep the old `docs/*.md` paths, which were true when written.
 
-## ▶ S18 handoff (read first; remove when S18 ends)
-S17 is done (entry at the bottom): **v0.1.0 is released.** The C2 feature freeze from tag `c2-freeze` still holds: only fixes, no new features.
-- **Shipped:**
-  - **Console fixes from the user's Phantom run:** Attest shows an existing attestation instead of a simulation dump and can't send twice; Create says why it is disabled; logs fold under "show details". Also one chunk per page (entry 1.32 → 0.62 MB) and `@thawgate/shared` by version.
-  - **Programs:** the devnet bytes of all four equal `solana-verify build` of `7e0cc40`, in three CI runs, the tag's included. Nothing was redeployed. They are **not "verified"**: OtterSec's remote verifier refuses devnet ("only supports mainnet"), and the docs say so. IDLs and otter-verify PDAs are on devnet.
-  - **npm:** `@thawgate/sdk` and `@thawgate/cli` 0.1.0, published by `publish.yml` from tag `v0.1.0` with provenance. The README quickstart uses npm now; the stranger test took 38.4 s.
-  - **Site:** <https://aryasingh22.github.io/thawgate/>, with the console under `/console/` (public RPC only) and `stats.json` (gated-mint count, every 6 h).
-  - **Release** [v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0), with the `.so` files and `SHA256SUMS`.
-  - **Judging ops:** `keeper.yml` (every 10 min, 150 s, all gated mints) and `reserves.yml` (every 6 h). vUSD's reserve attestor is now `2da6…`.
-- **Repo secrets: set** (2026-10-06 09:19–09:20 UTC, by the user, after the closing push): `THAWGATE_ATTESTOR_KEYPAIR`, `THAWGATE_KEEPER_KEYPAIR`, `THAWGATE_DEVNET_RPC`. Both workflows were dispatched once, and both real jobs ran:
-  - **reserves** (run 37442394165, `post` = success): `2da6…` posted vUSD 1,000,000 ([4cFAFJfG…](https://explorer.solana.com/tx/4cFAFJfGgVE7ys3zPecTBjTdioD2EzQHP9v5PuRXHyCYck49ms9n7q9b6Cizbe21unuocEoP1QQX8qRy8TG1m8Sd?cluster=devnet)) and the S9 mint 2,000 ([2DCR5seG…](https://explorer.solana.com/tx/2DCR5seGAxURxktGvfFMhZGSaUbZHQi2QiYFjhWLtsEidRKXwZneQibnv8pCXE5Wwy6e4TCm6DYgkPq2s4SBqoEU?cluster=devnet)) with `@thawgate/cli@0.1.0` from npm. Both are fresh until 2026-10-07 09:22 UTC.
-  - **keeper** (run 37442389553, `sweep` = success): `resync done` over 25 gated mints in 3.5 s (24 thawed accounts, 75 frozen). Nothing was freezable, there was no warning or error, and it stopped on SIGTERM at 150 s. The RPC URL doesn't appear in the log.
-- **⚠ GitHub has started no scheduled run yet.** At 09:25 UTC, about 2 h 10 min after push 2 added the crons, `gh run list --event schedule` was still empty for every workflow. The repo isn't a fork, all workflows are `active`, and Actions is enabled. Until scheduled runs appear, the keeper and reserves run only when dispatched. **First thing in S18:** check `gh run list -R AryaSingh22/thawgate --workflow keeper.yml --event schedule`, measure the start delay (createdAt against the `*/10` slot), and put the number in README/KEEPER/SUBMISSION/site, which say only "within 10 minutes plus GitHub's start delay". If there are still none, dispatch by hand before judging windows and say so in the docs.
-
-**S18** (PLAN.md S18: demo script + rehearsal):
-- **`scripts/demo.ts`:** KYC unlock → trade in `demo_pool` (labelled as the demo venue) → revoke → keeper freeze → trade fails → mint blocked by reserves.
-- **Keeper for the recording:** run it locally as its own process, which freezes in about 2 s. The judging sweep runs every 10 min and isn't what the demo shows.
-- **Reserves before recording:** re-post with `gh workflow run reserves.yml` or the CLI as `2da6…`. vUSD's attestor is no longer `5BXg…`.
+## ▶ S19 handoff (read first; remove when S19 ends)
+S18 is done (entry at the bottom). The C2 feature freeze from tag `c2-freeze` still holds: only fixes, no new features.
+- **Private (user's rule since S18):** the demo materials live in `~/thawgate-private/`, outside the repo. Never copy them into the repo, LOG.md or any tracked file. Before every commit, run `git status` and check that nothing from there is staged.
+- **Public in S18:**
+  - **Scheduled-run status** in KEEPER.md and README: "scheduled runs not observed yet; reserves are re-posted manually daily during judging", plus GitHub's 60-day inactivity rule (KEEPER.md).
+  - **SECURITY.md limitation 24:** the `npm audit` advisories in transitive dependencies (web3.js 1.x, spl-token, Anchor).
+  - **`npm pkg fix` in `cli/`:** `bin` is now `dist/index.js`. It takes effect at the next publish; nothing was published.
+- **⚠ Still no scheduled run.** At 09:48 UTC, about 2.5 h after the crons were added, `gh run list --event schedule` was empty for every workflow, and all three are `active`.
+  - **Until they appear, dispatch by hand at least daily:** `gh workflow run reserves.yml -R AryaSingh22/thawgate` (reserves are fresh until **2026-10-07 09:22 UTC**) and `gh workflow run keeper.yml -R AryaSingh22/thawgate`.
+  - **When scheduled runs appear,** measure the start delay (createdAt against the cron slot) and replace the status lines in KEEPER.md and the README.
+  - **Same story for the Pages cron** (`41 */6`): `stats.json` refreshes only when the site deploys. It said 24 at 07:43 UTC while `scripts/docs/gate-mints.js` counted 25 at 09:44.
+- **⚠ Mainnet changed: "33 of 33, 0 custom gates" no longer holds.**
+  - **Re-count, 2026-10-06 09:43 UTC** (`getProgramAccounts(TACL, dataSize 100)` on public mainnet, grouped by `gating_program` at offset 68, the RESEARCH.md §1.4 method): **36** MintConfigs.
+    - 33 on the reference gate `GATEzzq…`, of which 27 have Spiko fund names in their metadata (unchanged);
+    - 3 on a second gate, `GATEa6u2jBLp7Cq3qyPopvS9gTsEEkDjWivJaotkseL1`. Its mints are "Test Asset A/B/C" (TESTA/TESTB/TESTC). Its first transaction was on 2026-09-24, its upgrade authority is `9aJbattT…`, and no public code mentions it.
+  - **Stale in public files:** SUBMISSION.md:11, MARKET.md §1–§2 (dated 2026-09-23), RESEARCH.md row 9 and §1.4, and the PLAN.md S19 line. Reword them in S20; the user decides the wording.
+- **S19 (videos):**
+  - The pitch and the demo, recorded by the user from the private drafts. Uploads unlisted, with captions (PLAN.md S19).
+  - **Before recording,** re-run `scripts/docs/gate-mints.js` for the gated-mint count, and re-post the reserves if they are stale.
+- **SUBMISSION.md:66 and site/index.html:141/151** still describe the keeper and reserve crons without the "not observed yet" status (S20).
 - **Phantom / Solflare:** Phantom passed (S17 entry). Solflare is still unreported; the user reports it, so don't ask.
 
-State on devnet (2026-10-06, after S17):
+State on devnet (2026-10-06, after S18):
 - **Programs:** unchanged since S15a. IDL accounts `EhUN6GTc…` (sss_token), `CwieEpy9…` (hook), `GNt4GBoU…` (gate), `FCDxf61x…` (pool). Otter-verify PDAs at commit `7e0cc40` (DEPLOYMENT.md).
-- **Balances:** `5BXg…` 26.029669652 SOL (S17 spent 0.818464 of it), `3YnV…` 1.92361646, the keeper `4auu6t…` 0.149615, the attestor `2da6…` 0.05998, the demo credential's signer `5avMn…` 0.99473284.
-- **vUSD** `AsePwCcV…`: attestor `2da6…` since S17. Reserves 1,000,000, fresh until 2026-10-06 22:44 UTC; the report URI is the same as before.
-- **S9 mint** `D6Q5PA…`: reserves 2,000, fresh until 2026-10-06 22:44 UTC.
-- **Gated mints:** 25 at the end of S17, all this project's (the S17 entry lists the new ones). No external integrator.
+- **Balances:** `5BXg…` 26.020421852 SOL, `3YnV…` 1.92361646, the keeper `4auu6t…` 0.1496, the attestor `2da6…` 0.05997, the demo credential's signer `5avMn…` 0.99473284.
+- **Repo secrets** (set by the user on 2026-10-06, 09:19–09:20 UTC): `THAWGATE_ATTESTOR_KEYPAIR`, `THAWGATE_KEEPER_KEYPAIR`, `THAWGATE_DEVNET_RPC`. Both workflows succeeded when dispatched by hand:
+  - **reserves run 37442394165:** `@thawgate/cli@0.1.0` from npm, signed by `2da6…`;
+  - **keeper run 37442389553:** 25 gated mints resynced in 3.5 s, nothing freezable, a clean stop at 150 s, and no RPC URL in the log.
+- **vUSD** `AsePwCcV…`: attestor `2da6…`. Reserves 1,000,000, posted by reserves run 37442394165 ([4cFAFJfG…](https://explorer.solana.com/tx/4cFAFJfGgVE7ys3zPecTBjTdioD2EzQHP9v5PuRXHyCYck49ms9n7q9b6Cizbe21unuocEoP1QQX8qRy8TG1m8Sd?cluster=devnet)), fresh until 2026-10-07 09:22 UTC. Supply 104,001.
+- **S9 mint** `D6Q5PA…`: reserves 2,000 ([2DCR5seG…](https://explorer.solana.com/tx/2DCR5seGAxURxktGvfFMhZGSaUbZHQi2QiYFjhWLtsEidRKXwZneQibnv8pCXE5Wwy6e4TCm6DYgkPq2s4SBqoEU?cluster=devnet), same run), fresh until 2026-10-07 09:22 UTC.
+- **Gated mints:** 25 (`gate-mints.js`, 09:44 UTC), all this project's. No external integrator.
 
 Open:
+- **New in S18:**
+  - **The scheduled-run delay**, and the stale mainnet figures (both above).
+  - **`npm audit`, re-measured on 2026-10-06:** 7 advisories in 4 packages, flagged across 14 packages (7 moderate, 7 high). S17 counted 10 (4 moderate, 6 high); the new ones are the `stream-json` advisories. They're listed in SECURITY.md limitation 24. Fixing them means changing those dependencies. Re-run before S20: `npm i --package-lock-only @thawgate/cli@0.1.0 @thawgate/sdk@0.1.0` in an empty dir, then `npm audit`.
 - **New in S17:**
-  - **The repo secrets and the scheduled-run delay** (above).
-  - **`npm audit`:** a fresh install reports 10 advisories (4 moderate, 6 high), all transitive through `@solana/web3.js` 1.x, Anchor and spl-token. Fixing them means changing those dependencies.
-  - **npm "cleaned" the CLI's `bin` path** at publish (`./dist/index.js` became `dist/index.js`). Run `npm pkg fix` in `cli/` before the next publish.
-  - **Helius credits:** the keeper cron, once its secrets exist, makes about 20 `getProgramAccounts` calls per run, every 10 min, on the user's key. Watch the usage.
+  - **Helius credits:** the keeper cron makes about 20 `getProgramAccounts` calls per run on the user's key, once GitHub schedules it. Watch the usage.
   - **No measured revoke → freeze under the scheduled sweep yet.** S17's numbers are from a running keeper.
-  - **`stats.json` and the README/SUBMISSION count (25) are snapshots.** The site refreshes every 6 h; the docs don't.
+  - **`stats.json` and the README/SUBMISSION count (25) are snapshots.** The site refreshes when it deploys (its cron hasn't fired either); the docs don't refresh at all.
   - **`ubuntu-latest` becomes Ubuntu 26 from 2026-10-19** (a CI annotation). `verifiable-build.yml` pins `ubuntu-24.04`; the others follow `latest`.
-  - **Scheduled workflows are disabled after 60 days without repo activity** (not before Oct 12).
 - **New in S16:**
   - **The GIF's revoke → frozen times** (1,759 and 1,793 ms) come from 2 runs. They're an illustration; the p50s come from S8 and S15a.
   - **`evidence/` keeps old links**, untouched by rule. `scripts/docs/check-links.sh` skips it.
@@ -1750,3 +1754,6 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - The console UX fixes are in, and checked on devnet.
 - **Links:** commits `d540a25`, `e274a5f`, `8e7a93f`, `7e0cc40` (push 1); `73f4302`, `a3de719`, `62f6de7` (push 2, tag `v0.1.0`); `551552f`, `adf6cfe`, `30c753c` (push 3); and the closing commit. Release [v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0); the devnet transactions above.
 - **Next:** S18, per the handoff at the top of this file.
+
+## S18 · 2026-10-06 · Demo script + rehearsal
+Demo prepared and rehearsed privately (not in the repo).
