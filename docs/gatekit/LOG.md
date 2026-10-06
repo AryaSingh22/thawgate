@@ -5,26 +5,23 @@ One entry per session: shipped / links / next. This is the "built during the hac
 Paths: since S16 the docs live in `docs/thawgate/` (ThawGate) and `docs/examples/sss/` (the SSS baseline). Entries before S16 keep the old `docs/*.md` paths, which were true when written.
 
 ## ▶ S19 handoff (read first; remove when S19 ends)
-S18 is done (entry at the bottom). The C2 feature freeze from tag `c2-freeze` still holds: only fixes, no new features.
+S18 and S18b (claims fixes) are done (entries at the bottom). The C2 feature freeze from tag `c2-freeze` still holds: only fixes, no new features.
 - **Private (user's rule since S18):** the demo materials live in `~/thawgate-private/`, outside the repo. Never copy them into the repo, LOG.md or any tracked file. Before every commit, run `git status` and check that nothing from there is staged.
 - **Public in S18:**
   - **Scheduled-run status** in KEEPER.md and README: "scheduled runs not observed yet; reserves are re-posted manually daily during judging", plus GitHub's 60-day inactivity rule (KEEPER.md).
   - **SECURITY.md limitation 24:** the `npm audit` advisories in transitive dependencies (web3.js 1.x, spl-token, Anchor).
   - **`npm pkg fix` in `cli/`:** `bin` is now `dist/index.js`. It takes effect at the next publish; nothing was published.
-- **⚠ Still no scheduled run.** At 09:48 UTC, about 2.5 h after the crons were added, `gh run list --event schedule` was empty for every workflow, and all three are `active`.
-  - **Until they appear, dispatch by hand at least daily:** `gh workflow run reserves.yml -R AryaSingh22/thawgate` (reserves are fresh until **2026-10-07 09:22 UTC**) and `gh workflow run keeper.yml -R AryaSingh22/thawgate`.
-  - **When scheduled runs appear,** measure the start delay (createdAt against the cron slot) and replace the status lines in KEEPER.md and the README.
-  - **Same story for the Pages cron** (`41 */6`): `stats.json` refreshes only when the site deploys. It said 24 at 07:43 UTC while `scripts/docs/gate-mints.js` counted 25 at 09:44.
-- **⚠ Mainnet changed: "33 of 33, 0 custom gates" no longer holds.**
-  - **Re-count, 2026-10-06 09:43 UTC** (`getProgramAccounts(TACL, dataSize 100)` on public mainnet, grouped by `gating_program` at offset 68, the RESEARCH.md §1.4 method): **36** MintConfigs.
-    - 33 on the reference gate `GATEzzq…`, of which 27 have Spiko fund names in their metadata (unchanged);
-    - 3 on a second gate, `GATEa6u2jBLp7Cq3qyPopvS9gTsEEkDjWivJaotkseL1`. Its mints are "Test Asset A/B/C" (TESTA/TESTB/TESTC). Its first transaction was on 2026-09-24, its upgrade authority is `9aJbattT…`, and no public code mentions it.
-  - **Stale in public files:** SUBMISSION.md:11, MARKET.md §1–§2 (dated 2026-09-23), RESEARCH.md row 9 and §1.4, and the PLAN.md S19 line. Reword them in S20; the user decides the wording.
+- **⚠ Scheduled runs are rare** (S18b, checked 16:53 UTC). GitHub started 1 of the 58 keeper slots since the crons were pushed at 07:14 UTC: run 37477250796 at 14:14 UTC, which succeeded. It started no reserves run (12:17 slot) and no site run (12:41 slot). The S18b timebox found no cause in the repo (LOG S18b), so nothing was changed.
+  - **Dispatch by hand at least daily:** `gh workflow run reserves.yml -R AryaSingh22/thawgate` (reserves are fresh until **2026-10-07 09:22 UTC**) and `gh workflow run keeper.yml -R AryaSingh22/thawgate`.
+  - **Status lines** with the 16:53 UTC numbers are in README, KEEPER.md, SUBMISSION.md and the site. When scheduled runs become regular, measure the start delay (createdAt against the cron slot) and replace them.
+  - **Pages cron** (`41 */6`): never started yet, so `stats.json` refreshes only when the site deploys (the S18b push touches `site/`).
+- **Mainnet gate count: fixed in S18b.** The public docs say **33 of 36** mainnet Token ACL mints on the reference gate (2026-10-06 16:57 UTC, `scripts/docs/mainnet-gates.js`); MARKET.md and RESEARCH.md keep the 2026-09-23 numbers with an "Update 2026-10-06" note.
+  - **The second gate** `GATEa6u2…`: no public source found, nothing ties it to a hackathon or a team, and its binary contains SAS attestation error strings (LOG S18b). So "no gate reads SAS credentials" is no longer a claim we can make for mainnet.
+  - **For the pitch (S19):** say "33 of 36 on the basic list". Never say "first" or "only" custom gate. Re-run `node scripts/docs/mainnet-gates.js` before recording.
 - **S19 (videos):**
   - The pitch and the demo, recorded by the user from the private drafts. Uploads unlisted, with captions (PLAN.md S19).
   - **Before recording,** re-run `scripts/docs/gate-mints.js` for the gated-mint count, and re-post the reserves if they are stale.
-- **SUBMISSION.md:66 and site/index.html:141/151** still describe the keeper and reserve crons without the "not observed yet" status (S20).
-- **Phantom / Solflare:** Phantom passed (S17 entry). Solflare is still unreported; the user reports it, so don't ask.
+- **Phantom / Solflare:** Phantom passed (S17 entry). Solflare is untested (user, S18b), and every public mention reads "tested with Phantom; Solflare adapter included, not tested": README.md (Try it, Console), SUBMISSION.md (the console row) and the site's hero line. If the user reports a Solflare test, update those four places. Don't ask.
 
 State on devnet (2026-10-06, after S18):
 - **Programs:** unchanged since S15a. IDL accounts `EhUN6GTc…` (sss_token), `CwieEpy9…` (hook), `GNt4GBoU…` (gate), `FCDxf61x…` (pool). Otter-verify PDAs at commit `7e0cc40` (DEPLOYMENT.md).
@@ -38,7 +35,7 @@ State on devnet (2026-10-06, after S18):
 
 Open:
 - **New in S18:**
-  - **The scheduled-run delay**, and the stale mainnet figures (both above).
+  - **The scheduled-run delay** (above). The stale mainnet figures were fixed in S18b.
   - **`npm audit`, re-measured on 2026-10-06:** 7 advisories in 4 packages, flagged across 14 packages (7 moderate, 7 high). S17 counted 10 (4 moderate, 6 high); the new ones are the `stream-json` advisories. They're listed in SECURITY.md limitation 24. Fixing them means changing those dependencies. Re-run before S20: `npm i --package-lock-only @thawgate/cli@0.1.0 @thawgate/sdk@0.1.0` in an empty dir, then `npm audit`.
 - **New in S17:**
   - **Helius credits:** the keeper cron makes about 20 `getProgramAccounts` calls per run on the user's key, once GitHub schedules it. Watch the usage.
@@ -1757,3 +1754,70 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
 
 ## S18 · 2026-10-06 · Demo script + rehearsal
 Demo prepared and rehearsed privately (not in the repo).
+
+## S18b · 2026-10-06 · Claims fixes
+Scope (user): claims fixes only, under the C2 freeze. No program, SDK or console code changed.
+- **Mainnet re-count:**
+  - **Script:** `scripts/docs/mainnet-gates.js` (new, read-only; public mainnet). It runs `getProgramAccounts` on Token ACL with `dataSize` 100 and discriminator 1, then groups by `gating_program` at offset 68.
+  - **Result, 2026-10-06 16:57:11 UTC, slot 453,961,657:** **36** MintConfigs on 2 gates: **33** on the reference gate `GATEzzq…`, **3** on `GATEa6u2jBLp7Cq3qyPopvS9gTsEEkDjWivJaotkseL1`.
+  - A scratch run at 16:54:50 UTC (slot 453,961,130) gave the same.
+- **The second gate: what is publicly verifiable.** Read-only probes, scratch: `/tmp/s18b-mainnet.js`, `s18b-mainnet2.js`, `s18b-elf.js`.
+  - **Program:** upgradeable loader, programdata `4UMGhRNV…`, ELF 957,008 B (the `solana program dump` sha256 is `060cacde…`).
+    - Last deploy: slot 450,143,308, 2026-09-24 20:57 UTC.
+    - Transactions: the first on 2026-09-24 18:35 UTC; 25 in all, none failed; the newest on 2026-10-03 01:07 UTC.
+  - **Upgrade authority** `9aJbattTQSi6ELxvgtLS5j1gfZ1vpmY59G7qgiTxSeXD`:
+    - a system wallet holding 5.13 SOL;
+    - 1,949 signatures, all on 2026-09-24 between 17:48 and 20:57 UTC (the size of a program deploy); its first transaction is a SOL transfer from `DPqsobys…`;
+    - it holds no other program: `getProgramAccounts` on the upgradeable loader, filtered on the authority at offset 13, returns this one programdata account.
+  - **Mints:** each has the `token_acl` metadata field set to `GATEa6u2…`, an empty URI and its own mint authority. Their first transactions were on 2026-09-24, 22:49–22:50 UTC.
+    - "Test Asset A" `85fHJLRV…` (TESTA, supply 1,001,000);
+    - "Test Asset B" `6zRdeMWb…` (TESTB, 2,000; transfer hook);
+    - "Test Asset C" `4LGVihqH…` (TESTC, 1,020; transfer hook, permanent delegate).
+  - **Open source: no public source found.**
+    - In the binary: no security.txt.
+    - On chain: no Anchor IDL account (`7qSTdYCF…`), and no Program Metadata `idl` or `security` account (canonical and authority seeds).
+    - OtterSec `verify.osec.io/status`: `is_verified: false`, no repo.
+    - GitHub code search: the program ID gives 1 hit, this repo's LOG.md; the authority and a mint give 0.
+    - Web search for the program ID and for the authority: nothing relevant.
+  - **Another hackathon project: not publicly verifiable.** It was deployed inside the World's Fair window, but nothing public links it to a hackathon or a team.
+  - **What its binary contains** (strings). Reproduce: `solana program dump -u m GATEa6u2jBLp7Cq3qyPopvS9gTsEEkDjWivJaotkseL1 gate2.so && strings gate2.so | grep "SAS attestation"`.
+    - An Anchor program, from source paths `programs/gate-program`, `programs/compliance-module` and `programs/identity-registry`.
+    - Instruction names: e.g. `InitializeGateConfig`, `InitializeTokenAclExtraAccountMetaLists`, `CanFreezePermissionless`, `AddTrustScopeAttestor`, `ExecuteJurisdictionBoundaryModuleEnable`.
+    - Error strings:
+      - "SAS attestation account is not owned by …";
+      - "SAS attestation schema does not match the trusted attestor's schema";
+      - "SAS attestation has already expired";
+      - "Required topics must include the KYC topic".
+    - Token ACL's program ID is embedded as bytes. SAS's isn't, but that isn't conclusive (a constant can be compiled into the instructions).
+  - **Consequence:** "no gate reads SAS credentials" is no longer established on mainnet. The public docs now state the count, the dated 2026-09-23 finding and the binary's SAS error strings. They say nothing about what the gate does or who runs it.
+- **Docs changed:**
+  - **SUBMISSION.md:**
+    - problem bullets 1 and 3;
+    - the console row's wallet wording;
+    - the keeper status in the solution and in Limitations;
+    - "All 24 known limitations" (it said 23; S18 added limitation 24).
+  - **README.md:** the wallet wording (Try it, Console) and the schedule status.
+  - **docs/thawgate/KEEPER.md:** the schedule status and the checks below.
+  - **site/index.html:**
+    - a wallet line under the hero;
+    - the keeper and reserves cards say "scheduled" and carry the status;
+    - the counter note: the count refreshes when the site deploys.
+  - **docs/gatekit:** "Update 2026-10-06" notes in MARKET.md §1 and §2, and in RESEARCH.md row 9 and §1.4, with the 2026-09-23 numbers kept as dated research; the PLAN.md S19 pitch line.
+  - **Grep for leftovers:** every variant of "33", "0 custom", "first" and "only" across README, SUBMISSION, docs/thawgate, the site and the SDK/CLI READMEs. Nothing claims a "first" or "only" gate.
+- **Wallets:** every public mention now reads "tested with Phantom; Solflare adapter included, not tested": README ×2, SUBMISSION, the site. The user hasn't tested Solflare.
+- **Scheduled workflows (20-min timebox, used about 10):**
+  - **Checks, all passed:**
+    - the crons `*/10 * * * *`, `17 */6 * * *` and `41 */6 * * *` are valid;
+    - the files are on `main`, the default branch;
+    - all 10 workflows are `active`;
+    - Actions is enabled with `allowed_actions: all`;
+    - the repo is public, not a fork, not archived;
+    - `gh workflow view keeper.yml` lists the scheduled run.
+  - **Observed: 1 scheduled run** in the 9.6 h after the crons were pushed (07:14:48 UTC), keeper run 37477250796:
+    - created 14:14:09 UTC for the 14:10 slot, 6 h 59 min after the push;
+    - success: 25 mints resynced in 3.3 s, nothing frozen, SIGTERM at 150 s.
+  - **No run** for the other 57 keeper slots (07:20–16:50), reserves 12:17 or pages 12:41.
+  - **No clear cause in the repo, so nothing was changed.** The manual-daily note stays, with the measured status (README, KEEPER.md, SUBMISSION, the site).
+- **Checks:** lychee 0.24.2 offline with fragments on the changed Markdown files: 0 errors.
+- **Links:** commit `ced5d6c` and the closing commit; no transactions (every mainnet and devnet call was read-only).
+- **Next:** S19, per the handoff at the top of this file.
