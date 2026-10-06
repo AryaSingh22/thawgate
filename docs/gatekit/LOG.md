@@ -1700,3 +1700,18 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - 3 by the user's Phantom wallet `FndW…` (`N6EyMTrE…`, `2GTpC3AZ…`, and `7S7vWX…`, the one they reported);
   - S17's UX check `5MyCNJbx…`, story `9PSTSvNb…`, venue `8CWkRjVu…`, and keeper e2e `8rVeatbY…` and `BMgVSSgh…`.
   - No external integrator.
+- **Repo secrets:** the user reported adding the three. `gh secret list` (and the environments and Dependabot scopes) still showed only `NPM_TOKEN`, checked four times. So each cron workflow has a `secrets` job: while a secret is missing, the real job shows as **skipped** with a warning, instead of failing every 10 minutes. Dispatched once each (keeper 37428516487, reserves 37428520914): `sweep` and `post` skipped, with the warning annotation.
+- **Push 2** (`7e0cc40..62f6de7`): the keeper test fix, `keeper.yml` and `reserves.yml` (actionlint 1.7.12 clean), and the docs. All five workflows green: Full CI 37428466627, CI 37428466611, Anchor Integration 37428466630, TypeScript Tests 37428466614, Gate Tests 37428466658 (which runs the keeper e2e in-process with the new check).
+- **Tag `v0.1.0`** (annotated, at `62f6de7`, pushed after the user's go-ahead):
+  - **Verifiable build of the tag** (37429986004, `require_match`): green. All four executable hashes equal devnet's, a third run giving the same bytes.
+  - **npm publish** (37429986099, `publish.yml`): green.
+    - The tag matched both versions; the pack smoke passed.
+    - `+ @thawgate/sdk@0.1.0`, provenance on sigstore (log index 3104608963). npm served it 4 min 48 s after the publish; the workflow's wait step polls for it.
+    - `+ @thawgate/cli@0.1.0`, provenance on sigstore (log index 3104675887). npm warned that it "cleaned" the `bin[thawgate]` path (`./dist/index.js` written as `dist/index.js`).
+  - npm served the CLI at 07:40:38 UTC, 5 min 12 s after its publish. `bin` is `{ thawgate: "dist/index.js" }`.
+  - Both packages have `dist.attestations`: npm's publish attestation and SLSA provenance v1.
+- **`npm i` from the registry in a clean directory** (`/tmp/s17-npm-check.sh`: empty `HOME` with no npm cache, `npm i @thawgate/sdk @solana/web3.js @thawgate/cli`; 132 packages):
+  - Node 22.17.0 / npm 10.9.2: 20.8 s;
+  - Node 20.20.0 / npm 10.8.2: 21.3 s;
+  - on both: CJS `require` (with `/reasons`, 9 exports) and ESM `import` OK, `thawgate --version` 0.1.0, and the CLI's SDK dependency deduped to the one 0.1.0.
+- **GitHub Pages enabled** (`gh api -X POST repos/AryaSingh22/thawgate/pages -f build_type=workflow`): `https://aryasingh22.github.io/thawgate/`, HTTPS enforced.
