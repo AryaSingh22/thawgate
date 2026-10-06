@@ -13,7 +13,7 @@ The SDK covers:
 - **existing Token ACL mints:** swap their gate to ThawGate in one transaction;
 - **KYC issuers:** SAS credentials, the KYC schema, attestations.
 
-> **Status:** devnet only. The gate is unaudited and not deployed to mainnet. `@thawgate/sdk` 0.1.0 is not on npm yet: publishing is planned for v0.1.0 (S17). See [Install](#install) for the tarball until then.
+> **Status:** devnet only. The gate is unaudited and not deployed to mainnet.
 
 ## Install
 
@@ -23,15 +23,7 @@ Node 20 or 22. Both are tested (20.20 and 22.17), with CommonJS `require` and na
 npm i @thawgate/sdk @solana/web3.js
 ```
 
-**Until 0.1.0 is on npm,** build the package from this repo and install the tarball. The workspace install needs Node ≥ 22.12, but the tarball runs on 20 and 22:
-
-```bash
-git clone https://github.com/AryaSingh22/thawgate && cd thawgate
-yarn install && yarn workspace @thawgate/sdk build
-cd sdk && npm pack            # → thawgate-sdk-0.1.0.tgz
-# in your project:
-npm i /path/to/thawgate-sdk-0.1.0.tgz @solana/web3.js
-```
+0.1.0 is published from the repo's `v0.1.0` tag by GitHub Actions, with [npm provenance](https://docs.npmjs.com/generating-provenance-statements).
 
 ## Quickstart: 5 minutes on devnet, from a fresh wallet
 
@@ -39,7 +31,7 @@ npm i /path/to/thawgate-sdk-0.1.0.tgz @solana/web3.js
 
 ```bash
 mkdir thawgate-quickstart && cd thawgate-quickstart && npm init -y
-npm i @thawgate/sdk @solana/web3.js            # or the tarball, see Install
+npm i @thawgate/sdk @solana/web3.js
 curl -O https://raw.githubusercontent.com/AryaSingh22/thawgate/main/sdk/examples/quickstart.mjs
 node quickstart.mjs
 ```

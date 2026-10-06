@@ -3,13 +3,15 @@
 # "Quickstart (devnet)" section verbatim, line by line, timed, in a fresh directory with an empty HOME (no keys, no
 # yarn or npm cache). Every timing line starts with STEP_SECONDS; grep for them rather than cutting the output.
 #
-#   scripts/docs/stranger-test.sh [ref]   phase A: clone → install → build → pack → first run. The first
+#   scripts/docs/stranger-test.sh [ref]   phase A: every README step up to the first run (S16: clone → install →
+#                                         build → pack; since S17: npm i from the registry → curl). The first
 #                                         `node quickstart.mjs` is expected to exit 1 when the faucet refuses.
 #   (fund the printed address: faucet.solana.com, or a transfer)
 #   scripts/docs/stranger-test.sh rerun   phase B: the funded run.
-#   rm -rf /tmp/tg-stranger               afterwards (about 2 GB).
+#   rm -rf /tmp/tg-stranger               afterwards.
 #
-# PATH is reduced to /usr/local/bin:/usr/bin:/bin, where the README's prerequisites (Node ≥ 22.12, yarn 1, git) must be.
+# PATH is reduced to /usr/local/bin:/usr/bin:/bin, where the README's prerequisites (since S17: Node 20 or 22, curl)
+# must be.
 set -uo pipefail
 BASE=${STRANGER_DIR:-/tmp/tg-stranger}
 export HOME=$BASE/home
@@ -25,7 +27,7 @@ fi
 
 REF=${1:-main}
 rm -rf "$BASE" && mkdir -p "$HOME" && cd "$BASE" || exit 1
-echo "PREREQ node $(node -v) yarn $(yarn -v) npm $(npm -v) $(git --version)"
+echo "PREREQ node $(node -v) npm $(npm -v) $(curl --version | head -n 1)"
 curl -fsSL "https://raw.githubusercontent.com/AryaSingh22/thawgate/$REF/README.md" -o "$BASE/README.md" || exit 1
 awk '/^## Quickstart \(devnet\)/ { q = 1; next } /^## / { q = 0 } q && /^```bash/ { inb = 1; next } q && /^```/ { inb = 0; next } q && inb' \
   "$BASE/README.md" > "$BASE/steps.txt"

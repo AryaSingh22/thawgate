@@ -2,7 +2,7 @@
 
 `thawgate`: the [`@thawgate/sdk`](../sdk/README.md) operations from a shell. It covers ThawGate policies on Token ACL mints, SSS-ACL stablecoins (sss-token is the example issuer), the holder flows (explain, unlock, freeze-if-invalid) and SAS credentials. Before S11 the binary was called `sss-token`.
 
-> Devnet only; the gate is unaudited. npm publishing is planned for v0.1.0 (S17). Until then, build it from the repo: `yarn install && yarn workspace @thawgate/sdk build && yarn workspace @thawgate/cli build`, then run `node cli/dist/index.js …` (or `npm pack` both packages and install the tarballs, see the SDK README). It runs on Node 20 and 22.
+> Devnet only; the gate is unaudited. Install it with `npm i -g @thawgate/cli` (Node 20 or 22), or run it once with `npx @thawgate/cli <command>`. From a clone, `yarn workspace @thawgate/cli build` and `node cli/dist/index.js …` work too.
 
 ## Configuration
 

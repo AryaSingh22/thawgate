@@ -45,30 +45,21 @@ The spec is [GATE.md](docs/thawgate/GATE.md). To integrate, start with [INTEGRAT
 
 One script, from a fresh wallet: your own test KYC credential, a stablecoin gated by it, a holder refused, attested, unlocked, minted to, revoked and frozen. Every step is a real devnet transaction.
 
-**You need:** Node ≥ 22.12 (to build the SDK from this repo; the built SDK runs on Node 20 and 22), yarn 1 (`npm i -g yarn`) and git.
-
-`@thawgate/sdk` isn't on npm yet (v0.1.0 is planned), so build its package from this repo first:
-
-```bash
-git clone https://github.com/AryaSingh22/thawgate && cd thawgate
-yarn install --frozen-lockfile
-yarn workspace @thawgate/sdk build
-cd sdk && npm pack && cd ../..        # creates thawgate/sdk/thawgate-sdk-0.1.0.tgz
-```
-
-Then run the quickstart in a new folder next to the clone:
+**You need:** Node 20 or 22, and curl.
 
 ```bash
 mkdir thawgate-quickstart && cd thawgate-quickstart
 npm init -y
-npm i ../thawgate/sdk/thawgate-sdk-0.1.0.tgz @solana/web3.js
-cp ../thawgate/sdk/examples/quickstart.mjs .
+npm i @thawgate/sdk @solana/web3.js
+curl -O https://raw.githubusercontent.com/AryaSingh22/thawgate/main/sdk/examples/quickstart.mjs
 node quickstart.mjs
 ```
 
+[`@thawgate/sdk`](https://www.npmjs.com/package/@thawgate/sdk) is published from the `v0.1.0` tag with npm provenance.
+
 The first run creates `issuer.json` (a new wallet) and asks the devnet faucet for 1 SOL. The faucet often refuses. Then the script prints the wallet's address and stops: send that address 0.2 devnet SOL from <https://faucet.solana.com>, and run `node quickstart.mjs` again. It ends with `freezeIfInvalid: frozen=true NO_CREDENTIAL` and `done`.
 
-**Measured:** these exact steps, run from a fresh clone with an empty home directory and nothing but this README, took 233.5 s from `git clone` to `done` on Node 22, not counting the funding. `yarn install` with an empty cache was 152.0 s of that, and the funded run 17.4 s ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)). What each step of the script does, and its earlier timings on Node 20 and 22, are in [sdk/README.md](sdk/README.md#quickstart-5-minutes-on-devnet-from-a-fresh-wallet).
+**Measured:** the earlier version of this quickstart, which built the SDK from a clone, took 233.5 s from `git clone` to `done`, followed verbatim with an empty home directory ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)). The npm steps above are re-timed the same way in [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010). What each step of the script does, and its timings on Node 20 and 22, are in [sdk/README.md](sdk/README.md#quickstart-5-minutes-on-devnet-from-a-fresh-wallet).
 
 Next: the [`thawgate` CLI](cli/README.md) does the same from a shell, and the [console](#console) does it in a browser wallet.
 
