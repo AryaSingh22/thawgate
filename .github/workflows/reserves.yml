@@ -1,0 +1,89 @@
+name: Reserves (devnet)
+
+# Re-posts the reserves of the two demo mints on devnet, so mint_tokens doesn't stop on ReserveStale while the
+# project is being judged (each mint's staleness window is 86,400 s; this runs every 6 h, best effort: GitHub may
+# delay or skip scheduled runs). The signer is the mints' reserve attestor 2da6… (secret THAWGATE_ATTESTOR_KEYPAIR):
+# it holds no program authority and no role, and can only post reserves. Devnet only: the RPC is public devnet.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reserves
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  DEVNET_RPC: https://api.devnet.solana.com
+  CLI_VERSION: "0.1.0"
+
+jobs:
+  # Until the secret exists the post job shows as skipped (with a warning here), instead of failing every 6 hours.
+  secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          ATTESTOR_KEY: ${{ secrets.THAWGATE_ATTESTOR_KEYPAIR }}
+        run: |
+          if [ -n "$ATTESTOR_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::THAWGATE_ATTESTOR_KEYPAIR is not set: the reserve post is skipped"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  post:
+    needs: secrets
+    if: needs.secrets.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install @thawgate/cli@${{ env.CLI_VERSION }} from npm
+        run: npm i --prefix "$RUNNER_TEMP/cli" --no-audit --no-fund "@thawgate/cli@$CLI_VERSION"
+
+      - name: Attestor key (from the secret, never printed)
+        env:
+          ATTESTOR_KEY: ${{ secrets.THAWGATE_ATTESTOR_KEYPAIR }}
+        run: |
+          [ -n "$ATTESTOR_KEY" ] || { echo "THAWGATE_ATTESTOR_KEYPAIR is not set"; exit 1; }
+          umask 077
+          printf '%s' "$ATTESTOR_KEY" > "$RUNNER_TEMP/attestor.json"
+
+      - name: Post reserves (vUSD 1,000,000; the S9 mint 2,000)
+        run: |
+          # An empty working directory and HOME: no .env or ~/.thawgate config can change the RPC or the signer.
+          work="$RUNNER_TEMP/work"
+          mkdir -p "$work" && cd "$work"
+          thawgate() { HOME="$work" "$RUNNER_TEMP/cli/node_modules/.bin/thawgate" --json --rpc-url "$DEVNET_RPC" --keypair "$RUNNER_TEMP/attestor.json" "$@"; }
+          status=0
+          # Base units, both mints 6 decimals: the amounts posted since S9 and S12-venue (docs/gatekit/LOG.md).
+          for pair in AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw:1000000000000 D6Q5PA7xzxbrZaRoiXGfMcbGsLCH35cneRweEMysXEoq:2000000000; do
+            mint=${pair%%:*}
+            amount=${pair#*:}
+            echo "::group::reserves post --mint $mint --amount $amount"
+            if ! thawgate reserves post --mint "$mint" --amount "$amount"; then
+              echo "::error::reserves post failed for $mint"
+              status=1
+            fi
+            echo "::endgroup::"
+          done
+          exit "$status"
+
+      - name: Remove the key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/attestor.json"

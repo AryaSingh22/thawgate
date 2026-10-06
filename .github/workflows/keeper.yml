@@ -1,0 +1,96 @@
+name: Keeper sweep (devnet)
+
+# Judging-period keeper. No keeper runs continuously, so every 10 minutes (best effort: GitHub may delay or skip
+# scheduled runs) this runs services/keeper for KEEPER_SECONDS: its startup resync and sweep over every Token ACL mint
+# whose gate is ThawGate on devnet (mints created by anyone included), then live events until the timeout. A holder
+# who stopped complying is frozen by the next run; docs/thawgate/KEEPER.md has the measured delays. A continuously
+# running keeper freezes in about 2 s.
+#
+# Secrets: THAWGATE_KEEPER_KEYPAIR is the keeper's fee payer 4auu6t… (no role on any mint: freezing a non-compliant
+# account is permissionless). THAWGATE_DEVNET_RPC is a devnet RPC URL that serves getProgramAccounts on Token-2022
+# (public devnet refuses it); it stays in this job, and Actions and the keeper both mask it in logs.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keeper
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  KEEPER_SECONDS: "150"
+
+jobs:
+  # Until both secrets exist the sweep job shows as skipped (with a warning here), instead of failing every 10 minutes.
+  secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          KEEPER_KEY: ${{ secrets.THAWGATE_KEEPER_KEYPAIR }}
+          RPC: ${{ secrets.THAWGATE_DEVNET_RPC }}
+        run: |
+          if [ -n "$KEEPER_KEY" ] && [ -n "$RPC" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::THAWGATE_KEEPER_KEYPAIR or THAWGATE_DEVNET_RPC is not set: the keeper sweep is skipped"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  sweep:
+    needs: secrets
+    if: needs.secrets.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build the SDK and the keeper
+        run: yarn workspace @thawgate/sdk build && yarn workspace @thawgate/keeper build
+
+      - name: Keeper key (from the secret, never printed)
+        env:
+          KEEPER_KEY: ${{ secrets.THAWGATE_KEEPER_KEYPAIR }}
+        run: |
+          [ -n "$KEEPER_KEY" ] || { echo "THAWGATE_KEEPER_KEYPAIR is not set"; exit 1; }
+          umask 077
+          printf '%s' "$KEEPER_KEY" > "$RUNNER_TEMP/keeper.json"
+
+      - name: Run the keeper for ${{ env.KEEPER_SECONDS }} s
+        env:
+          KEEPER_KEYPAIR: ${{ runner.temp }}/keeper.json
+          KEEPER_RPC_URL: ${{ secrets.THAWGATE_DEVNET_RPC }}
+          LOG_LEVEL: info
+        run: |
+          [ -n "$KEEPER_RPC_URL" ] || { echo "THAWGATE_DEVNET_RPC is not set"; exit 1; }
+          set +e
+          timeout --signal=TERM "$KEEPER_SECONDS" node services/keeper/dist/main.js
+          code=$?
+          set -e
+          # 124: the keeper ran the whole window and stopped on SIGTERM. Anything else: it failed before that.
+          if [ "$code" = 124 ]; then exit 0; fi
+          echo "keeper exited with $code before the window ended"
+          exit 1
+
+      - name: Remove the key file
+        if: always()
+        run: rm -f "$RUNNER_TEMP/keeper.json"
