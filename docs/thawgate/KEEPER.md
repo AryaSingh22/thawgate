@@ -18,7 +18,7 @@ KEEPER_KEYPAIR=<fee payer keypair> KEEPER_RPC_URL=<rpc> node services/keeper/dis
 
 - **Scope:** by default every mint whose Token ACL `MintConfig` names ThawGate with permissionless freeze on. Narrow it with `KEEPER_MINTS` or exclude mints with `KEEPER_SKIP_MINTS` (comma lists).
 - **Docker:** `docker compose --profile keeper up keeper` (an opt-in profile; it needs a funded keypair and an RPC).
-- **RPC:** a keyed RPC belongs in the environment only. Every log line masks it as `<RPC>`. It needs websockets (`logsSubscribe`, `programSubscribe`) and `getProgramAccounts`.
+- **RPC:** a keyed RPC belongs in the environment only. Every log line masks it as `<RPC>`. It needs websockets (`logsSubscribe`, `programSubscribe`) and `getProgramAccounts`, including on Token-2022. Public devnet (`api.devnet.solana.com`) refuses that one ("excluded from account secondary indexes", S17), so use a provider that serves it.
 - **Stop it with SIGTERM.** A background job ignores SIGINT.
 
 ## Fund the fee payer
@@ -45,6 +45,14 @@ Fallbacks, none of which needs the keeper:
 
 Run more than one keeper, on separate RPCs, if the window matters.
 
+## During judging: a scheduled sweep
+ThawGate's own devnet keeper doesn't run continuously while the project is judged. Instead, [`.github/workflows/keeper.yml`](../../.github/workflows/keeper.yml) runs it on a schedule:
+- **What runs:** every 10 minutes (cron `*/10 * * * *`), GitHub Actions runs `node services/keeper/dist/main.js` for 150 s, then stops it with SIGTERM.
+- **What it covers:** each run is a startup resync and sweep over every gated mint (no `KEEPER_MINTS`), then live events until the timeout.
+- **Freeze latency:** a holder who stops complying is frozen at the next run, so within the 10-minute interval plus GitHub's start delay. GitHub doesn't bound that delay and may skip a scheduled run. During a run's 150 s, a revoke is frozen in about 2 s, as measured below.
+- **Signer:** `THAWGATE_KEEPER_KEYPAIR` is the fee payer `4auu6t…`, which holds no role.
+- **RPC:** `THAWGATE_DEVNET_RPC` is a keyed devnet RPC. It stays in the job, and both Actions and the keeper mask it.
+
 ## Measured
 All on devnet with the keeper as its own process, sweep 15 s:
 
@@ -52,6 +60,7 @@ All on devnet with the keeper as its own process, sweep 15 s:
 |---|---|---|
 | SAS revoke → frozen, 10 runs | p50 2,863 ms, min 1,561, max 3,384 | [LOG S8](../gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper) |
 | SAS revoke → frozen, 10 runs (after the S15a upgrade) | p50 2,042 ms, min 1,599, max 4,993 | [LOG S15a](../gatekit/LOG.md#s15a--2026-10-04--sss-token-fixes-in-one-devnet-upgrade-thawgate-reserves-post-legacy-e2e-green) |
+| SAS revoke → frozen, 10 runs ×2, keeper tracking every gated mint (22–24) | p50 2,026 ms (min 1,603, max 4,954); p50 2,321 ms (min 1,570, max 4,376) | [LOG S17](../gatekit/LOG.md#s17--2026-10-06--release-v010) |
 | Blacklist → second account frozen | 2,300 ms ([tx](https://explorer.solana.com/tx/49rtQYzcfQdpqX8Twkj6VVz2JcNVJ8ncWns7v5h3tDcCbkAEZ21EwogXAB1KDrw2iaSBSr9RuUh9oYCPZ2KPoAHR?cluster=devnet)) | [LOG S8](../gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper) |
 | Expiry → frozen | block time 5 s after the expiry ([tx](https://explorer.solana.com/tx/23i1Fq6czfjzFDTTnxf3ASTtNkFYPRbBfexW8z1YcfDdijt1DF6rmSG7rLaq418w2dKnccwwEMiPQfPaa6Y8DDki?cluster=devnet)) | [LOG S8](../gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper) |
 | `min_kyc_level` 1 → 3, level-2 holder frozen | 3,517 ms ([tx](https://explorer.solana.com/tx/2JJkaFEM8ZFQz182HcmgX5MPjm4ZmmzTYYRzQoMAbXowLS6Nojy2MCwXXewb2udh533YiBCes5WyBb1NDop3VkRg?cluster=devnet)) | [LOG S8](../gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper) |

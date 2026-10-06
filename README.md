@@ -78,8 +78,8 @@ Each number links to the log entry or the transactions that measured it.
 
 | What | Result | Evidence |
 |---|---|---|
-| Mints gated by ThawGate on devnet | 16, all created by this project's tests and demos (the 16th by the README test). No external integrator yet. | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs) |
-| Credential revoked → account frozen by the keeper, no manual step | p50 2,863 ms over 10 runs; p50 2,042 ms over 10 runs after the S15a upgrade | [LOG S8](docs/gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper), [LOG S15a](docs/gatekit/LOG.md#s15a--2026-10-04--sss-token-fixes-in-one-devnet-upgrade-thawgate-reserves-post-legacy-e2e-green) |
+| Mints gated by ThawGate on devnet | 24 at S17, all created by this project: 21 by its tests and demos, 3 by the console's Phantom wallet test. No external integrator yet. | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs), [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010) |
+| Credential revoked → account frozen by a running keeper, no manual step | p50 2,863 ms over 10 runs; p50 2,042 ms over 10 runs after the S15a upgrade; p50 2,026 ms and 2,321 ms over 10 runs each in S17, with the keeper tracking every gated mint (22–24) | [LOG S8](docs/gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper), [LOG S15a](docs/gatekit/LOG.md#s15a--2026-10-04--sss-token-fixes-in-one-devnet-upgrade-thawgate-reserves-post-legacy-e2e-green), [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010) |
 | Sanctions flag → blacklisted → frozen | p50 3,714.5 ms over 10 runs, on the labelled static list | [LOG S10](docs/gatekit/LOG.md#s10--2026-10-03--sanctions-screener-provider-result--blacklisted--frozen-by-the-keeper) |
 | A KYC'd holder trades; after the revoke the keeper freezes them and their next trade fails | in `demo_pool`, the demo venue: [swap](https://explorer.solana.com/tx/443r1ucqQhhE4w1UxJJryaydSEYKQFAS6FchTqDcagmVuNX9LfM8g2tJcXny7zrZNaT6mxRsjn5GaQeXed1quvz9?cluster=devnet), [keeper freeze](https://explorer.solana.com/tx/3N8zvh2j3WXJ3zgafYCtt47zNseJ7fWsM5kefns2B78Xs4Q1jsXunMYYXcYo3bqrUH7J7JfDeJj8vmGPAyTKsQzj?cluster=devnet), [refused swap](https://explorer.solana.com/tx/59dd4R7onZzpxsBEGdwg3oxSyLYhSGsaZTr7p93dqVVT4fB9oVyRtcActJh5pbW6sPUJNvKkGRkUB3eELNRHZfTJ?cluster=devnet) | [LOG S12-venue](docs/gatekit/LOG.md#s12-venue--2026-10-04--the-demo-venue-a-gated-token-trading-in-a-pool-on-devnet) |
 | A mint past attested reserves is refused (`ReserveInsufficient`) | the refusal landed on chain: [tx](https://explorer.solana.com/tx/5uyH7QMRWCmTvkL394A8HhFXBptKjG7wm5WvAqkbTVndizkcHefBjBn7QH6R736s7LUgXjHB8jFzMHHaQsJC7Sdc?cluster=devnet) | [LOG S14](docs/gatekit/LOG.md#s14--2026-10-04--console-ii-mint-action-decisions-and-reserves-on-devnet) |
@@ -88,6 +88,13 @@ Each number links to the log entry or the transactions that measured it.
 | CI | all five workflows green on the C2 freeze commit | [Gate Tests](https://github.com/AryaSingh22/thawgate/actions/runs/37355271808), [Anchor Integration](https://github.com/AryaSingh22/thawgate/actions/runs/37355271872), [TypeScript](https://github.com/AryaSingh22/thawgate/actions/runs/37355271892), [Full CI](https://github.com/AryaSingh22/thawgate/actions/runs/37355271938), [CI](https://github.com/AryaSingh22/thawgate/actions/runs/37355271833) |
 
 **Range** (the sanctions risk provider): adapter built, tested against mocks; the demo uses the labelled static list. No live Range call has been made.
+
+## While ThawGate is being judged
+
+- **No keeper runs continuously.** A scheduled GitHub Actions job ([keeper.yml](.github/workflows/keeper.yml)) runs the keeper every 10 minutes for 150 s: a startup sweep over every Token ACL mint gated by ThawGate on devnet (mints you create included), then live events until it stops.
+- **So a holder who stops complying is frozen at the next run:** within about 10 minutes plus GitHub's start delay, which GitHub doesn't bound (it may also skip a run). That is not the ~2 s above, which needs a keeper that runs all the time.
+- **Anyone can freeze sooner.** Token ACL's freeze is permissionless: `thawgate freeze-if-invalid --token-account <account>` (or `gate.freezeIfInvalid` in the SDK) freezes an account whose owner the policy flags, and sends nothing otherwise.
+- **Reserves:** vUSD and the S9 mint need a reserve post younger than 24 hours to mint. [reserves.yml](.github/workflows/reserves.yml) re-posts them every 6 hours, signed by their attestor key, which holds no other authority.
 
 ## Program IDs (devnet)
 
@@ -101,6 +108,8 @@ Each number links to the log entry or the transactions that measured it.
 | SAS | [`22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG`](https://explorer.solana.com/address/22zoJMtdu4tQc2PzL74ZUT7FrwgB1Udec8DdW4yw4BdG?cluster=devnet) | Solana Attestation Service, not ours |
 
 Each of our programs has a single-key upgrade authority on devnet ([SECURITY.md limitation 2](docs/thawgate/SECURITY.md#known-limitations)). Deployments and their hashes: [DEPLOYMENT.md](DEPLOYMENT.md).
+
+**Reproducible build, not "verified":** the devnet bytes of all four programs equal `solana-verify build` of commit `7e0cc40` in the pinned `solana-verifiable-build:3.0.14` image. Two CI runs agree ([the workflow](.github/workflows/verifiable-build.yml)), and DEPLOYMENT.md has the hashes and how to recheck them. The explorer's "verified" badge comes from OtterSec's remote verifier, which refuses devnet programs ("Remote verification service only supports mainnet"), so these programs don't carry it. The IDLs are on chain: `anchor idl fetch <program id> --provider.cluster devnet`.
 
 ## Built on
 - [Token ACL](https://github.com/solana-foundation/token-acl) (sRFC 37), the Solana Foundation's permissioned-token program. ThawGate is a gating program for it.

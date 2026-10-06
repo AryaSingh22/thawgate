@@ -1,5 +1,54 @@
 # Deployment Record
 
+## Devnet, 2026-10-05: v0.1.0, a reproducible build and the IDLs on chain (S17)
+
+**No program changed.** solana-verify's Docker build of commit `7e0cc40` gives exactly the bytes deployed since S15a (sss-token) and before (the other three). So the redeploy of that build (`SO_DIR=<the artifact> DRY_RUN=1 scripts/deploy-devnet-acl.sh`) planned 0 transactions, and nothing was sent.
+
+### Reproducible build
+
+- **How:** [`.github/workflows/verifiable-build.yml`](.github/workflows/verifiable-build.yml), solana-verify 0.5.2 (the release binary, sha256 checked), in `solanafoundation/solana-verifiable-build:3.0.14` (pinned by digest; `Cargo.toml` `[workspace.metadata.cli] solana = "3.0.14"` selects it). One `solana-verify build --library-name <lib>` per program, which is how `verify-from-repo` rebuilds them.
+- **Runs:** [37383198735](https://github.com/AryaSingh22/thawgate/actions/runs/37383198735) and [37383211989](https://github.com/AryaSingh22/thawgate/actions/runs/37383211989), both on `7e0cc40`. The two builds are identical, and every executable hash equals the devnet program's (`solana-verify get-program-hash`). The `.so` files are also byte-identical to the local `anchor build`.
+
+| Program | `.so` bytes | sha256 of the `.so` | Executable hash = devnet program hash |
+|---|---|---|---|
+| `sss-token` | 712,768 | `dd61933b4c866e54680a88cf12037ef3cd1024f7d4d66e4e5dafe5a3cfdd1f2a` | `3a4d2b54eae2764bfc2f509a132240c66846cd37b83b373b3dbdbdac5a2e5cc7` |
+| `transfer-hook` | 228,024 | `edad2ef595a44f3f506a9ef2536264d550e7ec694e38c875cf939efb03839297` | `686203bd5093a8d46f9fa412f64b9c79d13504cff2827187a340ad42d50f2aa9` |
+| `thawgate-gate` | 290,016 | `09b46b844774a1713d0c7d793f74718f74ec71109821ec7b88e84da23de09a0b` | `f567e0b87f72c458b16e13a789bd4137e5ed9b937e3c60c7666901e397c7897d` |
+| `demo-pool` | 288,808 | `5968d341940ce9255d7ac31ad3d7e8aa489b9fba3dff31a50d6001b0f3c346f1` | `bfaaf56983714b734b77968ec2d4fb2b0624e6117075bc083a852ae56ce108e2` |
+
+**Check it yourself** (needs Docker and solana-verify):
+
+```bash
+git clone https://github.com/AryaSingh22/thawgate && cd thawgate && git checkout 7e0cc409d7b9b5ef07ca9a67d644ec24319677c1
+solana-verify build --library-name thawgate_gate
+solana-verify get-executable-hash target/deploy/thawgate_gate.so
+solana-verify get-program-hash -u https://api.devnet.solana.com THAW2daLXyUtCLtTsJWDTKZctiAGmGX4wT1kqKXugUZ
+```
+
+**Build parameters on chain.** Each program's upgrade authority uploaded an otter-verify PDA on devnet (`solana-verify verify-from-repo --skip-build`, local solana-verify 0.4.9). Each PDA records the repo, commit `7e0cc40` and `--library-name <lib>`.
+
+| Program | PDA | Signer | Upload |
+|---|---|---|---|
+| `sss-token` | `8gGjYREK3F2mN25qU1MdwCARKjEBcwX6yHpLWrM8U988` | `5BXg…` | [`cbKnYmuN…`](https://explorer.solana.com/tx/cbKnYmuNkjAySMrYcZYU2yoiwZ4MfeYkFEBCHetUM4m4FpqMQBhQTZH5Ky8w7qX48TN6frqEnns7cc7XPt9rza4?cluster=devnet) |
+| `transfer-hook` | `53VqtFvnLQhD5Hz837mSW5udDWU4zUbDy26wmM4nhkFw` | `3YnV…` | [`2MTDPzez…`](https://explorer.solana.com/tx/2MTDPzez2r3TrYYhY9FfptuMAgdDvjjrw1XDBUuVHbyEa8rjRvU9b2kfdYUMxdyZwmxmkck1JrXYzXn9pEm1oc44?cluster=devnet) |
+| `thawgate-gate` | `GUfTN1fGixKUWHAZCij2f4TE4sbt5zd19kDWFGhvT3CT` | `5BXg…` | [`cQsfG6hg…`](https://explorer.solana.com/tx/cQsfG6hgcPR2VFpyWBsrcT5Mserq6eVhQVy44sCyqAXZor5fWXX4LhyP6J43FScz2SAMCxaPpoT5o6Eu4JZSZhu?cluster=devnet) |
+| `demo-pool` | `FLapJtU79ALYwE6X77B1qUGWTDfSjB8E1Yoqgbzn2JR9` | `5BXg…` | [`4BToF4YC…`](https://explorer.solana.com/tx/4BToF4YCwW3FjtQiikjiLmn9Qm1vyBmsmDHmdBYhTNyMNeCVVFujpgG7BcypBVjwRRx2XVbuR9bJqLYB4NVgBtow?cluster=devnet) |
+
+**Not verified by OtterSec.** `solana-verify remote submit-job` refused all four programs with "Remote verification service only supports mainnet. You're currently connected to a different network." The explorer's "verified" badge comes from that service, so these devnet programs don't show as verified. ThawGate is devnet-only and unaudited. The hash match above is the check that's available, and anyone can rerun it.
+
+### IDLs on chain
+
+`anchor idl init` (Anchor 0.32.2, legacy IDL accounts), signed by each program's upgrade authority. Each IDL fetched back (`anchor idl fetch`) equals `target/idl/<name>.json`; the sss-token and gate IDLs are also the SDK's copies (CI compares them).
+
+| Program | IDL account | Authority | Bytes (zlib) | Rent (SOL) | First transaction |
+|---|---|---|---|---|---|
+| `sss-token` | `EhUN6GTcicoY2SYj9h4WdbdXbB773NZ5jFUNajnhegU4` | `5BXg…` | 9,940 | 0.10164064 | [`2MRqrGws…`](https://explorer.solana.com/tx/2MRqrGwsK3R3Lfur1ufUDVgLy6g9xDqCXHdvd2DQn823CtN1f7dsJEcALKCEpqos9zLGHbikaEzYsBc5SiCqnPUe?cluster=devnet) |
+| `transfer-hook` | `CwieEpy9uSGuS4aibdMH8tHbfzKCjinhvsRu5DMvMBaF` | `3YnV…` | 1,166 | 0.01272032 | [`51PkJUw2…`](https://explorer.solana.com/tx/51PkJUw2eyPifgjww6dZRkcDMMHawCk2pmkQYPcA9KM9Kn9c2Pt49CumQX6cDe5sXxtrDsRu8foJjviB9nrbEXbJ?cluster=devnet) |
+| `thawgate-gate` | `GNt4GBoUb572bvYvmk3xvEwfTovjqbdtECc6exvDYfNv` | `5BXg…` | 2,279 | 0.02402840 | [`3FfeKGtB…`](https://explorer.solana.com/tx/3FfeKGtBEaohNUtzU4wECQsVAdUaEcRq26UpDdWDf3aDb4woEG1PesZgfryPUzWU1fWeQn6bHEojrA85bmMRymvJ?cluster=devnet) |
+| `demo-pool` | `FCDxf61xqqVCT1fGcXmqUWMEjtV5FYzRafT9tRUMWyE3` | `5BXg…` | 995 | 0.01098296 | [`63ATrxZy…`](https://explorer.solana.com/tx/63ATrxZysBw62shwG4nMX3LUzr76CKsb3Lw2SQcdgbpKoQeBRHLwfRRtMjZjFw8JGC99VxyCHt1VEdH9VtAGzZdh?cluster=devnet) |
+
+**Cost:** `5BXg…` 0.136782 SOL and `3YnV…` 0.01273532 SOL, rent plus fees. To read an IDL: `anchor idl fetch <program id> --provider.cluster devnet`.
+
 ## Devnet, 2026-10-04 16:52 UTC: sss-token upgrade (S15a: re-add, transfer back, stored bumps)
 
 **Anchor:** 0.32.2 · **Solana CLI:** 3.0.14 · **Cluster:** devnet, Agave 4.3.0 · **Script:** `scripts/deploy-devnet-acl.sh` (dry run first) · **Source:** `f4830cc`

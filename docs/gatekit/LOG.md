@@ -1660,3 +1660,43 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - **Deploy-script dry runs (read-only):** against `target/deploy`, all four programs report `same`. Against a copy with one gate byte flipped and demo_pool padded by 300,000 B, the gate plans an upgrade and demo_pool an extend plus an upgrade; nothing was sent.
   - **Public devnet RPC (read-only probe):** serves `getProgramAccounts` on the gate (19 policies) and on Token ACL (19 MintConfigs gated by ThawGate). It refuses it on Token-2022 ("excluded from account secondary indexes"), which the keeper's resync needs, so the scheduled keeper needs a keyed devnet RPC.
   - **solana-verify 0.5.2's Linux binary** needs glibc 2.39: it runs on CI's Ubuntu 24.04, not in WSL Ubuntu 22.04 (2.35). Locally, 0.4.9 is installed.
+- **Push 1** (`540efdb..7e0cc40`): all five workflows green on `7e0cc40` (Full CI 37383183618 with docker-health, so the shared-dependency rewrite builds; CI 37383183662; Gate Tests 37383183611; Anchor Integration 37383183569; TypeScript Tests 37383183601).
+- **Reproducible build: the deployed programs already are the solana-verify build.**
+  - **Builds:** `verifiable-build.yml` dispatched twice on `7e0cc40`, runs 37383198735 and 37383211989, about 2 min each. solana-verify 0.5.2 found the 3.0.14 image (Rust 1.86 in the container) and ran one `--library-name` build per program.
+  - **Hashes:** the two runs gave identical hashes, and every executable hash equals the devnet program's. Executable hashes: sss_token `3a4d2b54…`, transfer_hook `686203bd…`, thawgate_gate `f567e0b8…`, demo_pool `bfaaf569…`. The full table is in DEPLOYMENT.md.
+  - **The artifact:** downloaded with `gh run download`; `sha256sum -c` OK. Its four `.so` files are byte-identical to the local `target/deploy`, with the sha256s DEPLOYMENT.md already listed (`09b46b84…`, `dd61933b…`, `edad2ef5…`, `5968d341…`).
+  - **The redeploy is a no-op:** `SO_DIR=/tmp/s17-so DRY_RUN=1 scripts/deploy-devnet-acl.sh` reports `same` for all four programs, 0 transactions. Nothing was deployed, so the user's "deploy" step had nothing to send.
+- **Remote verification: blocked, mainnet only.**
+  - **PDAs uploaded:** each program's upgrade authority uploaded its otter-verify PDA on devnet (`solana-verify verify-from-repo --skip-build`, local 0.4.9, commit `7e0cc40`, `--library-name <lib>`):
+    - sss_token `8gGjYREK…`: [cbKnYmuN…](https://explorer.solana.com/tx/cbKnYmuNkjAySMrYcZYU2yoiwZ4MfeYkFEBCHetUM4m4FpqMQBhQTZH5Ky8w7qX48TN6frqEnns7cc7XPt9rza4?cluster=devnet);
+    - transfer_hook `53VqtFvn…`: [2MTDPzez…](https://explorer.solana.com/tx/2MTDPzez2r3TrYYhY9FfptuMAgdDvjjrw1XDBUuVHbyEa8rjRvU9b2kfdYUMxdyZwmxmkck1JrXYzXn9pEm1oc44?cluster=devnet), signed by 3YnV;
+    - thawgate_gate `GUfTN1fG…`: [cQsfG6hg…](https://explorer.solana.com/tx/cQsfG6hgcPR2VFpyWBsrcT5Mserq6eVhQVy44sCyqAXZor5fWXX4LhyP6J43FScz2SAMCxaPpoT5o6Eu4JZSZhu?cluster=devnet);
+    - demo_pool `FLapJtU7…`: [4BToF4YC…](https://explorer.solana.com/tx/4BToF4YCwW3FjtQiikjiLmn9Qm1vyBmsmDHmdBYhTNyMNeCVVFujpgG7BcypBVjwRRx2XVbuR9bJqLYB4NVgBtow?cluster=devnet).
+  - **`solana-verify remote submit-job`** refused all four with "Remote verification service only supports mainnet. You're currently connected to a different network." The explorer's badge comes from that service.
+  - **Docs wording:** "reproducible build, not verified" (README, DEPLOYMENT.md, SUBMISSION.md). Nothing claims "verified".
+- **IDLs on chain** (`anchor idl init`, the upgrade authorities): sss_token `EhUN6GTc…`, transfer_hook `CwieEpy9…` (3YnV), thawgate_gate `GNt4GBoU…`, demo_pool `FCDxf61x…`.
+  - Each `anchor idl fetch` equals `target/idl/<name>.json`.
+  - Rent 0.10164064 / 0.01272032 / 0.02402840 / 0.01098296 SOL.
+  - Cost with fees: 5BXg 0.136782, 3YnV 0.01273532.
+  - Signatures in DEPLOYMENT.md.
+- **vUSD's reserve attestor rotated to `2da6…`** (`/tmp/s17-rotate.js`, the SDK's `setReserveAttestor` signed by 5BXg, `max_staleness` kept at 86,400):
+  - **Funding:** `2da6…` got 0.05 SOL ([2Jz2qQYD…](https://explorer.solana.com/tx/2Jz2qQYDYLnVr2K61yR6urqhyjUZfULGwMQvGdmRb3V9WwWu8BC7XLFpNcJPE6JN1btfeGVoZk8jAh9nH9wMDpRX?cluster=devnet)), and the keeper `4auu6t…` 0.1 SOL ([4j84X1KE…](https://explorer.solana.com/tx/4j84X1KEKigP2hTcuzz7bQnb5xoLiC4erAZjUsu6mG56MV9VmbCB39Y3vHcdeP4FQCiMskUffucSe1ND9ToK2M41?cluster=devnet)).
+  - **Rotation:** [2o1WDkEq…](https://explorer.solana.com/tx/2o1WDkEqxEwt6AVxt9SqErY7MKNAtnCGCfvnT52jD8Uaof6EaC1sqmWd447QeGkRgb64u7sUbBgkRfrxd7Ynb4CS?cluster=devnet). As the program documents, it reset reserves, `as_of` and the report URI.
+  - **First posts by `2da6…`** (`thawgate reserves post`, public RPC, empty HOME), 5,000 lamports each, fresh until 2026-10-06 22:44 UTC:
+    - vUSD 1,000,000, with `--report-uri` (the URI from before): [3KZuu8hQ…](https://explorer.solana.com/tx/3KZuu8hQcUjw26LhiRzLbMhznZwrxNBtGjgd5iHt4J13NqTrBbJzyuxX3h6DLN5ndmUqZPBSqTWU6ipy4KtCx8uN?cluster=devnet);
+    - the S9 mint 2,000: [3zH5nBgQ…](https://explorer.solana.com/tx/3zH5nBgQ5GMRRhHSqfMGPazE1PmPJbCR4LPPJM7aV3cnoAhS8bPMNH8FKvBLaj2ZxCp2Vpx31szB3NTVL4z8jKMR?cluster=devnet).
+  - **The secret:** `2da6…` now attests both demo mints and holds no program authority, so it is the one `THAWGATE_ATTESTOR_KEYPAIR` secret.
+- **Pre-check before an all-mints keeper** (read-only, `/tmp/s17-freezable.js`, `explain()` on every thawed account): 20 gated mints, 18 thawed accounts, all `COMPLIANT`, **0 freezable**. A keeper without `KEEPER_MINTS` (the judging sweep) froze nothing on its first sweep.
+- **Devnet e2e:**
+  - **Story:** 7/7 (mint `9PSTSvNb…`).
+  - **Venue:** 3/3 (mint `8CWkRjVu…`); the in-process keeper froze alice 2,007 ms after the revoke.
+  - **Keeper** (`KEEPER=external RUNS=10`, the keeper as its own process with no `KEEPER_MINTS`, tracking 22 mints; its startup resync took 16 s and froze nothing):
+    - **Run 1** (mint `8rVeatbY…`): 6 passing, 1 pending (case 6 is in-process only), **1 failing**. Case 7's metric check expected all 10 revoke freezes under `trigger="sas"` and saw 9. The keeper log shows the 15 s sweep reached one revoked holder 2 s before the SAS event did, so that freeze counted under `sweep`. All 10 were frozen by the keeper (case 1 checks the fee payer), with 0 failures and 0 denials. Revoke → frozen p50 2,026 ms (min 1,603, max 4,954).
+    - **Fix** (`tests/e2e/keeper.ts`, case 7): the SAS stream must have frozen at least one, and sas + sweep ≥ RUNS.
+    - **Run 2** (mint `BMgVSSgh…`): **7 passing, 1 pending**. Revoke → frozen p50 2,321 ms (min 1,570, max 4,376); all 10 via sas. Blacklist 1,938 ms; expiry: block time 7 s after the expiry; policy tightening 2,901 ms. Keeper metrics: 0 failures, 0 denied.
+  - **Cost:** 5BXg 26.506053492 → 26.229674652 SOL (−0.27637884) for the four e2e runs. The keeper paid 30 freezes (0.00015 SOL).
+- **Gated mints: 24** (read-only `/tmp/s17-mint-origins.js`, each mint's first transaction):
+  - the 16 to S16;
+  - 3 by the user's Phantom wallet `FndW…` (`N6EyMTrE…`, `2GTpC3AZ…`, and `7S7vWX…`, the one they reported);
+  - S17's UX check `5MyCNJbx…`, story `9PSTSvNb…`, venue `8CWkRjVu…`, and keeper e2e `8rVeatbY…` and `BMgVSSgh…`.
+  - No external integrator.
