@@ -408,7 +408,12 @@ describe(`S8 keeper: revoke, blacklist, expiry and policy freezes with no manual
     assert.equal(health.body.status, "ok");
     const text = await metricsText();
     const freezes = counter(text, "thawgate_keeper_freezes_total");
-    assert.ok(counter(text, "thawgate_keeper_freezes_total", { trigger: "sas", reason: "NO_CREDENTIAL" }) >= RUNS);
+    // A revoke is caught by the SAS log stream, or by the 15 s sweep when the sweep reaches the holder first (S17 on
+    // devnet, 22 mints tracked: 9 sas + 1 sweep). Case 1 already checks that the keeper sent every one of those freezes.
+    const sasFreezes = counter(text, "thawgate_keeper_freezes_total", { trigger: "sas", reason: "NO_CREDENTIAL" });
+    const sweepFreezes = counter(text, "thawgate_keeper_freezes_total", { trigger: "sweep", reason: "NO_CREDENTIAL" });
+    assert.ok(sasFreezes >= 1, `the SAS stream froze nothing:\n${text}`);
+    assert.ok(sasFreezes + sweepFreezes >= RUNS, `revoke freezes (sas ${sasFreezes} + sweep ${sweepFreezes}) < ${RUNS}:\n${text}`);
     assert.ok(counter(text, "thawgate_keeper_freezes_total", { trigger: "blacklist", reason: "BLACKLISTED" }) >= 1);
     assert.ok(counter(text, "thawgate_keeper_freezes_total", { trigger: "expiry", reason: "CREDENTIAL_EXPIRED" }) >= 1);
     assert.ok(counter(text, "thawgate_keeper_freezes_total", { reason: "KYC_LEVEL_TOO_LOW" }) >= 1);
