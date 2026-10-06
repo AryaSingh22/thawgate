@@ -37,6 +37,7 @@
                 <a class="button" href="#quickstart">Quickstart</a>
                 <a class="button" href="https://github.com/AryaSingh22/thawgate">Source on GitHub</a>
             </div>
+            <p class="muted">Console wallets: tested with Phantom; Solflare adapter included, not tested.</p>
         </div>
 
         <section aria-labelledby="count">
@@ -49,7 +50,7 @@
             <p class="muted">
                 Most of them are this project's own test and demo mints (each one is traced in the
                 <a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/gatekit/LOG.md">build log</a>), plus any mint someone creates
-                in the console. A scheduled job counts them every 6 hours with one read of Token ACL's accounts and publishes the result as
+                in the console. A job counts them with one read of Token ACL's accounts each time the site deploys (on pushes, and on a 6-hour schedule that GitHub hasn't started yet) and publishes the result as
                 <a href="stats.json">stats.json</a>; this page never queries an RPC itself.
             </p>
         </section>
@@ -135,20 +136,26 @@
             <h2 id="judging">While the project is being judged</h2>
             <div class="ops">
                 <div class="card">
-                    <h3>Keeper: a sweep every 10 minutes</h3>
+                    <h3>Keeper: a sweep scheduled every 10 minutes</h3>
                     <p>
-                        No keeper runs continuously. A scheduled GitHub Actions job runs it every 10 minutes for 150 s over every mint gated by
-                        ThawGate, yours included. So a holder who stops complying is frozen at the next run: within about 10 minutes plus
+                        No keeper runs continuously. A GitHub Actions job is scheduled to run it every 10 minutes for 150 s over every mint gated
+                        by ThawGate, yours included. So a holder who stops complying is frozen at the next run: within about 10 minutes plus
                         GitHub's start delay, which GitHub doesn't bound. A keeper that runs all the time freezes in about 2 s
                         (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/KEEPER.md#measured">KEEPER.md</a>).
+                    </p>
+                    <p>
+                        <strong>Status (2026-10-06 16:53 UTC):</strong> GitHub started 1 scheduled run in the 9.6 h since the schedules were
+                        added, so the sweep is also dispatched by hand, and reserves are re-posted manually daily during judging
+                        (<a href="https://github.com/AryaSingh22/thawgate/blob/main/docs/thawgate/KEEPER.md#during-judging-a-scheduled-sweep">KEEPER.md</a>).
                     </p>
                     <p class="muted">Anyone can freeze sooner: <code>thawgate freeze-if-invalid --token-account &lt;account&gt;</code>.</p>
                 </div>
                 <div class="card">
-                    <h3>Reserves: re-posted every 6 hours</h3>
+                    <h3>Reserves: scheduled every 6 hours, re-posted manually daily</h3>
                     <p>
-                        The two demo mints (vUSD and the S9 mint) need a reserve post younger than 24 hours to mint. A scheduled job re-posts them
-                        every 6 hours, signed by their attestor key, which holds no other authority. GitHub may delay or skip scheduled runs.
+                        The two demo mints (vUSD and the S9 mint) need a reserve post younger than 24 hours to mint. A job is scheduled to re-post
+                        them every 6 hours, signed by their attestor key, which holds no other authority. GitHub may delay or skip scheduled runs,
+                        and it hasn't started this one yet, so the reserves are re-posted manually daily during judging.
                     </p>
                 </div>
             </div>

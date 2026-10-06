@@ -20,7 +20,7 @@ Pre-build verification for the World's Fair rebuild of SSS. Every figure is mark
 | 6 | Upgrade to Anchor 0.32.x | 0.32.2 is fine. Note that the latest stable is **1.2.0** (2026-09-04), and 1.0.0 shipped 2026-04-02. | [M] GitHub releases API, crates.io |
 | 7 | Transfer hook becomes optional strict mode | Then **pause no longer stops transfers**. Today transfers are paused only by the hook ([transfer-hook/src/execute.rs:118-120](../../programs/transfer-hook/src/execute.rs#L118-L120)). Use Token-2022's native **Pausable** extension. Spiko's mainnet Token ACL mints do this (`pausableConfig`). | [M] RPC `jsonParsed` mint extensions; [C] [solana.com pausable](https://solana.com/docs/tokens/extensions/pausable) |
 | 8 | Revoking the credential freezes the wallet | Nothing freezes automatically. Token ACL only calls the gate when someone sends `freeze_permissionless`. That requires `enable_permissionless_freeze` plus a **keeper/crank**, which anyone can run. | [M] token-acl source |
-| 9 | Nobody ships a SAS-KYC or sanctions gate | **On mainnet this is true.** All 33 Token ACL mints use the reference allow/block-list gate. On devnet, 18 other gate programs exist, but none is publicly identified as SAS or sanctions. | [M] §1.4 |
+| 9 | Nobody ships a SAS-KYC or sanctions gate | **On mainnet this is true.** All 33 Token ACL mints use the reference allow/block-list gate. On devnet, 18 other gate programs exist, but none is publicly identified as SAS or sanctions. **Update 2026-10-06: no longer established on mainnet.** A second gate (`GATEa6u2…`, 3 "Test Asset" mints since 2026-09-24) has no public source, and its binary contains error messages about SAS attestations (§1.4). | [M] §1.4 |
 
 ---
 
@@ -82,6 +82,14 @@ Pre-build verification for the World's Fair rebuild of SSS. Every figure is mark
 | Using reference ABL gate | **33 (100 %)** | 21,615 |
 | Permissionless thaw enabled | 32 | 21,670 |
 | Other (custom) gate programs | **0** | 18 programs / 85 mints (+40 with no gate) |
+
+> **Update 2026-10-06** (mainnet only; devnet not re-counted): **36** MintConfig accounts, **33** on the reference gate, **3** on a second gate program, `GATEa6u2jBLp7Cq3qyPopvS9gTsEEkDjWivJaotkseL1`. Same query, as [`scripts/docs/mainnet-gates.js`](../../scripts/docs/mainnet-gates.js), on public mainnet at 2026-10-06 16:57 UTC (slot 453,961,657). What is publicly verifiable about that gate ([LOG S18b](LOG.md#s18b--2026-10-06--claims-fixes)):
+> - its mints are "Test Asset A/B/C" (TESTA/TESTB/TESTC), first transactions 2026-09-24;
+> - its first transaction and its last deploy were on 2026-09-24 (18:35 and 20:57 UTC); its upgrade authority `9aJbattT…` holds no other program;
+> - it has no security.txt, no IDL account and no verified build, and neither GitHub code search nor a web search finds its address outside this repo;
+> - its binary is an Anchor program whose strings include SAS attestation errors (e.g. "SAS attestation schema does not match the trusted attestor's schema") and "Required topics must include the KYC topic".
+>
+> The table above is the 2026-09-23 measurement.
 
 - Mainnet users: **27 Spiko fund mints** (SAFO, USTBL, EUTBL, UKTBL, SPKCC and currency variants), plus GLDY, HOPY, EARF, aclOrca, solSOL, and one mint without metadata (`HmQ8c7ze…`) [M].
 - Devnet custom gates: all are executable, with at least 16 distinct upgrade authorities. The largest are `CiobtU6J…` (30 mints, including "STOIC Devnet Reissue" and "E2E YP…"), `5pQSSm9B…` (15, test mints `ACL*JUL*`) and `SKYCVrkX…` (13 mints without metadata; seen, unidentified, in a [Spout Finance devnet teardown](https://github.com/kaminariouji/spout-beta-teardown)). `REEf…`, `4BPu…` and `8TBE…` were deployed in the last ~4 days (slots 502.08M–502.58M vs current ~502.97M) but serve only `ACL2JUL27` test mints. TODO(verify): owners of `CiobtU6J…` and `SKYCVrkX…`. Both are possible integrators or competitors.

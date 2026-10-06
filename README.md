@@ -4,7 +4,7 @@
 
 **Status: unaudited, devnet only.** Nothing is deployed to mainnet. Read [SECURITY.md](docs/thawgate/SECURITY.md) and its known limitations before you build on it.
 
-**Try it:** the [site](https://aryasingh22.github.io/thawgate/) has the console (public devnet RPC, Phantom or Solflare) and the current count of mints using ThawGate. The packages are [`@thawgate/sdk`](https://www.npmjs.com/package/@thawgate/sdk) and [`@thawgate/cli`](https://www.npmjs.com/package/@thawgate/cli) 0.1.0, and the release is [v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0).
+**Try it:** the [site](https://aryasingh22.github.io/thawgate/) has the console (public devnet RPC; tested with Phantom; Solflare adapter included, not tested) and the current count of mints using ThawGate. The packages are [`@thawgate/sdk`](https://www.npmjs.com/package/@thawgate/sdk) and [`@thawgate/cli`](https://www.npmjs.com/package/@thawgate/cli) 0.1.0, and the release is [v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0).
 
 [![Gate Tests](https://github.com/AryaSingh22/thawgate/actions/workflows/gate-test.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/gate-test.yml)
 [![Anchor Integration](https://github.com/AryaSingh22/thawgate/actions/workflows/anchor-test.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/anchor-test.yml)
@@ -84,11 +84,11 @@ Each number links to the log entry or the transactions that measured it.
 
 ## While ThawGate is being judged
 
-- **No keeper runs continuously.** A scheduled GitHub Actions job ([keeper.yml](.github/workflows/keeper.yml)) runs the keeper every 10 minutes for 150 s: a startup sweep over every Token ACL mint gated by ThawGate on devnet (mints you create included), then live events until it stops.
+- **No keeper runs continuously.** A GitHub Actions job ([keeper.yml](.github/workflows/keeper.yml)) is scheduled to run the keeper every 10 minutes for 150 s: a startup sweep over every Token ACL mint gated by ThawGate on devnet (mints you create included), then live events until it stops.
 - **So a holder who stops complying is frozen at the next run:** within about 10 minutes plus GitHub's start delay, which GitHub doesn't bound (it may also skip a run). That is not the ~2 s above, which needs a keeper that runs all the time.
-- **Status (2026-10-06):** scheduled runs not observed yet; reserves are re-posted manually daily during judging. Until GitHub starts the schedule, the keeper sweep runs only when dispatched ([KEEPER.md](docs/thawgate/KEEPER.md#during-judging-a-scheduled-sweep)).
+- **Status (2026-10-06 16:53 UTC):** GitHub started 1 scheduled run in the 9.6 h since the schedules were added: the keeper at 14:14 UTC, which worked ([run 37477250796](https://github.com/AryaSingh22/thawgate/actions/runs/37477250796)). The other 57 keeper slots, the first reserves slot (12:17 UTC) and the first site slot (12:41 UTC) had no run. So reserves are re-posted manually daily during judging, and the keeper sweep is also dispatched by hand ([KEEPER.md](docs/thawgate/KEEPER.md#during-judging-a-scheduled-sweep)).
 - **Anyone can freeze sooner.** Token ACL's freeze is permissionless: `thawgate freeze-if-invalid --token-account <account>` (or `gate.freezeIfInvalid` in the SDK) freezes an account whose owner the policy flags, and sends nothing otherwise.
-- **Reserves:** vUSD and the S9 mint need a reserve post younger than 24 hours to mint. [reserves.yml](.github/workflows/reserves.yml) re-posts them every 6 hours, signed by their attestor key, which holds no other authority.
+- **Reserves:** vUSD and the S9 mint need a reserve post younger than 24 hours to mint. [reserves.yml](.github/workflows/reserves.yml) is scheduled to re-post them every 6 hours (see the status above), signed by their attestor key, which holds no other authority.
 
 ## Program IDs (devnet)
 
@@ -120,7 +120,7 @@ Each of our programs has a single-key upgrade authority on devnet ([SECURITY.md 
 
 ## Console
 
-`frontend/` is the ThawGate console, live at [aryasingh22.github.io/thawgate/console/](https://aryasingh22.github.io/thawgate/console/) on public devnet. It runs client-side with Phantom or Solflare, through `@thawgate/sdk`:
+`frontend/` is the ThawGate console, live at [aryasingh22.github.io/thawgate/console/](https://aryasingh22.github.io/thawgate/console/) on public devnet. It runs client-side with a browser wallet (tested with Phantom; Solflare adapter included, not tested; [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010)), through `@thawgate/sdk`:
 - `/issuer`: a wizard that creates a stablecoin, sets its policy and enables Token ACL, plus a Mint card that refuses past reserves in plain words;
 - `/holders`: "Unlock my wallet", with the gate's reason and `TG:` code;
 - `/decisions` (no wallet): for each wallet of a mint, allowed or denied and why, with the last gate decision on chain;

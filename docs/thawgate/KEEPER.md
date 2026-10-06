@@ -47,10 +47,12 @@ Run more than one keeper, on separate RPCs, if the window matters.
 
 ## During judging: a scheduled sweep
 ThawGate's own devnet keeper doesn't run continuously while the project is judged. Instead, [`.github/workflows/keeper.yml`](../../.github/workflows/keeper.yml) runs it on a schedule:
-- **What runs:** every 10 minutes (cron `*/10 * * * *`), GitHub Actions runs `node services/keeper/dist/main.js` for 150 s, then stops it with SIGTERM.
+- **What runs:** scheduled every 10 minutes (cron `*/10 * * * *`; see the status below), GitHub Actions runs `node services/keeper/dist/main.js` for 150 s, then stops it with SIGTERM.
 - **What it covers:** each run is a startup resync and sweep over every gated mint (no `KEEPER_MINTS`), then live events until the timeout.
 - **Freeze latency:** a holder who stops complying is frozen at the next run, so within the 10-minute interval plus GitHub's start delay. GitHub doesn't bound that delay and may skip a scheduled run. During a run's 150 s, a revoke is frozen in about 2 s, as measured below.
-- **Status (2026-10-06):** scheduled runs not observed yet; reserves are re-posted manually daily during judging. By 09:48 UTC, about 2.5 h after the schedules were added, GitHub had started no scheduled run of any workflow. Both workflows are `active`, and both succeeded when dispatched by hand (keeper run 37442389553, reserves run 37442394165). Until scheduled runs appear, the sweep runs only when dispatched.
+- **Status (2026-10-06 16:53 UTC):** GitHub has started 1 scheduled run since the schedules were added at 07:14 UTC: the keeper's 14:10 slot, started at 14:14 UTC ([run 37477250796](https://github.com/AryaSingh22/thawgate/actions/runs/37477250796): 25 gated mints resynced in 3.3 s, nothing to freeze, a clean stop at 150 s). The other 57 keeper slots, the first reserves slot (12:17 UTC) and the first site slot (12:41 UTC) had no run. So reserves are re-posted manually daily during judging, and the sweep is also dispatched by hand.
+  - **The schedule is registered:** the cron lines are valid, the files are on `main` (the default branch), every workflow is `active`, and Actions allows all actions. No cause was found in the repo; GitHub may delay or skip scheduled runs.
+  - **Both workflows succeeded when dispatched** (keeper run 37442389553, reserves run 37442394165).
 - **Inactivity:** GitHub pauses scheduled workflows after 60 days without repo activity ([GitHub docs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows): "automatically disabled" in a public repository).
 - **Signer:** `THAWGATE_KEEPER_KEYPAIR` is the fee payer `4auu6t…`, which holds no role.
 - **RPC:** `THAWGATE_DEVNET_RPC` is a keyed devnet RPC. It stays in the job, and both Actions and the keeper mask it.

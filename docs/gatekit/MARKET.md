@@ -4,6 +4,8 @@ Markers as in [RESEARCH.md](RESEARCH.md): **[M]** measured, **[C]** cited, **TOD
 
 ## 1. The gap, in numbers
 
+> **Update 2026-10-06:** 36 mainnet Token ACL mints. 33 use the reference gate, and 3 use a second gate program, `GATEa6u2jBLp7Cq3qyPopvS9gTsEEkDjWivJaotkseL1`, whose mints are named "Test Asset A/B/C" (TESTA/TESTB/TESTC). That gate was deployed on 2026-09-24 and has no public source; its binary contains error messages about SAS attestations. Count: [`scripts/docs/mainnet-gates.js`](../../scripts/docs/mainnet-gates.js) (`getProgramAccounts` on Token ACL, `dataSize` 100, grouped by `gating_program` at offset 68) on public mainnet, 2026-10-06 16:57 UTC, slot 453,961,657 ([LOG S18b](LOG.md#s18b--2026-10-06--claims-fixes)). The bullets below are the 2026-09-23 research, unchanged.
+
 - **33 of 33** mainnet Token ACL mints use the Foundation's reference allow/block-list gate. There are **0 custom gates** on mainnet [M].
 - 27 of those 33 are Spiko fund mints [M]. In allow mode, "wallets must be explicitly added to the list" [C] ([gate readme](https://github.com/solana-foundation/token-acl-gate)). So today an issuer copies every KYC decision into an on-chain list by hand or with its own backend.
 - KYC providers already write SAS credentials on Solana: Sumsub, Civic, RNS.ID [C] ([solana.com](https://solana.com/news/solana-attestation-service)). No gate reads them yet: none among the Foundation examples, and none identified among 18 devnet custom gates [M].
@@ -22,6 +24,8 @@ Markers as in [RESEARCH.md](RESEARCH.md): **[M]** measured, **[C]** cited, **TOD
 | solagent-pay (`github.com/altaranexus-ship-it/solagent-pay`; the repo returned 404 on 2026-10-06, so it's deleted or private now) | Session-PDA budgets for agents + x402 | Own program | Created 2026-09-17, 0 stars [M] | Adjacent, likely a hackathon entry. GateKit uses the audited Subscriptions & Allowances program instead |
 | Range | Risk/sanctions API, Switchboard-verified on-chain | — | Live [C] | **Data partner** for the sanctions policy |
 | Sumsub / Civic / RNS.ID | SAS credential issuers | — | Live [C] | **Distribution partners**: "your credential now unlocks regulated tokens" |
+
+**Update 2026-10-06:** the ABL gate's "33/33" is now 33 of 36 mainnet mints; the other 3 use `GATEa6u2…` (§1). Who deployed that gate isn't publicly known: no repo, security.txt, IDL or verified build names it ([LOG S18b](LOG.md#s18b--2026-10-06--claims-fixes)).
 
 TODO(verify): owners of devnet gates `CiobtU6J…` (30 mints, e.g. "STOIC Devnet Reissue") and `SKYCVrkX…` (13 mints). See RESEARCH.md §1.4.
 
