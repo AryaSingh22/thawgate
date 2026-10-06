@@ -13,7 +13,7 @@
         "url": "https://github.com/AryaSingh22/thawgate/issues"
     },
     "bin": {
-        "thawgate": "./dist/index.js"
+        "thawgate": "dist/index.js"
     },
     "engines": {
         "node": ">=20"
