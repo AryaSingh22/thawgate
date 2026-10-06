@@ -4,63 +4,45 @@ One entry per session: shipped / links / next. This is the "built during the hac
 
 Paths: since S16 the docs live in `docs/thawgate/` (ThawGate) and `docs/examples/sss/` (the SSS baseline). Entries before S16 keep the old `docs/*.md` paths, which were true when written.
 
-## ▶ S17 handoff (read first; remove when S17 ends)
-S16 is done (entry at the bottom). **The C2 feature freeze from tag `c2-freeze` still holds: only fixes, no new features.**
+## ▶ S18 handoff (read first; remove when S18 ends)
+S17 is done (entry at the bottom): **v0.1.0 is released.** The C2 feature freeze from tag `c2-freeze` still holds: only fixes, no new features.
 - **Shipped:**
-  - docs moved into `docs/thawgate/` (ThawGate) and `docs/examples/sss/` (SSS baseline);
-  - new GATE.md, POLICY.md, INTEGRATING.md and KEEPER.md;
-  - the README rewritten (pitch, GIF, diagram, quickstart, program IDs, "Built on");
-  - SUBMISSION.md replaced; DISCLOSURE.md filled in.
-- **Done-when checks:**
-  - **Stranger test:** passed with no guesses, 233.5 s clone → `done`.
-  - **Link check:** clean.
-  - **CI:** see "CI on …" below.
-- **Devnet:** two GIF runs on vUSD and one stranger quickstart. No program changed.
-- **Tooling added:** `scripts/docs/`, for re-running both checks after the README changes in S17:
-  - `check-links.sh`: lychee offline and online, explorer links checked on chain, anchors checked against GitHub's rendering;
-  - `stranger-test.sh`;
-  - `explorer-check.js`, `gh-anchors.js`, `gate-mints.js`.
+  - **Console fixes from the user's Phantom run:** Attest shows an existing attestation instead of a simulation dump and can't send twice; Create says why it is disabled; logs fold under "show details". Also one chunk per page (entry 1.32 → 0.62 MB) and `@thawgate/shared` by version.
+  - **Programs:** the devnet bytes of all four equal `solana-verify build` of `7e0cc40`, in three CI runs, the tag's included. Nothing was redeployed. They are **not "verified"**: OtterSec's remote verifier refuses devnet ("only supports mainnet"), and the docs say so. IDLs and otter-verify PDAs are on devnet.
+  - **npm:** `@thawgate/sdk` and `@thawgate/cli` 0.1.0, published by `publish.yml` from tag `v0.1.0` with provenance. The README quickstart uses npm now; the stranger test took 38.4 s.
+  - **Site:** <https://aryasingh22.github.io/thawgate/>, with the console under `/console/` (public RPC only) and `stats.json` (gated-mint count, every 6 h).
+  - **Release** [v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0), with the `.so` files and `SHA256SUMS`.
+  - **Judging ops:** `keeper.yml` (every 10 min, 150 s, all gated mints) and `reserves.yml` (every 6 h). vUSD's reserve attestor is now `2da6…`.
+- **⚠ The three repo secrets are still missing** at the end of S17. `gh secret list -R AryaSingh22/thawgate` shows only `NPM_TOKEN`; the user reported adding them, and S17 checked four times. Until they exist, both crons only run their `secrets` job and skip the real one. So **no keeper sweeps, and vUSD's and the S9 mint's reserves go stale after 2026-10-06 22:44 UTC.** In WSL (nothing printed):
+  - `gh secret set THAWGATE_ATTESTOR_KEYPAIR -R AryaSingh22/thawgate < ~/.keys/thawgate/attestor.json`
+  - `gh secret set THAWGATE_KEEPER_KEYPAIR -R AryaSingh22/thawgate < ~/.keys/thawgate/keeper.json`
+  - `grep '^HELIUS_DEVNET_RPC=' ~/thawgate/.env | cut -d= -f2- | tr -d '"'"'"'\r' | gh secret set THAWGATE_DEVNET_RPC -R AryaSingh22/thawgate`
+  - Then `gh workflow run keeper.yml -R AryaSingh22/thawgate` and `gh workflow run reserves.yml -R AryaSingh22/thawgate`. Check that `sweep` and `post` ran (not skipped), that the keeper log shows `resync done` with every gated mint, and that both mints' reserve `as_of` moved.
+- **The scheduled cadence isn't measured yet:** see "Scheduled workflows" in the S17 entry. Measure the start delay from `gh run list --workflow keeper.yml --event schedule`, then put the number in README/KEEPER/SUBMISSION/site, which today say only "within 10 minutes plus GitHub's start delay".
 
-**CI on `4ed1ca7`** (the S16 closing push, `e346dfd..4ed1ca7`; checked 2026-10-06): **all five workflows green.**
-- **Gate Tests** (37369091908, rerun): gate 55, story 7, keeper e2e 8, screener e2e 5, SDK 14, venue 3.
-- **Anchor Integration** (37369091930): 75 passing.
-- **TypeScript Tests** (37369199256, rerun): SDK vitest 137.
-- **Full CI** (37369091938, rerun) and **CI** (37369091922, second rerun).
-- Each rerun was for jobs GitHub's hosted runners never picked up ("not acquired by Runner of type hosted"). No job that ran failed. `e346dfd`'s CI is in the S16 entry.
+**S18** (PLAN.md S18: demo script + rehearsal):
+- **`scripts/demo.ts`:** KYC unlock → trade in `demo_pool` (labelled as the demo venue) → revoke → keeper freeze → trade fails → mint blocked by reserves.
+- **Keeper for the recording:** run it locally as its own process, which freezes in about 2 s. The judging sweep runs every 10 min and isn't what the demo shows.
+- **Reserves before recording:** re-post with `gh workflow run reserves.yml` or the CLI as `2da6…`. vUSD's attestor is no longer `5BXg…`.
+- **Phantom / Solflare:** Phantom passed (S17 entry). Solflare is still unreported; the user reports it, so don't ask.
 
-**S17** (PLAN.md S17: release v0.1.0; fixes only):
-- **Release items:**
-  - `solana-verify` verified builds;
-  - the IDLs on chain;
-  - `npm publish` of `@thawgate/sdk` and `@thawgate/cli` 0.1.0 with provenance;
-  - landing page;
-  - release notes;
-  - the attestor on a schedule through judging.
-- **After npm publish, the quickstart gets shorter.** Replace the README's clone/build/pack block with `npm i @thawgate/sdk @solana/web3.js` plus `curl` of `quickstart.mjs`. Update sdk/README ("until 0.1.0 is on npm") and cli/README. Then:
-  - re-run `scripts/docs/stranger-test.sh` (fund the printed address, then `stranger-test.sh rerun`, then `rm -rf /tmp/tg-stranger`) and `scripts/docs/check-links.sh <pushed sha>`;
-  - update the README/SUBMISSION quickstart time and LOG.
-- **Carried from S16:**
-  - **Console code-split:** the bundle is 1.32 MB in one chunk.
-  - **`@thawgate/shared` `file:` dependencies** in mint-service, indexer, compliance-service and webhook-service.
-- **Phantom / Solflare:** pending from the user; they report it, so don't ask.
-- **Ask the user:** DISCLOSURE.md says nothing about AI assistance. The commits carry Co-Authored-By trailers. Add a line only if the user wants one or Colosseum's rules ask.
-
-State on devnet (2026-10-06, after S16):
-- **Programs:** unchanged since S15a.
-- **Balances:** `5BXg…` 27.348138312 SOL, the keeper `4auu6t…` 0.04977, the demo credential's signer `5avMn…` (`~/.keys/thawgate/spike-payer.json`) 0.99473284.
-- **vUSD** `AsePwCcV…`: reserves 1,000,000, re-posted in S16. **Stale again after 2026-10-06 18:58 UTC.**
-  - Re-post from a dir without the repo's `.env`:
-
-    `mkdir -p /tmp/s16-cli && cd /tmp/s16-cli && HOME=/tmp/s16-cli node ~/thawgate/cli/dist/index.js --json --rpc-url https://api.devnet.solana.com --keypair ~/.config/solana/sss-authority.json reserves post --mint AsePwCcVLPUDTTNbrnL1jAQTa2nLQxEQ9kzDkeLKGHLw --amount 1000000000000`
-  - Its 6 token accounts:
-    - 2 thawed and compliant: the pool vault (owner `CrkVVB2g…`) and `5BXg…`;
-    - 4 frozen: alice and bob from S12, and the two S16 GIF burners `3YPjaUNe…` and `E7mQE9v4…`, both with 0 balance.
-- **S9 mint** `D6Q5PA…`: reserves 2,000, also stale after 2026-10-06 18:58 UTC.
-  - Re-post with the same command, plus `--keypair ~/.keys/thawgate/attestor.json --mint D6Q5PA7xzxbrZaRoiXGfMcbGsLCH35cneRweEMysXEoq --amount 2000000000`.
-  - The attestor `2da6…` has 0.00999 SOL.
-- **Gated mints:** 16 on devnet. The 16th is the stranger test's `2X27fLkQ…`; the other 15 are listed in the S16 entry.
+State on devnet (2026-10-06, after S17):
+- **Programs:** unchanged since S15a. IDL accounts `EhUN6GTc…` (sss_token), `CwieEpy9…` (hook), `GNt4GBoU…` (gate), `FCDxf61x…` (pool). Otter-verify PDAs at commit `7e0cc40` (DEPLOYMENT.md).
+- **Balances:** `5BXg…` 26.029669652 SOL (S17 spent 0.818464 of it), `3YnV…` 1.92361646, the keeper `4auu6t…` 0.149615, the attestor `2da6…` 0.05998, the demo credential's signer `5avMn…` 0.99473284.
+- **vUSD** `AsePwCcV…`: attestor `2da6…` since S17. Reserves 1,000,000, fresh until 2026-10-06 22:44 UTC; the report URI is the same as before.
+- **S9 mint** `D6Q5PA…`: reserves 2,000, fresh until 2026-10-06 22:44 UTC.
+- **Gated mints:** 25 at the end of S17, all this project's (the S17 entry lists the new ones). No external integrator.
 
 Open:
+- **New in S17:**
+  - **The repo secrets and the scheduled-run delay** (above).
+  - **`npm audit`:** a fresh install reports 10 advisories (4 moderate, 6 high), all transitive through `@solana/web3.js` 1.x, Anchor and spl-token. Fixing them means changing those dependencies.
+  - **npm "cleaned" the CLI's `bin` path** at publish (`./dist/index.js` became `dist/index.js`). Run `npm pkg fix` in `cli/` before the next publish.
+  - **Helius credits:** the keeper cron, once its secrets exist, makes about 20 `getProgramAccounts` calls per run, every 10 min, on the user's key. Watch the usage.
+  - **No measured revoke → freeze under the scheduled sweep yet.** S17's numbers are from a running keeper.
+  - **`stats.json` and the README/SUBMISSION count (25) are snapshots.** The site refreshes every 6 h; the docs don't.
+  - **`ubuntu-latest` becomes Ubuntu 26 from 2026-10-19** (a CI annotation). `verifiable-build.yml` pins `ubuntu-24.04`; the others follow `latest`.
+  - **Scheduled workflows are disabled after 60 days without repo activity** (not before Oct 12).
 - **New in S16:**
   - **The GIF's revoke → frozen times** (1,759 and 1,793 ms) come from 2 runs. They're an illustration; the p50s come from S8 and S15a.
   - **`evidence/` keeps old links**, untouched by rule. `scripts/docs/check-links.sh` skips it.
@@ -92,6 +74,18 @@ Open:
   - The build-in-public thread (user).
 
 Gotchas:
+- **New in S17:**
+  - **solana-verify 0.5.2's release binary needs glibc 2.39,** so it runs in CI (`ubuntu-24.04`) only. WSL Ubuntu 22.04 has 0.4.9, which is enough for `get-program-hash`, `get-executable-hash` and PDA uploads (`verify-from-repo --skip-build`).
+  - **`solana-verify build --library-name X`** runs `cargo build-sbf --manifest-path programs/<x>/Cargo.toml` in Docker: a per-package feature resolution. CI therefore builds the four programs one at a time. The image comes from `Cargo.toml` `[workspace.metadata.cli]`.
+  - **Public devnet `getProgramAccounts`:** refused on Token-2022 ("excluded from account secondary indexes"), but it works on the gate and Token ACL. The keeper needs a keyed RPC; `gate-mints.js` and the site don't.
+  - **`anchor idl init` prints no signatures.** Read the IDL account's oldest transaction.
+  - **`set_reserve_attestor` to a new attestor resets reserves, `as_of` and `report_uri`.** The first post must pass `--report-uri`; later posts reuse the last one.
+  - **npm serves a brand-new package about 5 min after the publish** (SDK 4 min 48 s, CLI 5 min 12 s). `publish.yml` waits for the SDK before publishing the CLI.
+  - **New schedules:** GitHub had started no run of the new crons 33 min after they were added.
+  - **A `vite` on :3000 started outside the session** (the user's) may already be running. Vite moves to :3001; don't kill it.
+  - **The keeper e2e's metric check** counted only `trigger="sas"` freezes. With many mints tracked, the 15 s sweep can catch a revoke first (fixed in case 7).
+  - **`gh … --jq` inside `bash -lc '…'`:** the jq program must be a quoted string, `--jq "\"\(.a) \(.b)\""`. A bare `\(.a)` fails to parse, and a polling loop around it never ends.
+  - **The user moves long foreground commands to the background.** Start long waits in the background (or under Monitor) and keep working.
 - **New in S16:**
   - **GitHub anchors:**
     - `POST /markdown` renders headings without ids.
@@ -1715,3 +1709,46 @@ S15 is split: S15a does the program fixes and the upgrade, S15b the security rev
   - Node 20.20.0 / npm 10.8.2: 21.3 s;
   - on both: CJS `require` (with `/reasons`, 9 exports) and ESM `import` OK, `thawgate --version` 0.1.0, and the CLI's SDK dependency deduped to the one 0.1.0.
 - **GitHub Pages enabled** (`gh api -X POST repos/AryaSingh22/thawgate/pages -f build_type=workflow`): `https://aryasingh22.github.io/thawgate/`, HTTPS enforced.
+- **Push 3** (`62f6de7..30c753c`): the npm quickstart (README, sdk/ and cli/ READMEs, SUBMISSION, the stranger test's header), the site with `pages.yml`, and this log.
+- **The site is live** (first deploy: Pages run 37431370008, green):
+  - **`stats.json`** came from `gate-mints.js` on public devnet: 24 mints at slot 508,021,388 (before the stranger test added the 25th).
+  - **Checked in headless Edge** against the live URL (`s17-site-check.mjs`, scratch):
+    - the landing page and its count in dark, light and 375 px widths, with no horizontal overflow;
+    - the console at `/thawgate/console/` with the RPC badge `api.devnet.solana.com` and no legacy nav entry;
+    - the deep link `/console/reserves` through `404.html`, and an unknown path back to the landing page;
+    - `/decisions` showing the public-site keeper note;
+    - 0 page errors.
+  - **No keyed URL:** a grep of the entry bundle for `api-key=` / `helius-rpc` found 0 matches. The workflow's assemble step greps the whole console build.
+  - **Before the push:** the same assembly was rehearsed locally in `/tmp` with a Pages-like server.
+- **Stranger test with the npm quickstart: passed, no guesses** (`scripts/docs/stranger-test.sh 30c753c`; the README fetched from GitHub; empty `HOME` with no npm cache; `PATH` `/usr/local/bin:/usr/bin:/bin` with Node 22.17.0 and npm 10.9.2):
+
+  | Step | s |
+  |---|---|
+  | `mkdir` + `cd` | 0.0 |
+  | `npm init -y` | 0.7 |
+  | `npm i @thawgate/sdk @solana/web3.js` (empty cache, 100 packages) | 17.7 |
+  | `curl -O …/quickstart.mjs` | 0.7 |
+  | first `node quickstart.mjs` (faucet refused, exit 1, as documented) | 4.1 |
+  | funded `node quickstart.mjs` | 15.3 |
+  | **total, `mkdir` → `done`** | **38.4** |
+
+  - **Against S16:** the clone/yarn/build/pack version took 233.5 s.
+  - **Funding stand-in:** 0.2 SOL by transfer from `5BXg…` ([5eTcSf5d…](https://explorer.solana.com/tx/5eTcSf5dEQWRbtibusaXfP523bE72PG6JAJRvio4uWYQjXqdaZCfsJX3YsUmJYYdAb7G3Sz2urBqMKLnZgNCiQ4j?cluster=devnet)), not counted.
+  - **The funded run:** issuer `FXAGimEb…`, stablecoin `9LeRA8rK…` (the 25th gated mint), 0.023509 SOL, two public-RPC 429 retries. Unlock [uHxAR7TR…](https://explorer.solana.com/tx/uHxAR7TRJWZ8A8BpvMgUiSp2MgqMEBqSC4MajPgmDBYypgZtR1Fb6DZrAoR2RP1j98xsC9AkFPQLb2Xpk4Trauz?cluster=devnet); `freezeIfInvalid` → frozen `NO_CREDENTIAL` [tuaTweQk…](https://explorer.solana.com/tx/tuaTweQkhZtwuVDudQMquDTB6oXoEUG8Yo9smmBZmhmAZKeycDsaeBuFkXaazz9LNqsRfYtz6UA8yJuoDZAuV2p?cluster=devnet).
+  - **Cleanup:** the directory (292 MB) was deleted afterwards.
+- **`npm audit` of the fresh install:** 10 advisories (4 moderate, 6 high).
+  - All are transitive, through `@solana/web3.js` 1.x, `@coral-xyz/anchor` and `@solana/spl-token`: `bigint-buffer` (buffer overflow in `toBigIntLE`), `toml`, `jayson` → `uuid` and `stream-json`.
+  - None is in ThawGate's code. Fixing them means changing those dependencies, which the freeze rules out. Stated in the release notes; carried to S18.
+- **GitHub release `v0.1.0`** ([release](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0), `gh release create --verify-tag`):
+  - **Notes:** the programs and their executable hashes, the reproducible-build status, npm and the quickstart, the changes since `c2-freeze`, the judging-period ops, the npm audit result, and the disclosure.
+  - **Assets:** the tag run's `verified-so` artifact (`sha256sum -c` OK, byte-identical to the `7e0cc40` builds): the four `.so` files, `SHA256SUMS` and `hashes.txt`.
+- **Scheduled workflows:** by 07:47 UTC, about 33 minutes after push 2 added the crons, GitHub had started **no** scheduled run of any workflow. The cadence and the start delay are still unmeasured (S18 handoff).
+- **CI on push 3** (`30c753c`): Site (GitHub Pages) 37431370008, Full CI 37431369910 and CI 37431369870 green when this entry was written. Gate Tests, Anchor Integration and TypeScript Tests were still running; the closing push's CI is in the S18 handoff.
+- **Done-when checks (PLAN S17):**
+  - `npm i @thawgate/sdk` works: from the registry, in clean directories, on Node 20 and 22, and in the stranger test.
+  - The program IDs show as verified: **no, and documented why.** OtterSec's remote verifier is mainnet-only. Instead, the devnet bytes equal the solana-verify build in three CI runs, with PDAs and IDLs on chain (DEPLOYMENT.md).
+  - The site is live: <https://aryasingh22.github.io/thawgate/>.
+  - Reserves stay fresh on a schedule: `reserves.yml` exists and its skip path works, **but it posts nothing until `THAWGATE_ATTESTOR_KEYPAIR` exists** (S18 handoff).
+  - The console UX fixes are in, and checked on devnet.
+- **Links:** commits `d540a25`, `e274a5f`, `8e7a93f`, `7e0cc40` (push 1); `73f4302`, `a3de719`, `62f6de7` (push 2, tag `v0.1.0`); `551552f`, `adf6cfe`, `30c753c` (push 3); and the closing commit. Release [v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0); the devnet transactions above.
+- **Next:** S18, per the handoff at the top of this file.

@@ -4,6 +4,8 @@
 
 **Status: unaudited, devnet only.** Nothing is deployed to mainnet. Read [SECURITY.md](docs/thawgate/SECURITY.md) and its known limitations before you build on it.
 
+**Try it:** the [site](https://aryasingh22.github.io/thawgate/) has the console (public devnet RPC, Phantom or Solflare) and the current count of mints using ThawGate. The packages are [`@thawgate/sdk`](https://www.npmjs.com/package/@thawgate/sdk) and [`@thawgate/cli`](https://www.npmjs.com/package/@thawgate/cli) 0.1.0, and the release is [v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0).
+
 [![Gate Tests](https://github.com/AryaSingh22/thawgate/actions/workflows/gate-test.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/gate-test.yml)
 [![Anchor Integration](https://github.com/AryaSingh22/thawgate/actions/workflows/anchor-test.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/anchor-test.yml)
 [![TypeScript Tests](https://github.com/AryaSingh22/thawgate/actions/workflows/ts-tests.yml/badge.svg)](https://github.com/AryaSingh22/thawgate/actions/workflows/ts-tests.yml)
@@ -59,7 +61,7 @@ node quickstart.mjs
 
 The first run creates `issuer.json` (a new wallet) and asks the devnet faucet for 1 SOL. The faucet often refuses. Then the script prints the wallet's address and stops: send that address 0.2 devnet SOL from <https://faucet.solana.com>, and run `node quickstart.mjs` again. It ends with `freezeIfInvalid: frozen=true NO_CREDENTIAL` and `done`.
 
-**Measured:** the earlier version of this quickstart, which built the SDK from a clone, took 233.5 s from `git clone` to `done`, followed verbatim with an empty home directory ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)). The npm steps above are re-timed the same way in [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010). What each step of the script does, and its timings on Node 20 and 22, are in [sdk/README.md](sdk/README.md#quickstart-5-minutes-on-devnet-from-a-fresh-wallet).
+**Measured:** these exact steps, run in an empty folder with an empty home directory (no npm cache) and nothing but this README, took 38.4 s from `mkdir` to `done` on Node 22, not counting the funding. `npm i` was 17.7 s of that, and the funded run 15.3 s ([LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010)). The earlier version, which built the SDK from a clone, took 233.5 s ([LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs)). What each step of the script does, and its timings on Node 20 and 22, are in [sdk/README.md](sdk/README.md#quickstart-5-minutes-on-devnet-from-a-fresh-wallet).
 
 Next: the [`thawgate` CLI](cli/README.md) does the same from a shell, and the [console](#console) does it in a browser wallet.
 
@@ -69,7 +71,7 @@ Each number links to the log entry or the transactions that measured it.
 
 | What | Result | Evidence |
 |---|---|---|
-| Mints gated by ThawGate on devnet | 24 at S17, all created by this project: 21 by its tests and demos, 3 by the console's Phantom wallet test. No external integrator yet. | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs), [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010) |
+| Mints gated by ThawGate on devnet | 25 at the end of S17, all created by this project: 22 by its tests and demos, 3 by the console's Phantom wallet test. No external integrator yet. | [LOG S16](docs/gatekit/LOG.md#s16--2026-10-06--rebrand-polish-and-docs), [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010) |
 | Credential revoked → account frozen by a running keeper, no manual step | p50 2,863 ms over 10 runs; p50 2,042 ms over 10 runs after the S15a upgrade; p50 2,026 ms and 2,321 ms over 10 runs each in S17, with the keeper tracking every gated mint (22–24) | [LOG S8](docs/gatekit/LOG.md#s8--2026-10-01--keeper-freeze-crank-serviceskeeper), [LOG S15a](docs/gatekit/LOG.md#s15a--2026-10-04--sss-token-fixes-in-one-devnet-upgrade-thawgate-reserves-post-legacy-e2e-green), [LOG S17](docs/gatekit/LOG.md#s17--2026-10-06--release-v010) |
 | Sanctions flag → blacklisted → frozen | p50 3,714.5 ms over 10 runs, on the labelled static list | [LOG S10](docs/gatekit/LOG.md#s10--2026-10-03--sanctions-screener-provider-result--blacklisted--frozen-by-the-keeper) |
 | A KYC'd holder trades; after the revoke the keeper freezes them and their next trade fails | in `demo_pool`, the demo venue: [swap](https://explorer.solana.com/tx/443r1ucqQhhE4w1UxJJryaydSEYKQFAS6FchTqDcagmVuNX9LfM8g2tJcXny7zrZNaT6mxRsjn5GaQeXed1quvz9?cluster=devnet), [keeper freeze](https://explorer.solana.com/tx/3N8zvh2j3WXJ3zgafYCtt47zNseJ7fWsM5kefns2B78Xs4Q1jsXunMYYXcYo3bqrUH7J7JfDeJj8vmGPAyTKsQzj?cluster=devnet), [refused swap](https://explorer.solana.com/tx/59dd4R7onZzpxsBEGdwg3oxSyLYhSGsaZTr7p93dqVVT4fB9oVyRtcActJh5pbW6sPUJNvKkGRkUB3eELNRHZfTJ?cluster=devnet) | [LOG S12-venue](docs/gatekit/LOG.md#s12-venue--2026-10-04--the-demo-venue-a-gated-token-trading-in-a-pool-on-devnet) |
@@ -117,7 +119,7 @@ Each of our programs has a single-key upgrade authority on devnet ([SECURITY.md 
 
 ## Console
 
-`frontend/` is the ThawGate console. It runs client-side on devnet with Phantom or Solflare, through `@thawgate/sdk`:
+`frontend/` is the ThawGate console, live at [aryasingh22.github.io/thawgate/console/](https://aryasingh22.github.io/thawgate/console/) on public devnet. It runs client-side with Phantom or Solflare, through `@thawgate/sdk`:
 - `/issuer`: a wizard that creates a stablecoin, sets its policy and enables Token ACL, plus a Mint card that refuses past reserves in plain words;
 - `/holders`: "Unlock my wallet", with the gate's reason and `TG:` code;
 - `/decisions` (no wallet): for each wallet of a mint, allowed or denied and why, with the last gate decision on chain;
@@ -128,7 +130,7 @@ yarn install && yarn workspace @thawgate/sdk build   # the console installs the 
 cd frontend && npm install && npm run dev            # http://localhost:3000
 ```
 
-`/decisions` also reads a keeper (`VITE_KEEPER_URL`, default `http://localhost:3005`). Never put a keyed RPC URL in the frontend: every `VITE_*` variable ends up in the public bundle. Screenshots are in [docs/thawgate/screenshots/](docs/thawgate/screenshots/).
+`/decisions` also reads a keeper (`VITE_KEEPER_URL`, default `http://localhost:3005`). The public console has no keeper to read, so there it says so and checks single wallets live. Never put a keyed RPC URL in the frontend: every `VITE_*` variable ends up in the public bundle. Screenshots are in [docs/thawgate/screenshots/](docs/thawgate/screenshots/).
 
 ## Repository
 

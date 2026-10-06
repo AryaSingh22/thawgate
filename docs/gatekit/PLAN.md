@@ -257,12 +257,12 @@ Orca needs a Token Badge we don't have (SPIKES.md S2), so this builds the S2 fal
 - **Done when:** a stranger can go from README to a devnet unlock without asking you. Test it with one integrator. **Done 2026-10-06** (LOG.md S16): the README's quickstart blocks ran verbatim from a fresh clone with an empty HOME, with no guesses, in 233.5 s to `done` (not counting funding). No outside integrator has run it yet. The link check is clean (`scripts/docs/check-links.sh`).
 
 ### S17 · Release v0.1.0
-- [ ] Final devnet deploy; **verified builds** with `solana-verify` (Anchor 0.32 uses it for `anchor verify`); IDLs on-chain (0.32 uploads them on deploy by default).
-- [ ] `npm publish` `@thawgate/sdk` + `@thawgate/cli` 0.1.0 with provenance. Optional: a crate for the gate's Rust client.
-- [ ] Landing page (GitHub Pages or Vercel) on your domain: pitch, live devnet counter ("mints using ThawGate" = the RESEARCH.md §1.4 query), docs link.
-- [ ] GitHub release notes.
-- [ ] The attestor runs on a schedule through judging, so the demo mint's reserves never go stale (S9: 1-day window).
-- **Done when:** `npm i @thawgate/sdk` works; the program IDs show as verified; the site is live. Tag `v0.1.0`.
+- [x] Final devnet deploy; **verified builds** with `solana-verify` (Anchor 0.32 uses it for `anchor verify`); IDLs on-chain (0.32 uploads them on deploy by default). *S17: no deploy was needed, because the devnet bytes already equal the solana-verify build (three CI runs). Remote verification is mainnet-only, so the programs are documented as a reproducible build, not "verified". IDLs: `anchor idl init`; the script deploys with `solana program deploy`.*
+- [x] `npm publish` `@thawgate/sdk` + `@thawgate/cli` 0.1.0 with provenance. Optional: a crate for the gate's Rust client (not done).
+- [x] Landing page: GitHub Pages at <https://aryasingh22.github.io/thawgate/> (no custom domain). Pitch, the console, a counter from a scheduled job (`stats.json`), docs links.
+- [x] GitHub release notes ([v0.1.0](https://github.com/AryaSingh22/thawgate/releases/tag/v0.1.0)).
+- [ ] The attestor runs on a schedule through judging, so the demo mint's reserves never go stale (S9: 1-day window). *S17: `reserves.yml` is in place (every 6 h), but it waits for the `THAWGATE_ATTESTOR_KEYPAIR` secret (LOG S18 handoff).*
+- **Done when:** `npm i @thawgate/sdk` works; the program IDs show as verified; the site is live. Tag `v0.1.0`. **2026-10-06** (LOG.md S17): npm, site and tag done. "Verified" is blocked (OtterSec is mainnet-only) and documented. The scheduled attestor and keeper wait for their secrets.
 
 ## Phase 5: demo and submit (Sat 10 → Sun 11)
 
