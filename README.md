@@ -86,6 +86,7 @@ Each number links to the log entry or the transactions that measured it.
 
 - **No keeper runs continuously.** A scheduled GitHub Actions job ([keeper.yml](.github/workflows/keeper.yml)) runs the keeper every 10 minutes for 150 s: a startup sweep over every Token ACL mint gated by ThawGate on devnet (mints you create included), then live events until it stops.
 - **So a holder who stops complying is frozen at the next run:** within about 10 minutes plus GitHub's start delay, which GitHub doesn't bound (it may also skip a run). That is not the ~2 s above, which needs a keeper that runs all the time.
+- **Status (2026-10-06):** scheduled runs not observed yet; reserves are re-posted manually daily during judging. Until GitHub starts the schedule, the keeper sweep runs only when dispatched ([KEEPER.md](docs/thawgate/KEEPER.md#during-judging-a-scheduled-sweep)).
 - **Anyone can freeze sooner.** Token ACL's freeze is permissionless: `thawgate freeze-if-invalid --token-account <account>` (or `gate.freezeIfInvalid` in the SDK) freezes an account whose owner the policy flags, and sends nothing otherwise.
 - **Reserves:** vUSD and the S9 mint need a reserve post younger than 24 hours to mint. [reserves.yml](.github/workflows/reserves.yml) re-posts them every 6 hours, signed by their attestor key, which holds no other authority.
 

@@ -50,6 +50,8 @@ ThawGate's own devnet keeper doesn't run continuously while the project is judge
 - **What runs:** every 10 minutes (cron `*/10 * * * *`), GitHub Actions runs `node services/keeper/dist/main.js` for 150 s, then stops it with SIGTERM.
 - **What it covers:** each run is a startup resync and sweep over every gated mint (no `KEEPER_MINTS`), then live events until the timeout.
 - **Freeze latency:** a holder who stops complying is frozen at the next run, so within the 10-minute interval plus GitHub's start delay. GitHub doesn't bound that delay and may skip a scheduled run. During a run's 150 s, a revoke is frozen in about 2 s, as measured below.
+- **Status (2026-10-06):** scheduled runs not observed yet; reserves are re-posted manually daily during judging. By 09:48 UTC, about 2.5 h after the schedules were added, GitHub had started no scheduled run of any workflow. Both workflows are `active`, and both succeeded when dispatched by hand (keeper run 37442389553, reserves run 37442394165). Until scheduled runs appear, the sweep runs only when dispatched.
+- **Inactivity:** GitHub pauses scheduled workflows after 60 days without repo activity ([GitHub docs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows): "automatically disabled" in a public repository).
 - **Signer:** `THAWGATE_KEEPER_KEYPAIR` is the fee payer `4auu6t…`, which holds no role.
 - **RPC:** `THAWGATE_DEVNET_RPC` is a keyed devnet RPC. It stays in the job, and both Actions and the keeper mask it.
 
